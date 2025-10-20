@@ -1,0 +1,33 @@
+# Node
+node_modules/
+.next/
+.out/
+.next-static/
+
+# Rust
+backend/target/
+**/*.rlib
+
+# Env & secrets
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+backend/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage and test outputs
+coverage/
+.jest-cache/
+
+# Docker
+*.pid
+
+# Editor
+.vscode/
+.idea/

@@ -1,0 +1,253 @@
+/* Print-specific styles for professional invoice printing */
+
+@media print {
+  /* Hide all non-essential elements */
+  .no-print,
+  .sidebar,
+  .header,
+  .navigation,
+  .footer,
+  .breadcrumb,
+  .tabs,
+  .buttons,
+  .actions,
+  .search-bar,
+  .filter-controls,
+  .dashboard-layout,
+  .main-content > *:not(.invoice-print-area) {
+    display: none !important;
+  }
+
+  /* Ensure only invoice content is printed */
+  .invoice-print-area {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Reset all margins and padding for print */
+  * {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Ensure proper page breaks */
+  .invoice-print-area {
+    page-break-inside: avoid;
+  }
+
+  /* Professional invoice styling */
+  .invoice-header {
+    text-align: center;
+    border-bottom: 2px solid #333;
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+  }
+
+  .invoice-header h1 {
+    font-size: 24pt;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+  }
+
+  .invoice-header p {
+    font-size: 10pt;
+    color: #666;
+  }
+
+  .invoice-info {
+    display: table;
+    width: 100%;
+    margin-bottom: 30px;
+  }
+
+  .invoice-info-left,
+  .invoice-info-right {
+    display: table-cell;
+    width: 50%;
+    vertical-align: top;
+    padding: 15px;
+  }
+
+  .invoice-info-section {
+    background: #f8f9fa;
+    padding: 15px;
+    border: 1px solid #ddd;
+  }
+
+  .invoice-info-section h3 {
+    font-size: 12pt;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+  }
+
+  .invoice-info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 10pt;
+  }
+
+  .invoice-info-label {
+    font-weight: bold;
+  }
+
+  .invoice-services {
+    margin-bottom: 30px;
+  }
+
+  .invoice-services h3 {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #333;
+    padding-bottom: 5px;
+  }
+
+  .invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+
+  .invoice-table th {
+    background: #333;
+    color: white;
+    padding: 10px;
+    text-align: left;
+    font-weight: bold;
+    font-size: 10pt;
+  }
+
+  .invoice-table td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    font-size: 10pt;
+  }
+
+  .invoice-table tr:nth-child(even) {
+    background: #f8f9fa;
+  }
+
+  .invoice-totals {
+    text-align: right;
+    margin-top: 20px;
+  }
+
+  .invoice-totals-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 10pt;
+  }
+
+  .invoice-totals-label {
+    font-weight: bold;
+  }
+
+  .invoice-total {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #333;
+    border-top: 2px solid #333;
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+
+  .invoice-payment {
+    background: #e8f5e8;
+    border: 1px solid #28a745;
+    padding: 15px;
+    margin: 20px 0;
+  }
+
+  .invoice-payment h3 {
+    color: #28a745;
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+
+  .invoice-notes {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+  }
+
+  .invoice-notes h3 {
+    font-size: 12pt;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+  }
+
+  .invoice-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid #333;
+    text-align: center;
+    font-size: 10pt;
+    color: #666;
+  }
+
+  /* Status badges for print */
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid #333;
+    font-size: 8pt;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .status-paid {
+    background: #d4edda;
+    color: #155724;
+  }
+
+  .status-pending {
+    background: #fff3cd;
+    color: #856404;
+  }
+
+  .status-overdue {
+    background: #f8d7da;
+    color: #721c24;
+  }
+
+  /* Ensure proper page setup */
+  @page {
+    size: A4;
+    margin: 1in;
+  }
+
+  /* Hide scrollbars and other UI elements */
+  body {
+    overflow: visible !important;
+  }
+
+  /* Ensure text is black for better printing */
+  * {
+    color: black !important;
+    background: white !important;
+  }
+
+  /* Exception for status badges */
+  .status-badge {
+    color: inherit !important;
+    background: inherit !important;
+  }
+}

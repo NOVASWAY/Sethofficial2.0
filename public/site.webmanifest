@@ -1,0 +1,16 @@
+{
+  "name": "Seth Medical Clinic Management System",
+  "short_name": "Seth Medical",
+  "description": "Comprehensive clinic management system for Seth Medical Clinic",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#FF6B35",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

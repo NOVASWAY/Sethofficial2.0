@@ -1,0 +1,54 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "close": "Close",
+    "submit": "Submit",
+    "reset": "Reset",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "patients": "Patients",
+    "appointments": "Appointments",
+    "consultations": "Consultations",
+    "prescriptions": "Prescriptions",
+    "medicines": "Medicines",
+    "inventory": "Inventory",
+    "pharmacy": "Pharmacy",
+    "billing": "Billing",
+    "invoices": "Invoices",
+    "reports": "Reports",
+    "users": "Users",
+    "settings": "Settings"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "invalid_credentials": "Invalid username or password",
+    "login_success": "Login successful",
+    "logout_success": "Logout successful"
+  },
+  "dashboard": {
+    "welcome": "Welcome to Seth Medical Clinic",
+    "overview": "Overview",
+    "quick_actions": "Quick Actions",
+    "recent_activities": "Recent Activities",
+    "statistics": "Statistics"
+  }
+}

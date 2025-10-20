@@ -1,0 +1,21 @@
+{
+  "name": "clinic-mcp-servers",
+  "version": "1.0.0",
+  "description": "MCP servers for clinic management system debugging and monitoring",
+  "main": "index.js",
+  "scripts": {
+    "start:database": "node database-mcp.js",
+    "start:backend": "node backend-mcp.js",
+    "start:system": "node system-mcp.js",
+    "start:browser": "node ../consolespy/simple-mcp-server.cjs",
+    "install-deps": "npm install"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

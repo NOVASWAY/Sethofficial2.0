@@ -1,0 +1,54 @@
+{
+  "common": {
+    "loading": "Inapakia...",
+    "error": "Hitilafu",
+    "success": "Imefanikiwa",
+    "save": "Hifadhi",
+    "cancel": "Ghairi",
+    "delete": "Futa",
+    "edit": "Hariri",
+    "add": "Ongeza",
+    "search": "Tafuta",
+    "filter": "Chuja",
+    "export": "Hamisha",
+    "import": "Ingiza",
+    "refresh": "Sasisha",
+    "close": "Funga",
+    "submit": "Wasilisha",
+    "reset": "Weka upya",
+    "confirm": "Thibitisha",
+    "yes": "Ndiyo",
+    "no": "Hapana"
+  },
+  "navigation": {
+    "dashboard": "Dashibodi",
+    "patients": "Wagonjwa",
+    "appointments": "Mikutano",
+    "consultations": "Mashauriano",
+    "prescriptions": "Dawa",
+    "medicines": "Dawa",
+    "inventory": "Hifadhi",
+    "pharmacy": "Duka la dawa",
+    "billing": "Bili",
+    "invoices": "Ankara",
+    "reports": "Ripoti",
+    "users": "Watumiaji",
+    "settings": "Mipangilio"
+  },
+  "auth": {
+    "login": "Ingia",
+    "logout": "Ondoka",
+    "username": "Jina la mtumiaji",
+    "password": "Nywila",
+    "invalid_credentials": "Jina la mtumiaji au nywila si sahihi",
+    "login_success": "Umeingia kwa mafanikio",
+    "logout_success": "Umeondoka kwa mafanikio"
+  },
+  "dashboard": {
+    "welcome": "Karibu kwenye Kliniki ya Seth Medical",
+    "overview": "Muhtasari",
+    "quick_actions": "Vitendo vya Haraka",
+    "recent_activities": "Shughuli za Hivi Karibuni",
+    "statistics": "Takwimu"
+  }
+}

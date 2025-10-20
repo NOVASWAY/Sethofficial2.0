@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 27 87% 67%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 71% 6%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 6%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 222 47% 11%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --ring: 262 83% 58%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+/* Custom print styles for invoice reports */
+@media print {
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-break-before {
+    page-break-before: always;
+  }
+
+  .print-break-after {
+    page-break-after: always;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid;
+  }
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Loading animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Dark mode visibility fixes */
+.dark {
+  /* Ensure text is always visible */
+  color-scheme: dark;
+}
+
+/* Fix badge visibility in dark mode */
+.dark .bg-green-100,
+.dark .bg-green-50 {
+  background-color: hsl(142 76% 20%) !important;
+  color: hsl(142 76% 85%) !important;
+}
+
+.dark .bg-yellow-100,
+.dark .bg-yellow-50 {
+  background-color: hsl(48 96% 25%) !important;
+  color: hsl(48 96% 85%) !important;
+}
+
+.dark .bg-red-100,
+.dark .bg-red-50 {
+  background-color: hsl(0 84% 25%) !important;
+  color: hsl(0 84% 90%) !important;
+}
+
+.dark .bg-blue-100,
+.dark .bg-blue-50 {
+  background-color: hsl(221 83% 25%) !important;
+  color: hsl(221 83% 90%) !important;
+}
+
+.dark .bg-purple-100,
+.dark .bg-purple-50 {
+  background-color: hsl(262 83% 25%) !important;
+  color: hsl(262 83% 90%) !important;
+}
+
+/* Fix text color for muted text */
+.dark .text-muted-foreground {
+  color: hsl(215.4 16.3% 65%) !important;
+}
+
+/* Fix border visibility */
+.dark .border {
+  border-color: hsl(216 34% 20%) !important;
+}
+
+/* Fix card backgrounds */
+.dark .bg-card {
+  background-color: hsl(224 71% 8%) !important;
+}
+
+/* Fix alert backgrounds */
+.dark [role="alert"] {
+  background-color: hsl(224 71% 8%) !important;
+  border-color: hsl(216 34% 20%) !important;
+}
+
+/* Ensure all text in cards is visible */
+.dark .text-foreground {
+  color: hsl(213 31% 91%) !important;
+}
+
+/* Fix "In Stock" badge and similar */
+.dark .bg-green-500 {
+  background-color: hsl(142 76% 36%) !important;
+}
+
+/* Fix warning badges */
+.dark .bg-yellow-500 {
+  background-color: hsl(48 96% 53%) !important;
+  color: hsl(224 71% 4%) !important;
+}
+
+/* Fix danger badges */
+.dark .bg-red-500 {
+  background-color: hsl(0 84% 60%) !important;
+}
