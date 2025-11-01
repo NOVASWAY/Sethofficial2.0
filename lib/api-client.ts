@@ -184,14 +184,20 @@ export const patientAPI = {
 
   /**
    * Bulk import patients
-   * POST /patients/bulk-import
+   * POST /api/patients/import
    */
   bulkImport: async (patients: any[]) => {
-    const response = await apiCall<{ success: boolean; data: { imported: number; errors: any[] }; message: string; error: any }>('/patients/bulk-import', {
+    const response = await apiCall<{ 
+      success: boolean
+      imported: number
+      failed: number
+      errors: string[]
+      message: string
+    }>('/patients/import', {
       method: 'POST',
       body: JSON.stringify({ patients }),
     })
-    return response.data
+    return response
   },
 
   /**

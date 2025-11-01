@@ -528,8 +528,12 @@ pub async fn create_patient(
     let insurance_number = patient_data.get("insurance_number").and_then(|v| v.as_str());
     let allergies = patient_data.get("allergies").map(|v| serde_json::to_value(v).unwrap_or(serde_json::json!([])));
 
-    // Generate patient number
-    let patient_number = generate_patient_number();
+    // Generate patient number (use provided one if available, otherwise generate)
+    let patient_number = patient_data.get("patient_number")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| generate_patient_number());
     let patient_id = Uuid::new_v4();
     let now = Utc::now();
 
@@ -731,20 +735,66 @@ pub async fn import_patients(
     let mut errors = Vec::new();
 
     for (index, patient_data) in patients_array.iter().enumerate() {
+        // Prepare patient data with defaults for missing required fields
+        let mut processed_patient = patient_data.clone();
+        
+        // Ensure required fields have defaults if missing
+        if !processed_patient.get("first_name").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false) {
+            errors.push(format!("Row {}: first_name is required", index + 1));
+            continue;
+        }
+        
+        if !processed_patient.get("last_name").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false) {
+            errors.push(format!("Row {}: last_name is required", index + 1));
+            continue;
+        }
+        
+        // Default date_of_birth if missing
+        if processed_patient.get("date_of_birth").and_then(|v| v.as_str()).is_none() {
+            processed_patient["date_of_birth"] = json!("1990-01-01");
+        }
+        
+        // Default gender if missing
+        if !processed_patient.get("gender").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false) {
+            processed_patient["gender"] = json!("Unknown");
+        }
+        
+        // Default phone if missing or "Not provided"
+        let phone = processed_patient.get("phone").and_then(|v| v.as_str()).unwrap_or("");
+        if phone.is_empty() || phone == "Not provided" {
+            processed_patient["phone"] = json!("0000000000"); // Placeholder phone
+        }
+        
+        // Remove patient_number if provided (will be generated or use existing from import)
+        // But we'll allow it to be preserved if it's in a specific format
+        if let Some(pn) = processed_patient.get("patient_number") {
+            // Keep the patient_number if it's provided in import
+            // Otherwise, create_patient will generate a new one
+        }
+        
+        // Remove status field (not used by create_patient)
+        processed_patient.as_object_mut().and_then(|obj| obj.remove("status"));
+        
         // Call create_patient for each patient
-        // Note: This is a simplified version - in production, you'd want batch inserts
-        match create_patient(web::Json(patient_data.clone()), state.clone()).await {
+        match create_patient(web::Json(processed_patient), state.clone()).await {
             Ok(_) => imported += 1,
-            Err(_) => errors.push(format!("Failed to import patient at index {}", index))
+            Err(e) => {
+                let error_msg = format!("Row {}: Failed to import - {}", index + 1, e);
+                errors.push(error_msg);
+            }
         }
     }
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
-        "message": format!("Imported {} patients", imported),
+        "message": format!("Imported {} out of {} patients", imported, patients_array.len()),
         "imported": imported,
         "failed": errors.len(),
-        "errors": errors
+        "errors": if errors.len() > 10 {
+            errors.iter().take(10).cloned().collect::<Vec<_>>()
+        } else {
+            errors
+        }
     })))
 }
 

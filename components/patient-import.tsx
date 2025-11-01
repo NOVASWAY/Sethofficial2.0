@@ -202,17 +202,29 @@ export function PatientImport() {
       dateOfBirth = `${birthYear}-01-01`
     }
     
+    // Use placeholder phone if missing (backend requires non-empty phone)
+    let phone = patient.phoneNumber?.trim() || ''
+    if (!phone || phone === 'Not provided') {
+      phone = '0000000000' // Placeholder that backend will accept
+    }
+    
+    // Use "Not specified" if location is missing
+    let location = patient.location?.trim()
+    if (!location || location === '') {
+      location = 'Not specified'
+    }
+    
     return {
       patient_number: generateUniquePatientNumber(patient.opNumber, patients, index),
       first_name: firstName,
       last_name: lastName,
       date_of_birth: dateOfBirth,
-      gender: 'Unknown', // Not in import data
-      phone: patient.phoneNumber || 'Not provided',
-      location: patient.location || 'Not specified',
+      gender: 'Unknown', // Default gender
+      phone: phone,
+      location: location,
       emergency_contact: '',
       emergency_phone: '',
-      status: 'active' as const,
+      // Note: status field removed as backend doesn't accept it in create_patient
     }
   }
 
@@ -275,20 +287,14 @@ export function PatientImport() {
         p.warnings?.some(w => w.includes('Shared OP number'))
       ).length
       
-      // 🎯 ACTUAL IMPORT TO CONTEXT - DATA NOW SAVED!
+      // 🎯 IMPORT TO BACKEND API - DATA SAVED TO DATABASE!
       const imported = await importPatients(processedPatients)
-      
-      // TODO: Also send to backend API when available
-      // await fetch('/api/patients/bulk-import', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ patients: processedPatients })
-      // })
 
       let description = `Successfully imported ${imported.length} patient record${imported.length > 1 ? 's' : ''}`
       if (sharedOPCount > 0) {
         description += ` (including ${sharedOPCount} family member${sharedOPCount > 1 ? 's' : ''} with shared OP numbers)`
       }
-      description += '. Patients are now searchable and saved to local storage.'
+      description += '. Patients are now saved to the database and searchable.'
 
       toast({
         title: 'Import Successful',

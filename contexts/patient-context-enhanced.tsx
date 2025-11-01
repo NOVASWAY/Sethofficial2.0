@@ -162,10 +162,24 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       setError(null)
       const response = await patientAPI.bulkImport(patientsData)
       
-      // Reload patients to get the updated list
+      if (!response.success) {
+        throw new Error(response.message || 'Import failed')
+      }
+      
+      // Log import results
+      if (response.errors && response.errors.length > 0) {
+        console.warn('Some patients failed to import:', response.errors)
+      }
+      
+      // Reload patients from backend to get the updated list with actual IDs
       await loadPatients()
       
-      return response.imported || []
+      // Return the imported patients from the reloaded list
+      // Match by patient_number since we just imported them
+      const importedNumbers = patientsData.map(p => p.patient_number)
+      const imported = patients.filter(p => importedNumbers.includes(p.patient_number))
+      
+      return imported
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to import patients'
       setError(errorMessage)
