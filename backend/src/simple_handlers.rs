@@ -3,11 +3,46 @@ use serde_json::json;
 use uuid::Uuid;
 use chrono::{Utc, NaiveDate, NaiveTime};
 use rand::Rng;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{AppState, models::{User, Patient, Consultation, Appointment, Invoice, Medicine, Prescription}, jwt_utils::verify_jwt_from_request};
 use crate::mpesa::{MpesaService, StkPushRequestPayload};
 use crate::services;
+use crate::websocket;
+
+// Cache helper functions
+async fn get_from_cache<T>(redis_client: &Option<std::sync::Arc<crate::redis_client::RedisClient>>, key: &str) -> Option<T>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    if let Some(redis) = redis_client {
+        if let Ok(Some(cached_json)) = redis.cache_get(key).await {
+            if let Ok(parsed) = serde_json::from_str::<T>(&cached_json) {
+                return Some(parsed);
+            }
+        }
+    }
+    None
+}
+
+async fn set_in_cache<T>(redis_client: &Option<std::sync::Arc<crate::redis_client::RedisClient>>, key: &str, value: &T, ttl: Duration)
+where
+    T: serde::Serialize,
+{
+    if let Some(redis) = redis_client {
+        if let Ok(json_str) = serde_json::to_string(value) {
+            let _ = redis.cache_set(key, &json_str, ttl).await;
+        }
+    }
+}
+
+async fn invalidate_cache(redis_client: &Option<std::sync::Arc<crate::redis_client::RedisClient>>, pattern: &str) {
+    // For simplicity, we'll use pattern-based invalidation
+    // In production, you might want to use Redis KEYS command with caution (or SCAN)
+    if let Some(redis) = redis_client {
+        let _ = redis.cache_delete(pattern).await;
+    }
+}
 
 // Basic user endpoints
 pub async fn get_users(state: web::Data<AppState>) -> Result<HttpResponse> {
@@ -370,6 +405,20 @@ pub async fn get_patients(
     let search = query.get("search").and_then(|v| v.as_str());
     let offset = (page - 1) * per_page;
 
+    // Build cache key
+    let cache_key = if let Some(search_term) = search {
+        format!("patients:search:{}:page:{}:per_page:{}", search_term, page, per_page)
+    } else {
+        format!("patients:list:page:{}:per_page:{}", page, per_page)
+    };
+
+    // Try to get from cache first (only for non-search queries to avoid stale search results)
+    if search.is_none() {
+        if let Some(cached_response) = get_from_cache::<serde_json::Value>(&state.redis_client, &cache_key).await {
+            return Ok(HttpResponse::Ok().json(cached_response));
+        }
+    }
+
     let patients_result = if let Some(search_term) = search {
         sqlx::query_as::<_, Patient>(
             "SELECT * FROM patients 
@@ -411,7 +460,7 @@ pub async fn get_patients(
             let total = count_result.unwrap_or(0);
             let total_pages = ((total as f64) / (per_page as f64)).ceil() as i64;
 
-            Ok(HttpResponse::Ok().json(json!({
+            let response_data = json!({
                 "success": true,
                 "data": patients,
                 "pagination": {
@@ -420,7 +469,14 @@ pub async fn get_patients(
                     "total": total,
                     "total_pages": total_pages
                 }
-            })))
+            });
+
+            // Cache the response (only non-search queries, 5 minutes TTL)
+            if search.is_none() {
+                set_in_cache(&state.redis_client, &cache_key, &response_data, Duration::from_secs(300)).await;
+            }
+
+            Ok(HttpResponse::Ok().json(response_data))
         },
         Err(e) => Ok(HttpResponse::InternalServerError().json(json!({
             "success": false,
@@ -568,11 +624,23 @@ pub async fn create_patient(
     .fetch_one(&state.db_pool)
     .await
     {
-        Ok(patient) => Ok(HttpResponse::Created().json(json!({
-            "success": true,
-            "message": "Patient created successfully",
-            "data": patient
-        }))),
+        Ok(patient) => {
+            // Invalidate patient list cache
+            invalidate_cache(&state.redis_client, "patients:list:").await;
+            
+            // Broadcast patient update via WebSocket
+            let _ = websocket::broadcast_patient_update(
+                state.websocket_manager.clone(),
+                patient.clone(),
+                "created"
+            ).await;
+            
+            Ok(HttpResponse::Created().json(json!({
+                "success": true,
+                "message": "Patient created successfully",
+                "data": patient
+            })))
+        },
         Err(sqlx::Error::Database(db_err)) if db_err.constraint() == Some("patients_patient_number_key") => {
             Ok(HttpResponse::Conflict().json(json!({
                 "success": false,
@@ -665,6 +733,17 @@ pub async fn update_patient(
         })))
     };
 
+    // Invalidate patient list cache and specific patient cache
+    invalidate_cache(&state.redis_client, "patients:list:").await;
+    invalidate_cache(&state.redis_client, &format!("patient:{}", patient_id)).await;
+
+    // Broadcast patient update via WebSocket
+    let _ = websocket::broadcast_patient_update(
+        state.websocket_manager.clone(),
+        updated_patient.clone(),
+        "updated"
+    ).await;
+
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
         "message": "Patient updated successfully",
@@ -679,22 +758,35 @@ pub async fn delete_patient(
 ) -> Result<HttpResponse> {
     let patient_id = path.into_inner();
 
-    // Check if patient exists
+    // Check if patient exists and get patient data for broadcast
     match sqlx::query_as::<_, Patient>("SELECT * FROM patients WHERE id = $1")
         .bind(patient_id)
         .fetch_optional(&state.db_pool)
         .await
     {
-        Ok(Some(_)) => {
+        Ok(Some(patient)) => {
             match sqlx::query("DELETE FROM patients WHERE id = $1")
                 .bind(patient_id)
                 .execute(&state.db_pool)
                 .await
             {
-                Ok(_) => Ok(HttpResponse::Ok().json(json!({
-                    "success": true,
-                    "message": "Patient deleted successfully"
-                }))),
+                Ok(_) => {
+                    // Invalidate patient list cache and specific patient cache
+                    invalidate_cache(&state.redis_client, "patients:list:").await;
+                    invalidate_cache(&state.redis_client, &format!("patient:{}", patient_id)).await;
+                    
+                    // Broadcast patient deletion via WebSocket
+                    let _ = websocket::broadcast_patient_update(
+                        state.websocket_manager.clone(),
+                        patient,
+                        "deleted"
+                    ).await;
+                    
+                    Ok(HttpResponse::Ok().json(json!({
+                        "success": true,
+                        "message": "Patient deleted successfully"
+                    })))
+                },
                 Err(sqlx::Error::Database(db_err)) if db_err.message().contains("foreign key") => {
                     Ok(HttpResponse::BadRequest().json(json!({
                         "success": false,
@@ -1339,6 +1431,20 @@ pub async fn get_appointments(
     let status = query.get("status").and_then(|v| v.as_str());
     let offset = (page - 1) * per_page;
 
+    // Build cache key (only cache simple list queries without filters)
+    let cache_key = if patient_id.is_none() && doctor_id.is_none() && date.is_none() && status.is_none() {
+        Some(format!("appointments:list:page:{}:per_page:{}", page, per_page))
+    } else {
+        None
+    };
+
+    // Try to get from cache for simple queries
+    if let Some(ref key) = cache_key {
+        if let Some(cached_response) = get_from_cache::<serde_json::Value>(&state.redis_client, key).await {
+            return Ok(HttpResponse::Ok().json(cached_response));
+        }
+    }
+
     // Build query with proper column aliasing for Appointment model
     let appointments_result = if let Some(patient_id_str) = patient_id {
         if let Ok(patient_uuid) = Uuid::parse_str(patient_id_str) {
@@ -1454,7 +1560,7 @@ pub async fn get_appointments(
             let total = count_result.unwrap_or(0);
             let total_pages = ((total as f64) / (per_page as f64)).ceil() as i64;
 
-            Ok(HttpResponse::Ok().json(json!({
+            let response_data = json!({
                 "success": true,
                 "data": appointments,
                 "pagination": {
@@ -1463,7 +1569,14 @@ pub async fn get_appointments(
                     "total": total,
                     "total_pages": total_pages
                 }
-            })))
+            });
+
+            // Cache the response for simple queries (3 minutes TTL)
+            if let Some(ref key) = cache_key {
+                set_in_cache(&state.redis_client, key, &response_data, Duration::from_secs(180)).await;
+            }
+
+            Ok(HttpResponse::Ok().json(response_data))
         },
         Err(e) => Ok(HttpResponse::InternalServerError().json(json!({
             "success": false,
@@ -1713,6 +1826,16 @@ pub async fn create_appointment(
                 "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
             });
 
+            // Invalidate appointment list cache
+            invalidate_cache(&state.redis_client, "appointments:list:").await;
+
+            // Broadcast appointment update via WebSocket (using JSON directly)
+            let _ = websocket::broadcast_appointment_update_json(
+                state.websocket_manager.clone(),
+                appointment.clone(),
+                "created"
+            ).await;
+
             Ok(HttpResponse::Created().json(json!({
                 "success": true,
                 "message": "Appointment created successfully",
@@ -1837,6 +1960,16 @@ pub async fn update_appointment(
                 "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
             });
 
+            // Invalidate appointment list cache
+            invalidate_cache(&state.redis_client, "appointments:list:").await;
+
+            // Broadcast appointment update via WebSocket (using JSON directly)
+            let _ = websocket::broadcast_appointment_update_json(
+                state.websocket_manager.clone(),
+                appointment.clone(),
+                "updated"
+            ).await;
+
             Ok(HttpResponse::Ok().json(json!({
                 "success": true,
                 "message": "Appointment updated successfully",
@@ -1861,22 +1994,48 @@ pub async fn delete_appointment(
 ) -> Result<HttpResponse> {
     let appointment_id = path.into_inner();
 
-    // Check if appointment exists
-    match sqlx::query("SELECT * FROM appointments WHERE id = $1")
-        .bind(appointment_id)
-        .fetch_optional(&state.db_pool)
-        .await
+    // Check if appointment exists - get data for broadcast
+    match sqlx::query(
+        "SELECT id, patient_id, doctor_id, date as appointment_date, time as appointment_time, 
+         duration, status, notes, created_at, updated_at
+         FROM appointments WHERE id = $1"
+    )
+    .bind(appointment_id)
+    .fetch_optional(&state.db_pool)
+    .await
     {
-        Ok(Some(_)) => {
+        Ok(Some(row)) => {
+            let appointment_json = json!({
+                "id": row.get::<Uuid, _>("id"),
+                "patient_id": row.get::<Uuid, _>("patient_id"),
+                "doctor_id": row.get::<Uuid, _>("doctor_id"),
+                "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
+                "status": row.get::<String, _>("status"),
+                "notes": row.get::<Option<String>, _>("notes"),
+            });
+
             match sqlx::query("DELETE FROM appointments WHERE id = $1")
                 .bind(appointment_id)
                 .execute(&state.db_pool)
                 .await
             {
-                Ok(_) => Ok(HttpResponse::Ok().json(json!({
-                    "success": true,
-                    "message": "Appointment deleted successfully"
-                }))),
+                Ok(_) => {
+                    // Invalidate appointment list cache
+                    invalidate_cache(&state.redis_client, "appointments:list:").await;
+                    
+                    // Broadcast appointment deletion via WebSocket
+                    let _ = websocket::broadcast_appointment_update_json(
+                        state.websocket_manager.clone(),
+                        appointment_json,
+                        "deleted"
+                    ).await;
+                    
+                    Ok(HttpResponse::Ok().json(json!({
+                        "success": true,
+                        "message": "Appointment deleted successfully"
+                    })))
+                },
                 Err(e) => Ok(HttpResponse::InternalServerError().json(json!({
                     "success": false,
                     "error": format!("Failed to delete appointment: {}", e)
@@ -1918,74 +2077,169 @@ pub async fn get_invoices(
     let date_to = query.get("date_to").and_then(|v| v.as_str());
     let offset = (page - 1) * per_page;
 
-    // Build query - for simplicity, fetch all and filter in memory for complex cases
-    // For production, consider using prepared statements with dynamic WHERE clauses
-    let invoices_result = sqlx::query(
-        "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
-                i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
-                i.payment_method, i.created_at, i.updated_at,
-                p.first_name, p.last_name, p.phone
-         FROM invoices i
-         LEFT JOIN patients p ON i.patient_id = p.id
-         ORDER BY i.created_at DESC
-         LIMIT $1 OFFSET $2"
-    )
-    .bind(per_page * 10)  // Fetch more to account for filtering
-    .bind(0)  // Start from beginning for filtering
-    .fetch_all(&state.db_pool)
-    .await;
+    // Build optimized query with proper WHERE clauses (uses indexes)
+    // Use conditional query building based on filters for optimal performance
+    let invoices_result = if let Some(pid_str) = patient_id {
+        if let Ok(pid) = Uuid::parse_str(pid_str) {
+            // Filter by patient_id - uses idx_invoices_patient_id
+            sqlx::query(
+                "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
+                        i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
+                        i.payment_method, i.created_at, i.updated_at,
+                        p.first_name, p.last_name, p.phone
+                 FROM invoices i
+                 LEFT JOIN patients p ON i.patient_id = p.id
+                 WHERE i.patient_id = $1
+                 ORDER BY i.created_at DESC
+                 LIMIT $2 OFFSET $3"
+            )
+            .bind(pid)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&state.db_pool)
+            .await
+        } else {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": "Invalid patient_id format"
+            })));
+        }
+    } else if let Some(status) = payment_status {
+        // Filter by payment_status - uses idx_invoices_payment_status
+        sqlx::query(
+            "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
+                    i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
+                    i.payment_method, i.created_at, i.updated_at,
+                    p.first_name, p.last_name, p.phone
+             FROM invoices i
+             LEFT JOIN patients p ON i.patient_id = p.id
+             WHERE i.payment_status = $1
+             ORDER BY i.created_at DESC
+             LIMIT $2 OFFSET $3"
+        )
+        .bind(status)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db_pool)
+        .await
+    } else if let Some(df_str) = date_from {
+        if let Ok(df) = NaiveDate::parse_from_str(df_str, "%Y-%m-%d") {
+            // Filter by date_from - uses idx_invoices_date
+            let query_str = if let Some(dt_str) = date_to {
+                if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
+                    // Date range query
+                    "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
+                            i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
+                            i.payment_method, i.created_at, i.updated_at,
+                            p.first_name, p.last_name, p.phone
+                     FROM invoices i
+                     LEFT JOIN patients p ON i.patient_id = p.id
+                     WHERE i.date >= $1 AND i.date <= $2
+                     ORDER BY i.created_at DESC
+                     LIMIT $3 OFFSET $4"
+                } else {
+                    return Ok(HttpResponse::BadRequest().json(json!({
+                        "success": false,
+                        "error": "Invalid date_to format"
+                    })));
+                }
+            } else {
+                "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
+                        i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
+                        i.payment_method, i.created_at, i.updated_at,
+                        p.first_name, p.last_name, p.phone
+                 FROM invoices i
+                 LEFT JOIN patients p ON i.patient_id = p.id
+                 WHERE i.date >= $1
+                 ORDER BY i.created_at DESC
+                 LIMIT $2 OFFSET $3"
+            };
+            
+            if let Some(dt_str) = date_to {
+                if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
+                    sqlx::query(query_str)
+                        .bind(df)
+                        .bind(dt)
+                        .bind(per_page)
+                        .bind(offset)
+                        .fetch_all(&state.db_pool)
+                        .await
+                } else {
+                    return Ok(HttpResponse::BadRequest().json(json!({
+                        "success": false,
+                        "error": "Invalid date_to format"
+                    })));
+                }
+            } else {
+                sqlx::query(query_str)
+                    .bind(df)
+                    .bind(per_page)
+                    .bind(offset)
+                    .fetch_all(&state.db_pool)
+                    .await
+            }
+        } else {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": "Invalid date_from format"
+            })));
+        }
+    } else if let Some(dt_str) = date_to {
+        if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
+            // Filter by date_to only - uses idx_invoices_date
+            sqlx::query(
+                "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
+                        i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
+                        i.payment_method, i.created_at, i.updated_at,
+                        p.first_name, p.last_name, p.phone
+                 FROM invoices i
+                 LEFT JOIN patients p ON i.patient_id = p.id
+                 WHERE i.date <= $1
+                 ORDER BY i.created_at DESC
+                 LIMIT $2 OFFSET $3"
+            )
+            .bind(dt)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&state.db_pool)
+            .await
+        } else {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": "Invalid date_to format"
+            })));
+        }
+    } else {
+        // No filters - simple query using idx_invoices_created_at
+        sqlx::query(
+            "SELECT i.id, i.patient_id, i.invoice_number, i.date, i.items, 
+                    i.subtotal, i.tax_amount, i.total_amount, i.payment_status, 
+                    i.payment_method, i.created_at, i.updated_at,
+                    p.first_name, p.last_name, p.phone
+             FROM invoices i
+             LEFT JOIN patients p ON i.patient_id = p.id
+             ORDER BY i.created_at DESC
+             LIMIT $1 OFFSET $2"
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db_pool)
+        .await
+    };
 
     match invoices_result {
         Ok(rows) => {
-            let invoices: Vec<serde_json::Value> = rows.iter().filter_map(|row| {
-                // Apply filters if needed (for patient_id, status, dates)
-                let row_patient_id = row.get::<Uuid, _>("patient_id");
-                let row_status = row.get::<String, _>("payment_status");
-                let row_date = row.get::<NaiveDate, _>("date");
-
-                // Filter by patient_id if provided
-                if let Some(pid_str) = patient_id {
-                    if let Ok(pid) = Uuid::parse_str(pid_str) {
-                        if row_patient_id != pid {
-                            return None;
-                        }
-                    }
-                }
-
-                // Filter by status if provided
-                if let Some(status) = payment_status {
-                    if row_status != status {
-                        return None;
-                    }
-                }
-
-                // Filter by date range if provided
-                if let Some(df_str) = date_from {
-                    if let Ok(df) = NaiveDate::parse_from_str(df_str, "%Y-%m-%d") {
-                        if row_date < df {
-                            return None;
-                        }
-                    }
-                }
-
-                if let Some(dt_str) = date_to {
-                    if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
-                        if row_date > dt {
-                            return None;
-                        }
-                    }
-                }
-
-                Some(json!({
+            let invoices: Vec<serde_json::Value> = rows.iter().map(|row| {
+                json!({
                     "id": row.get::<Uuid, _>("id"),
-                    "patient_id": row_patient_id,
+                    "patient_id": row.get::<Uuid, _>("patient_id"),
                     "invoice_number": row.get::<String, _>("invoice_number"),
-                    "date": row_date,
+                    "date": row.get::<NaiveDate, _>("date"),
                     "items": row.get::<serde_json::Value, _>("items"),
                     "subtotal": row.get::<f64, _>("subtotal"),
                     "tax_amount": row.get::<f64, _>("tax_amount"),
                     "total_amount": row.get::<f64, _>("total_amount"),
-                    "payment_status": row_status,
+                    "payment_status": row.get::<String, _>("payment_status"),
                     "payment_method": row.get::<Option<String>, _>("payment_method"),
                     "patient_name": format!("{} {}", 
                         row.get::<Option<String>, _>("first_name").unwrap_or_default(),
@@ -1994,13 +2248,59 @@ pub async fn get_invoices(
                     "patient_phone": row.get::<Option<String>, _>("phone").unwrap_or_default(),
                     "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
                     "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
-                }))
+                })
             }).collect();
 
-            // Get total count
-            let count_result = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices")
-                .fetch_one(&state.db_pool)
-                .await;
+            // Get total count with same filters (optimized)
+            let count_result = if let Some(pid_str) = patient_id {
+                if let Ok(pid) = Uuid::parse_str(pid_str) {
+                    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices WHERE patient_id = $1")
+                        .bind(pid)
+                        .fetch_one(&state.db_pool)
+                        .await
+                } else {
+                    Ok(0)
+                }
+            } else if let Some(status) = payment_status {
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices WHERE payment_status = $1")
+                    .bind(status)
+                    .fetch_one(&state.db_pool)
+                    .await
+            } else if let Some(df_str) = date_from {
+                if let Ok(df) = NaiveDate::parse_from_str(df_str, "%Y-%m-%d") {
+                    if let Some(dt_str) = date_to {
+                        if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
+                            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices WHERE date >= $1 AND date <= $2")
+                                .bind(df)
+                                .bind(dt)
+                                .fetch_one(&state.db_pool)
+                                .await
+                        } else {
+                            Ok(0)
+                        }
+                    } else {
+                        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices WHERE date >= $1")
+                            .bind(df)
+                            .fetch_one(&state.db_pool)
+                            .await
+                    }
+                } else {
+                    Ok(0)
+                }
+            } else if let Some(dt_str) = date_to {
+                if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
+                    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices WHERE date <= $1")
+                        .bind(dt)
+                        .fetch_one(&state.db_pool)
+                        .await
+                } else {
+                    Ok(0)
+                }
+            } else {
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices")
+                    .fetch_one(&state.db_pool)
+                    .await
+            };
 
             let total = count_result.unwrap_or(0);
             let total_pages = ((total as f64) / (per_page as f64)).ceil() as i64;
@@ -2222,6 +2522,15 @@ pub async fn create_invoice(
                 "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
             });
 
+            // Broadcast invoice update via WebSocket
+            if let Ok(invoice_model) = serde_json::from_value::<Invoice>(invoice.clone()) {
+                let _ = websocket::broadcast_billing_update(
+                    state.websocket_manager.clone(),
+                    invoice_model,
+                    "created"
+                ).await;
+            }
+
             Ok(HttpResponse::Created().json(json!({
                 "success": true,
                 "message": "Invoice created successfully",
@@ -2354,6 +2663,15 @@ pub async fn update_invoice(
                 "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
                 "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
             });
+
+            // Broadcast invoice update via WebSocket
+            if let Ok(invoice_model) = serde_json::from_value::<Invoice>(invoice.clone()) {
+                let _ = websocket::broadcast_billing_update(
+                    state.websocket_manager.clone(),
+                    invoice_model,
+                    "updated"
+                ).await;
+            }
 
             Ok(HttpResponse::Ok().json(json!({
                 "success": true,
@@ -2530,10 +2848,32 @@ pub async fn pay_invoice(
     .bind(invoice_id)
     .bind(&new_status)
     .bind(&payment_method)
-    .execute(&state.db_pool)
+    .fetch_optional(&state.db_pool)
     .await
     {
-        Ok(_) => {
+        Ok(Some(row)) => {
+            let invoice = json!({
+                "id": row.get::<Uuid, _>("id"),
+                "patient_id": row.get::<Uuid, _>("patient_id"),
+                "invoice_number": row.get::<String, _>("invoice_number"),
+                "date": row.get::<NaiveDate, _>("date"),
+                "items": row.get::<serde_json::Value, _>("items"),
+                "subtotal": row.get::<f64, _>("subtotal"),
+                "tax_amount": row.get::<f64, _>("tax_amount"),
+                "total_amount": row.get::<f64, _>("total_amount"),
+                "payment_status": row.get::<String, _>("payment_status"),
+                "payment_method": row.get::<Option<String>, _>("payment_method"),
+            });
+
+            // Broadcast invoice payment update via WebSocket
+            if let Ok(invoice_model) = serde_json::from_value::<Invoice>(invoice.clone()) {
+                let _ = websocket::broadcast_billing_update(
+                    state.websocket_manager.clone(),
+                    invoice_model,
+                    "payment_processed"
+                ).await;
+            }
+
             Ok(HttpResponse::Ok().json(json!({
                 "success": true,
                 "message": "Payment recorded successfully",
@@ -2549,6 +2889,10 @@ pub async fn pay_invoice(
                 }
             })))
         },
+        Ok(None) => Ok(HttpResponse::NotFound().json(json!({
+            "success": false,
+            "error": "Invoice not found after update"
+        }))),
         Err(e) => Ok(HttpResponse::InternalServerError().json(json!({
             "success": false,
             "error": format!("Failed to record payment: {}", e)
@@ -2709,41 +3053,62 @@ pub async fn get_medicines(
     let low_stock_only = query.get("low_stock_only").and_then(|v| v.as_bool()).unwrap_or(false);
     let offset = (page - 1) * per_page;
 
-    let medicines_result = sqlx::query(
-        "SELECT id, name, generic_name, dosage_form, strength, manufacturer, 
-                batch_number, expiry_date, current_stock, minimum_stock, 
-                unit_price, created_at, updated_at
-         FROM medicines
-         ORDER BY name
-         LIMIT $1 OFFSET $2"
-    )
-    .bind(per_page)
-    .bind(offset)
-    .fetch_all(&state.db_pool)
-    .await;
+    // Build optimized query with WHERE clauses (uses indexes)
+    let medicines_result = if low_stock_only {
+        // Use partial index idx_medicines_stock_alert for low stock query
+        sqlx::query(
+            "SELECT id, name, generic_name, dosage_form, strength, manufacturer, 
+                    batch_number, expiry_date, current_stock, minimum_stock, 
+                    unit_price, created_at, updated_at
+             FROM medicines
+             WHERE current_stock <= minimum_stock
+             ORDER BY name
+             LIMIT $1 OFFSET $2"
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db_pool)
+        .await
+    } else if let Some(search_term) = search {
+        // Use index idx_medicines_name for search
+        sqlx::query(
+            "SELECT id, name, generic_name, dosage_form, strength, manufacturer, 
+                    batch_number, expiry_date, current_stock, minimum_stock, 
+                    unit_price, created_at, updated_at
+             FROM medicines
+             WHERE LOWER(name) LIKE $1 OR LOWER(generic_name) LIKE $1
+             ORDER BY name
+             LIMIT $2 OFFSET $3"
+        )
+        .bind(format!("%{}%", search_term.to_lowercase()))
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db_pool)
+        .await
+    } else {
+        // No filters - simple query using idx_medicines_name
+        sqlx::query(
+            "SELECT id, name, generic_name, dosage_form, strength, manufacturer, 
+                    batch_number, expiry_date, current_stock, minimum_stock, 
+                    unit_price, created_at, updated_at
+             FROM medicines
+             ORDER BY name
+             LIMIT $1 OFFSET $2"
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db_pool)
+        .await
+    };
 
     match medicines_result {
         Ok(rows) => {
-            let medicines: Vec<serde_json::Value> = rows.iter().filter_map(|row| {
+            let medicines: Vec<serde_json::Value> = rows.iter().map(|row| {
                 let name: String = row.get("name");
                 let generic_name: Option<String> = row.get("generic_name");
                 let current_stock: i32 = row.get("current_stock");
                 let minimum_stock: i32 = row.get("minimum_stock");
                 let expiry_date: Option<NaiveDate> = row.get("expiry_date");
-
-                // Apply search filter
-                if let Some(search_term) = search {
-                    let search_lower = search_term.to_lowercase();
-                    if !name.to_lowercase().contains(&search_lower) &&
-                       !generic_name.as_ref().unwrap_or(&String::new()).to_lowercase().contains(&search_lower) {
-                        return None;
-                    }
-                }
-
-                // Apply low stock filter
-                if low_stock_only && current_stock > minimum_stock {
-                    return None;
-                }
 
                 // Determine stock status
                 let stock_status = if current_stock <= minimum_stock {
@@ -4156,6 +4521,22 @@ pub async fn adjust_stock(
     .await
     {
         Ok(row) => {
+            let stock_change = match adjustment_type {
+                "increase" => Some(quantity),
+                "decrease" => Some(-quantity),
+                "set" => Some(new_stock - current_stock),
+                _ => None
+            };
+
+            // Broadcast inventory update via WebSocket
+            let _ = websocket::broadcast_inventory_update(
+                state.websocket_manager.clone(),
+                medicine_id,
+                &medicine_name,
+                "stock_adjusted",
+                stock_change
+            ).await;
+
             Ok(HttpResponse::Ok().json(json!({
                 "success": true,
                 "message": "Stock adjusted successfully",
@@ -4310,6 +4691,177 @@ pub async fn get_financial_report(
             Ok(HttpResponse::InternalServerError().json(json!({
                 "success": false,
                 "error": format!("Failed to generate financial report: {}", e)
+            })))
+        }
+    }
+}
+
+// POST /api/sha-claims - Create new SHA claim
+pub async fn create_sha_claim(
+    claim_data: web::Json<serde_json::Value>,
+    req: HttpRequest,
+    state: web::Data<AppState>
+) -> Result<HttpResponse> {
+    // Verify JWT and get user ID
+    let claims = match verify_jwt_from_request(&req, &state.auth_service) {
+        Ok(c) => c,
+        Err(response) => return Ok(response),
+    };
+
+    let user_id = claims.user_id;
+
+    // Extract required fields
+    let claim_number = match claim_data.get("claimNumber").and_then(|v| v.as_str()) {
+        Some(cn) if !cn.is_empty() => cn,
+        _ => return Ok(HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "error": "claimNumber is required"
+        })))
+    };
+
+    let month = match claim_data.get("month").and_then(|v| v.as_str()) {
+        Some(m) if !m.is_empty() => m,
+        _ => return Ok(HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "error": "month is required"
+        })))
+    };
+
+    let year = claim_data.get("year").and_then(|v| v.as_i64()).unwrap_or(chrono::Utc::now().year() as i64);
+    
+    let submission_date_str = match claim_data.get("submissionDate").and_then(|v| v.as_str()) {
+        Some(sd) if !sd.is_empty() => sd,
+        _ => return Ok(HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "error": "submissionDate is required (format: YYYY-MM-DD)"
+        })))
+    };
+
+    let submission_date = match NaiveDate::parse_from_str(submission_date_str, "%Y-%m-%d") {
+        Ok(date) => date,
+        Err(_) => return Ok(HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "error": "Invalid submissionDate format. Use YYYY-MM-DD"
+        })))
+    };
+
+    let total_amount = match claim_data.get("totalAmount").and_then(|v| v.as_f64()) {
+        Some(ta) if ta >= 0.0 => ta,
+        _ => return Ok(HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "error": "totalAmount is required and must be >= 0"
+        })))
+    };
+
+    // Calculate claim_date from month and year (first day of the month)
+    let month_num = match month.to_lowercase().as_str() {
+        "january" => 1, "february" => 2, "march" => 3, "april" => 4,
+        "may" => 5, "june" => 6, "july" => 7, "august" => 8,
+        "september" => 9, "october" => 10, "november" => 11, "december" => 12,
+        _ => {
+            // Try parsing as number
+            month.parse::<u32>().unwrap_or(1).min(12).max(1)
+        }
+    };
+    let claim_date = NaiveDate::from_ymd_opt(year as i32, month_num, 1)
+        .unwrap_or_else(|| NaiveDate::from_ymd_opt(year as i32, 1, 1).unwrap());
+
+    // Service date defaults to claim_date (first day of the month)
+    let service_date = claim_date;
+
+    // Optional fields
+    let total_patients = claim_data.get("totalPatients").and_then(|v| v.as_i64()).unwrap_or(0);
+    let sha_website_reference = claim_data.get("shaWebsiteReference").and_then(|v| v.as_str());
+    let notes = claim_data.get("notes").and_then(|v| v.as_str());
+
+    // Build notes with all relevant information
+    let mut full_notes = String::new();
+    if let Some(ref_val) = sha_website_reference {
+        full_notes.push_str(&format!("SHA Website Reference: {}\n", ref_val));
+    }
+    if total_patients > 0 {
+        full_notes.push_str(&format!("Total Patients: {}\n", total_patients));
+    }
+    if let Some(n) = notes {
+        full_notes.push_str(&format!("Notes: {}", n));
+    }
+
+    let claim_id = Uuid::new_v4();
+    let now = Utc::now();
+
+    // Insert into database
+    // Note: patient_name and patient_sha_number are required by schema but we're creating aggregate claims
+    // Using placeholder values for aggregate monthly claims
+    match sqlx::query(
+        r#"
+        INSERT INTO sha_claims (
+            id, claim_number, patient_name, patient_sha_number,
+            claim_date, service_date, total_amount,
+            status, submission_date, notes, created_by, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING id, claim_number, invoice_id, patient_id, patient_name, patient_sha_number,
+                  claim_date, service_date, total_amount, approved_amount, status,
+                  submission_date, approval_date, payment_date, rejection_reason, notes,
+                  created_at, updated_at
+        "#
+    )
+    .bind(claim_id)
+    .bind(claim_number)
+    .bind(format!("Monthly Aggregate - {} {}", month, year)) // Placeholder patient_name
+    .bind("AGGREGATE") // Placeholder patient_sha_number
+    .bind(claim_date)
+    .bind(service_date)
+    .bind(total_amount)
+    .bind("pending") // Default status
+    .bind(submission_date)
+    .bind(if full_notes.is_empty() { None } else { Some(full_notes) })
+    .bind(user_id)
+    .bind(now)
+    .bind(now)
+    .fetch_one(&state.db_pool)
+    .await
+    {
+        Ok(row) => {
+            Ok(HttpResponse::Created().json(json!({
+                "success": true,
+                "data": {
+                    "id": row.get::<Uuid, _>("id"),
+                    "claim_number": row.get::<String, _>("claim_number"),
+                    "claim_date": row.get::<NaiveDate, _>("claim_date"),
+                    "service_date": row.get::<NaiveDate, _>("service_date"),
+                    "total_amount": row.get::<f64, _>("total_amount"),
+                    "status": row.get::<String, _>("status"),
+                    "submission_date": row.get::<Option<NaiveDate>, _>("submission_date"),
+                    "notes": row.get::<Option<String>, _>("notes"),
+                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at")
+                },
+                "message": "SHA claim created successfully"
+            })))
+        },
+        Err(sqlx::Error::Database(db_err)) if db_err.constraint().is_some() => {
+            if db_err.message().contains("unique") || db_err.message().contains("claim_number") {
+                Ok(HttpResponse::Conflict().json(json!({
+                    "success": false,
+                    "error": format!("Claim number '{}' already exists", claim_number)
+                })))
+            } else {
+                Ok(HttpResponse::BadRequest().json(json!({
+                    "success": false,
+                    "error": format!("Database constraint violation: {}", db_err.message())
+                })))
+            }
+        },
+        Err(sqlx::Error::Database(db_err)) if db_err.message().contains("does not exist") => {
+            Ok(HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": "SHA claims table does not exist. Please run database migrations."
+            })))
+        },
+        Err(e) => {
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "success": false,
+                "error": format!("Failed to create SHA claim: {}", e)
             })))
         }
     }

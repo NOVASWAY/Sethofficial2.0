@@ -684,13 +684,19 @@ export const shaClaimAPI = {
 
   /**
    * Record new claim
-   * POST /sha-claims
+   * POST /api/sha-claims
    */
   create: async (claimData: any) => {
-    return apiCall<any>('/sha-claims', {
+    const response = await apiCall<{ 
+      success: boolean
+      data: any
+      message?: string
+      error?: string
+    }>('/sha-claims', {
       method: 'POST',
       body: JSON.stringify(claimData),
     })
+    return response
   },
 
   /**

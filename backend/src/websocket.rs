@@ -410,6 +410,52 @@ pub async fn broadcast_appointment_update(
     Ok(())
 }
 
+/// Broadcast appointment updates using JSON (for when we have JSON data directly)
+pub async fn broadcast_appointment_update_json(
+    manager: Addr<WebSocketManager>,
+    appointment: serde_json::Value,
+    update_type: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let data = serde_json::json!({
+        "appointment": appointment,
+        "update_type": update_type,
+        "timestamp": chrono::Utc::now()
+    });
+    
+    let message = WebSocketMessage::new("appointment_update".to_string(), data);
+    manager.do_send(BroadcastMessage {
+        message,
+        exclude_session: None,
+    });
+    
+    Ok(())
+}
+
+/// Broadcast inventory updates to all connected clients
+pub async fn broadcast_inventory_update(
+    manager: Addr<WebSocketManager>,
+    medicine_id: uuid::Uuid,
+    medicine_name: &str,
+    update_type: &str,
+    stock_change: Option<i32>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let data = serde_json::json!({
+        "medicine_id": medicine_id,
+        "medicine_name": medicine_name,
+        "update_type": update_type,
+        "stock_change": stock_change,
+        "timestamp": chrono::Utc::now()
+    });
+    
+    let message = WebSocketMessage::new("inventory_update".to_string(), data);
+    manager.do_send(BroadcastMessage {
+        message,
+        exclude_session: None,
+    });
+    
+    Ok(())
+}
+
 /// Broadcast patient updates to all connected clients
 pub async fn broadcast_patient_update(
     manager: Addr<WebSocketManager>,

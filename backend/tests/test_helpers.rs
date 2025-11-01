@@ -30,9 +30,14 @@ pub mod test_utils {
         let jwt_secret = "test-secret-key-for-testing-only";
         let auth_service = AuthService::new(jwt_secret, 24, 7);
         
+        // Initialize WebSocket manager for tests
+        let websocket_manager = actix::Actor::start(clinic_management_backend::websocket::WebSocketManager::new);
+        
         AppState {
             db_pool,
             auth_service,
+            redis_client: None, // Tests can work without Redis
+            websocket_manager,
         }
     }
 

@@ -14,7 +14,7 @@ import {
   DollarSign, Calendar, Download, Eye, TrendingUp, RefreshCw
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { reportsAPI } from '@/lib/api-client'
+import { reportsAPI, shaClaimAPI } from '@/lib/api-client'
 
 interface SHAClaim {
   id: string
@@ -264,7 +264,7 @@ export function SHAClaimTracking() {
     setIsDetailsOpen(true)
   }
 
-  const handleRecordClaim = () => {
+  const handleRecordClaim = async () => {
     if (!submitData.claimNumber || !submitData.month || !submitData.submissionDate) {
       toast({
         variant: 'error',
@@ -274,44 +274,50 @@ export function SHAClaimTracking() {
       return
     }
 
-    // TODO: Implement claim creation API endpoint in backend
-    // For now, we'll show a message that this feature requires backend support
-    toast({
-      title: 'Feature Coming Soon',
-      description: 'Claim recording requires backend API endpoint. This will be implemented soon.',
-      variant: 'default'
-    })
-    
-    // Note: When backend endpoint is available, use:
-    // await shaClaimAPI.create({ ...submitData })
-    // Then refresh the claims list
-    
-    // Temporary: Add to local state for UI demonstration
-    // const newClaim: SHAClaim = {
-    //   id: crypto.randomUUID(),
-    //   claimNumber: submitData.claimNumber,
-    //   month: submitData.month,
-    //   year: submitData.year,
-    //   submissionDate: submitData.submissionDate,
-    //   status: 'pending',
-    //   totalPatients: submitData.totalPatients,
-    //   totalAmount: submitData.totalAmount,
-    //   recordedBy: 'Current User',
-    //   shaWebsiteReference: submitData.shaWebsiteReference,
-    // }
-    // setClaims([newClaim, ...claims])
+    try {
+      // Call backend API to create SHA claim
+      const response = await shaClaimAPI.create({
+        claimNumber: submitData.claimNumber,
+        month: submitData.month,
+        year: submitData.year,
+        submissionDate: submitData.submissionDate,
+        totalPatients: submitData.totalPatients,
+        totalAmount: submitData.totalAmount,
+        shaWebsiteReference: submitData.shaWebsiteReference,
+        notes: submitData.notes
+      })
 
-    setIsSubmitOpen(false)
-    setSubmitData({ 
-      claimNumber: '',
-      month: '',
-      year: new Date().getFullYear(),
-      submissionDate: '',
-      totalPatients: 0,
-      totalAmount: 0,
-      shaWebsiteReference: '',
-      notes: ''
-    })
+      if (response && response.success) {
+        toast({
+          title: 'Claim Recorded Successfully',
+          description: `SHA claim ${submitData.claimNumber} has been recorded in the system.`,
+        })
+        
+        // Refresh the claims list
+        await loadClaims()
+        
+        setIsSubmitOpen(false)
+        setSubmitData({ 
+          claimNumber: '',
+          month: '',
+          year: new Date().getFullYear(),
+          submissionDate: '',
+          totalPatients: 0,
+          totalAmount: 0,
+          shaWebsiteReference: '',
+          notes: ''
+        })
+      } else {
+        throw new Error(response?.error || 'Failed to create claim')
+      }
+    } catch (error) {
+      console.error('Error creating SHA claim:', error)
+      toast({
+        variant: 'error',
+        title: 'Failed to Record Claim',
+        description: error instanceof Error ? error.message : 'Failed to record SHA claim. Please try again.',
+      })
+    }
   }
 
   const handleExportClaim = (claim: SHAClaim) => {

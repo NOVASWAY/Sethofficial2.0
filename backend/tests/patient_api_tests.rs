@@ -41,9 +41,14 @@ async fn create_test_app_with_routes(db_pool: Option<PgPool>) -> impl actix_web:
     let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "test-secret-key".to_string());
     let auth_service = AuthService::new(&jwt_secret, 24, 7);
     
+    // Initialize WebSocket manager for tests
+    let websocket_manager = actix::Actor::start(clinic_management_backend::websocket::WebSocketManager::new);
+    
     let app_state = AppState {
         db_pool,
         auth_service: auth_service.clone(),
+        redis_client: None, // Tests can work without Redis
+        websocket_manager,
     };
 
     let security_middleware = SecurityMiddleware::new(auth_service.clone());

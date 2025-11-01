@@ -15,13 +15,14 @@ mod mpesa;
 mod services;
 mod websocket;
 mod cache;
+mod redis_client;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db_pool: PgPool,
     pub auth_service: auth::AuthService,
-    // Cache service can be added later when fully integrated
-    // pub cache_service: Option<std::sync::Arc<cache::cache_service::CacheService>>,
+    pub redis_client: Option<std::sync::Arc<redis_client::RedisClient>>,
+    pub websocket_manager: actix::Addr<websocket::WebSocketManager>,
 }
 
 // Make AppState available for tests
@@ -123,9 +124,27 @@ async fn main() -> std::io::Result<()> {
     let websocket_manager = actix::Actor::start(websocket::WebSocketManager::new);
     eprintln!("🌐 WebSocket Manager initialized");
 
+    // Initialize Redis client (optional - gracefully handles if Redis is unavailable)
+    let redis_client = {
+        let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        eprintln!("🔗 Attempting to connect to Redis at: {}", redis_url);
+        match redis_client::RedisClient::new(&redis_url).await {
+            Ok(client) => {
+                eprintln!("✅ Redis connection established successfully");
+                Some(std::sync::Arc::new(client))
+            },
+            Err(e) => {
+                eprintln!("⚠️  Redis not available ({}). Caching disabled. System will work without cache.", e);
+                None
+            }
+        }
+    };
+
     let app_state = AppState { 
         db_pool,
         auth_service,
+        redis_client,
+        websocket_manager: websocket_manager.clone(),
     };
 
     // Configure CORS
@@ -164,7 +183,6 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             // Application state
             .app_data(web::Data::new(app_state.clone()))
-            .app_data(web::Data::new(websocket_manager.clone()))
             
             // ===========================================
             // PUBLIC ROUTES (No authentication required)
@@ -285,6 +303,9 @@ async fn main() -> std::io::Result<()> {
                     .route("/inventory/alerts", web::get().to(simple_handlers::get_stock_alerts))
                     .route("/inventory/reconciliation", web::get().to(simple_handlers::get_stock_reconciliation))
                     .route("/inventory/adjust/{id}", web::post().to(simple_handlers::adjust_stock))
+                    
+                    // SHA CLAIMS ROUTES
+                    .route("/sha-claims", web::post().to(simple_handlers::create_sha_claim))
                     
                     // REPORTS ROUTES
                     .route("/reports/financial", web::get().to(simple_handlers::get_financial_report))
