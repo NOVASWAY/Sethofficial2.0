@@ -58,6 +58,8 @@ export function EnhancedBillingModule({
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
   const [insuranceType, setInsuranceType] = useState<'NHIF' | 'SHA' | 'Cash'>('Cash')
   const [patientType, setPatientType] = useState<'adult' | 'child' | 'senior'>('adult')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa' | 'bank_transfer' | 'cheque'>('cash')
+  const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('')
   const [autoBillResult, setAutoBillResult] = useState<AutoBillResponse | null>(null)
   const [notes, setNotes] = useState('')
 
@@ -217,6 +219,42 @@ export function EnhancedBillingModule({
                     </SelectContent>
                   </Select>
                 </div>
+                {autoBillResult && autoBillResult.totals.patient_payment > 0 && (
+                  <>
+                    <div>
+                      <Label className="text-muted-foreground">Payment Method</Label>
+                      <Select value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="mpesa">M-Pesa</SelectItem>
+                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="cheque">Cheque</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        How the patient will pay (insurance type only affects pricing)
+                      </p>
+                    </div>
+                    {paymentMethod === 'mpesa' && (
+                      <div>
+                        <Label htmlFor="mpesa-phone">M-Pesa Phone Number</Label>
+                        <Input
+                          id="mpesa-phone"
+                          type="tel"
+                          placeholder="0712345678"
+                          value={mpesaPhoneNumber}
+                          onChange={(e) => setMpesaPhoneNumber(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter patient's M-Pesa registered phone number
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -458,14 +496,36 @@ export function EnhancedBillingModule({
                       onClick={async () => {
                         try {
                           setLoading(true)
-                          await invoiceAPI.processPayment(autoBillResult.invoice_id, {
-                            payment_method: insuranceType.toLowerCase() === 'cash' ? 'cash' : 
-                                          insuranceType.toLowerCase() === 'sha' ? 'sha' : 
-                                          insuranceType.toLowerCase() === 'nhif' ? 'nhif' : 'cash',
+                          // Use selected payment method (insurance type only affects pricing, not payment method)
+                          // Backend only accepts: 'cash', 'mpesa', 'bank_transfer', 'cheque'
+                          // Insurance type (SHA/NHIF) determines pricing but payment_method is how patient actually pays
+                          
+                          // Validate M-Pesa phone number if needed
+                          if (paymentMethod === 'mpesa') {
+                            if (!mpesaPhoneNumber || !/^(\+?254|0)?[17]\d{8}$/.test(mpesaPhoneNumber.replace(/\s+/g, ''))) {
+                              toast({
+                                variant: 'error',
+                                title: 'Invalid Phone Number',
+                                description: 'Please enter a valid M-Pesa registered phone number (e.g., 0712345678)',
+                              })
+                              setLoading(false)
+                              return
+                            }
+                          }
+                          
+                          const paymentData: any = {
+                            payment_method: paymentMethod,
                             amount_paid: autoBillResult.totals.patient_payment,
                             payment_date: new Date().toISOString().split('T')[0],
                             transaction_id: `TXN-${Date.now()}`,
-                          })
+                          }
+                          
+                          // Add phone number for M-Pesa payments
+                          if (paymentMethod === 'mpesa' && mpesaPhoneNumber) {
+                            paymentData.phone_number = mpesaPhoneNumber.replace(/\s+/g, '')
+                          }
+                          
+                          await invoiceAPI.processPayment(autoBillResult.invoice_id, paymentData)
                           toast({
                             title: "Payment Processed",
                             description: `Payment of KSh ${autoBillResult.totals.patient_payment.toFixed(2)} processed successfully.`,
