@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Stethoscope, User, Clock, FileText, Search, Plus, Activity } from "lucide-react"
-import { useState } from "react"
+import { Stethoscope, User, Clock, FileText, Search, Plus, Activity, RefreshCw } from "lucide-react"
+import { useState, useEffect } from "react"
+import { consultationAPI, patientAPI } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 import { useParams } from "next/navigation"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -17,8 +19,75 @@ import { Textarea } from "@/components/ui/textarea"
 export default function VisitsPage() {
   const params = useParams()
   const role = params.role as string
+  const { toast } = useToast()
   const [isNewVisitOpen, setIsNewVisitOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [visits, setVisits] = useState<any[]>([])
+  const [patients, setPatients] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch consultations (visits) from API
+  useEffect(() => {
+    const fetchVisits = async () => {
+      try {
+        setLoading(true)
+        const result = await consultationAPI.getAll({ page: 1, per_page: 100 })
+        
+        if (result && Array.isArray(result.data)) {
+          // Transform API response to match visit interface
+          const transformed = result.data.map((consult: any) => ({
+            id: consult.id || `CONS-${consult.id?.slice(0, 8)}`,
+            patientName: consult.patient_name || `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'Unknown Patient',
+            patientId: consult.patient_id || '',
+            visitDate: consult.date || consult.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            visitTime: consult.time || consult.created_at?.split('T')[1]?.substring(0, 5) || new Date().toTimeString().substring(0, 5),
+            chiefComplaint: consult.chief_complaint || consult.chief_complaint || 'N/A',
+            diagnosis: consult.diagnosis || 'Pending diagnosis',
+            clinician: consult.doctor_name || consult.clinician_name || 'Unknown',
+            status: consult.status || (consult.diagnosis ? 'completed' : 'in-progress'),
+            vitals: {
+              bp: consult.vital_signs?.blood_pressure || consult.vital_signs?.bp || 'N/A',
+              pulse: consult.vital_signs?.pulse?.toString() || consult.vital_signs?.pulse || 'N/A',
+              temp: consult.vital_signs?.temperature ? `${consult.vital_signs.temperature}°C` : 'N/A',
+              weight: consult.vital_signs?.weight ? `${consult.vital_signs.weight}kg` : 'N/A',
+            },
+          }))
+          setVisits(transformed)
+        } else {
+          // Fallback to mock data
+          setVisits(mockVisits)
+        }
+      } catch (error) {
+        console.error("Error fetching visits:", error)
+        toast({
+          title: "Warning",
+          description: "Failed to load visits. Using sample data.",
+          variant: "default"
+        })
+        // Fallback to mock data on error
+        setVisits(mockVisits)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchVisits()
+  }, [toast])
+
+  // Fetch patients for new visit dialog
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const result = await patientAPI.getAll({ page: 1, per_page: 100 })
+        if (result && Array.isArray(result.data)) {
+          setPatients(result.data)
+        }
+      } catch (error) {
+        console.error("Error fetching patients:", error)
+      }
+    }
+    fetchPatients()
+  }, [])
 
   const handleNewVisit = () => {
     setIsNewVisitOpen(true)
@@ -93,7 +162,7 @@ export default function VisitsPage() {
     },
   ]
 
-  const filteredVisits = mockVisits.filter(
+  const filteredVisits = visits.filter(
     (visit) =>
       visit.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       visit.patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -123,10 +192,57 @@ export default function VisitsPage() {
             <h1 className="text-3xl font-bold tracking-tight">Patient Visits</h1>
             <p className="text-muted-foreground">Manage patient visits and clinical encounters</p>
           </div>
-          <Button onClick={handleNewVisit}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Visit
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  setLoading(true)
+                  const result = await consultationAPI.getAll({ page: 1, per_page: 100 })
+                  if (result && Array.isArray(result.data)) {
+                    const transformed = result.data.map((consult: any) => ({
+                      id: consult.id || `CONS-${consult.id?.slice(0, 8)}`,
+                      patientName: consult.patient_name || `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'Unknown Patient',
+                      patientId: consult.patient_id || '',
+                      visitDate: consult.date || consult.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+                      visitTime: consult.time || consult.created_at?.split('T')[1]?.substring(0, 5) || new Date().toTimeString().substring(0, 5),
+                      chiefComplaint: consult.chief_complaint || 'N/A',
+                      diagnosis: consult.diagnosis || 'Pending diagnosis',
+                      clinician: consult.doctor_name || consult.clinician_name || 'Unknown',
+                      status: consult.status || (consult.diagnosis ? 'completed' : 'in-progress'),
+                      vitals: {
+                        bp: consult.vital_signs?.blood_pressure || 'N/A',
+                        pulse: consult.vital_signs?.pulse?.toString() || 'N/A',
+                        temp: consult.vital_signs?.temperature ? `${consult.vital_signs.temperature}°C` : 'N/A',
+                        weight: consult.vital_signs?.weight ? `${consult.vital_signs.weight}kg` : 'N/A',
+                      },
+                    }))
+                    setVisits(transformed)
+                    toast({
+                      title: "Refreshed",
+                      description: "Visit data has been refreshed.",
+                    })
+                  }
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to refresh visits.",
+                    variant: "destructive"
+                  })
+                } finally {
+                  setLoading(false)
+                }
+              }}
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button onClick={handleNewVisit}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Visit
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="active" className="space-y-4">
@@ -149,10 +265,18 @@ export default function VisitsPage() {
           </div>
 
           <TabsContent value="active" className="space-y-4">
-            <div className="grid gap-4">
-              {filteredVisits
-                .filter((visit) => visit.status !== "completed")
-                .map((visit) => (
+            {loading ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">Loading visits...</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {filteredVisits
+                  .filter((visit) => visit.status !== "completed")
+                  .map((visit) => (
                   <Card key={visit.id}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
@@ -206,7 +330,8 @@ export default function VisitsPage() {
                     </CardContent>
                   </Card>
                 ))}
-            </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="completed" className="space-y-4">
@@ -295,9 +420,14 @@ export default function VisitsPage() {
                   <SelectValue placeholder="Search and select patient..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="P001">John Doe (P001)</SelectItem>
-                  <SelectItem value="P002">Jane Smith (P002)</SelectItem>
-                  <SelectItem value="P003">Mike Wilson (P003)</SelectItem>
+                  {patients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.first_name || patient.firstName} {patient.last_name || patient.lastName} ({patient.id || patient.patient_number})
+                    </SelectItem>
+                  ))}
+                  {patients.length === 0 && (
+                    <SelectItem value="no-patients" disabled>No patients available</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

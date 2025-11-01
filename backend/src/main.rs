@@ -1,19 +1,32 @@
-use actix_web::{web, App, HttpResponse, HttpServer, Result};
+use actix_web::{web, App, HttpResponse, HttpServer, Result, middleware::Logger};
 use std::env;
 use serde_json::json;
 use sqlx::PgPool;
+use actix_cors::Cors;
+use middleware::SecurityMiddleware;
 
 mod database;
 mod auth;
 mod models;
 mod simple_handlers;
 mod jwt_utils;
+mod middleware;
+mod mpesa;
+mod services;
+mod websocket;
+mod cache;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db_pool: PgPool,
     pub auth_service: auth::AuthService,
+    // Cache service can be added later when fully integrated
+    // pub cache_service: Option<std::sync::Arc<cache::cache_service::CacheService>>,
 }
+
+// Make AppState available for tests
+#[cfg(test)]
+pub use AppState;
 
 async fn health() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(json!({
@@ -48,6 +61,16 @@ async fn database_test(state: web::Data<AppState>) -> Result<HttpResponse> {
     }
 }
 
+// WebSocket handler wrapper to include auth service
+async fn websocket_handler_wrapper(
+    req: actix_web::HttpRequest,
+    stream: web::Payload,
+    manager: web::Data<actix::Addr<websocket::WebSocketManager>>,
+    state: web::Data<AppState>,
+) -> actix_web::Result<HttpResponse> {
+    websocket::websocket_handler(req, stream, manager, web::Data::new(state.auth_service.clone())).await
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     dotenvy::dotenv().ok();
@@ -57,8 +80,9 @@ async fn main() -> std::io::Result<()> {
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let bind_address = format!("{}:{}", host, port);
 
-    eprintln!("🚀 Starting Clinic Management Backend (Minimal Version)");
+    eprintln!("🚀 Starting Clinic Management Backend");
     eprintln!("📡 Server will listen on: {}", bind_address);
+    eprintln!("🌍 Environment: {}", if cfg!(debug_assertions) { "development" } else { "production" });
 
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://clinic_user:clinic_password@postgres:5432/clinic_management".to_string());
@@ -95,27 +119,183 @@ async fn main() -> std::io::Result<()> {
     
     eprintln!("🔐 AuthService initialized");
 
+    // Initialize WebSocket Manager
+    let websocket_manager = actix::Actor::start(websocket::WebSocketManager::new);
+    eprintln!("🌐 WebSocket Manager initialized");
+
     let app_state = AppState { 
         db_pool,
         auth_service,
     };
 
+    // Configure CORS
+    let cors_origins = env::var("CORS_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001".to_string());
+    
     eprintln!("🌐 Starting HTTP server...");
+    eprintln!("🔓 CORS enabled for: {}", cors_origins);
+    
+    let app_state_clone = app_state.clone();
     HttpServer::new(move || {
+        let app_state = app_state_clone.clone();
+        // Build CORS configuration
+        let mut cors = Cors::default()
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+            .allowed_headers(vec![
+                actix_web::http::header::CONTENT_TYPE,
+                actix_web::http::header::AUTHORIZATION,
+                actix_web::http::header::ACCEPT,
+            ])
+            .max_age(3600);
+        
+        // Add allowed origins
+        let origins: Vec<&str> = cors_origins.split(',').map(|s| s.trim()).collect();
+        for origin in &origins {
+            cors = cors.allowed_origin(origin);
+        }
+
+        // Create security middleware instances
+        let security_middleware = SecurityMiddleware::new(app_state.auth_service.clone());
+        let auth_middleware_strict = SecurityMiddleware::with_strict_rate_limit(app_state.auth_service.clone());
+
         App::new()
+            // Global middleware
+            .wrap(Logger::default())
+            .wrap(cors)
+            // Application state
             .app_data(web::Data::new(app_state.clone()))
-            // Health and status routes (public)
+            .app_data(web::Data::new(websocket_manager.clone()))
+            
+            // ===========================================
+            // PUBLIC ROUTES (No authentication required)
+            // ===========================================
+            // Health check endpoints
             .route("/health", web::get().to(health))
             .route("/status", web::get().to(status))
             .route("/api/test/database", web::get().to(database_test))
-            // Authentication routes (public)
+            
+            // ===========================================
+            // AUTHENTICATION ROUTES (Public - no JWT required)
+            // Login, logout, refresh are public
+            // /me and /profile require JWT (handled in handlers)
+            // ===========================================
             .route("/api/auth/login", web::post().to(simple_handlers::login))
-            // User management routes (public for now - should be protected in production)
-            .route("/api/users", web::get().to(simple_handlers::get_users))
-            .route("/api/users", web::post().to(simple_handlers::create_user))
-            .route("/api/users/{id}", web::get().to(simple_handlers::get_user_by_id))
-            // Protected routes (require JWT)
-            .route("/api/auth/profile", web::get().to(simple_handlers::get_profile))
+            .route("/api/auth/logout", web::post().to(simple_handlers::logout))
+            .route("/api/auth/refresh", web::post().to(simple_handlers::refresh_token))
+            
+            // ===========================================
+            // M-PESA ROUTES
+            // Callback is public (called by Safaricom)
+            // STK push and status require authentication
+            // ===========================================
+            .route("/api/mpesa/callback", web::post().to(simple_handlers::mpesa_callback))
+            
+            // ===========================================
+            // WEBSOCKET ROUTE (Protected - requires JWT)
+            // ===========================================
+            .route("/api/ws", web::get().to(websocket_handler_wrapper))
+            
+            // Protected auth routes
+            .service(
+                web::scope("/api/auth")
+                    .wrap(security_middleware.clone())
+                    .route("/me", web::get().to(simple_handlers::get_me))
+                    .route("/profile", web::get().to(simple_handlers::get_profile))
+            )
+            
+            // ===========================================
+            // PROTECTED ROUTES (JWT + Rate Limiting Required)
+            // ===========================================
+            .service(
+                web::scope("/api")
+                    .wrap(security_middleware.clone())
+                    // USER MANAGEMENT ROUTES
+                    .route("/users", web::get().to(simple_handlers::get_users))
+                    .route("/users", web::post().to(simple_handlers::create_user))
+                    .route("/users/{id}", web::get().to(simple_handlers::get_user_by_id))
+                    
+                    // PATIENT MANAGEMENT ROUTES
+                    .route("/patients", web::get().to(simple_handlers::get_patients))
+                    .route("/patients", web::post().to(simple_handlers::create_patient))
+                    .route("/patients/{id}", web::get().to(simple_handlers::get_patient))
+                    .route("/patients/{id}", web::put().to(simple_handlers::update_patient))
+                    .route("/patients/{id}", web::delete().to(simple_handlers::delete_patient))
+                    .route("/patients/search", web::get().to(simple_handlers::search_patients))
+                    .route("/patients/import", web::post().to(simple_handlers::import_patients))
+                    
+                    // CONSULTATION MANAGEMENT ROUTES
+                    .route("/consultations", web::get().to(simple_handlers::get_consultations))
+                    .route("/consultations", web::post().to(simple_handlers::create_consultation))
+                    .route("/consultations/{id}", web::get().to(simple_handlers::get_consultation))
+                    .route("/consultations/{id}", web::put().to(simple_handlers::update_consultation))
+                    .route("/consultations/{id}", web::delete().to(simple_handlers::delete_consultation))
+                    .route("/consultations/patient/{patientId}", web::get().to(simple_handlers::get_patient_consultations))
+                    
+                    // APPOINTMENT MANAGEMENT ROUTES
+                    .route("/appointments", web::get().to(simple_handlers::get_appointments))
+                    .route("/appointments", web::post().to(simple_handlers::create_appointment))
+                    .route("/appointments/{id}", web::get().to(simple_handlers::get_appointment))
+                    .route("/appointments/{id}", web::put().to(simple_handlers::update_appointment))
+                    .route("/appointments/{id}", web::delete().to(simple_handlers::delete_appointment))
+                    .route("/appointments/date/{date}", web::get().to(simple_handlers::get_appointments_by_date))
+                    
+                    // BILLING & INVOICE MANAGEMENT ROUTES
+                    .route("/invoices", web::get().to(simple_handlers::get_invoices))
+                    .route("/invoices", web::post().to(simple_handlers::create_invoice))
+                    .route("/invoices/{id}", web::get().to(simple_handlers::get_invoice))
+                    .route("/invoices/{id}", web::put().to(simple_handlers::update_invoice))
+                    .route("/invoices/{id}", web::delete().to(simple_handlers::delete_invoice))
+                    .route("/invoices/{id}/pay", web::post().to(simple_handlers::pay_invoice))
+                    .route("/invoices/reports", web::get().to(simple_handlers::get_invoice_reports))
+                    
+                    // M-PESA PAYMENT ROUTES (Protected)
+                    .route("/mpesa/stk-push", web::post().to(simple_handlers::initiate_stk_push))
+                    .route("/mpesa/transaction/{checkout_request_id}", web::get().to(simple_handlers::get_mpesa_transaction_status))
+                    .route("/mpesa/invoice/{invoice_id}/transactions", web::get().to(simple_handlers::get_invoice_mpesa_transactions))
+                    
+                    // SMS ROUTES (Protected)
+                    .route("/sms/send", web::post().to(simple_handlers::send_sms))
+                    .route("/sms/send-template", web::post().to(simple_handlers::send_template_sms))
+                    .route("/sms/balance", web::get().to(simple_handlers::get_sms_balance))
+                    
+                    // EMAIL ROUTES (Protected)
+                    .route("/email/send", web::post().to(simple_handlers::send_email))
+                    .route("/email/send-template", web::post().to(simple_handlers::send_template_email))
+                    
+                    // PHARMACY MANAGEMENT ROUTES
+                    // Medicines
+                    .route("/medicines", web::get().to(simple_handlers::get_medicines))
+                    .route("/medicines", web::post().to(simple_handlers::create_medicine))
+                    .route("/medicines/{id}", web::get().to(simple_handlers::get_medicine))
+                    .route("/medicines/{id}", web::put().to(simple_handlers::update_medicine))
+                    .route("/medicines/{id}", web::delete().to(simple_handlers::delete_medicine))
+                    .route("/medicines/{id}/receive", web::post().to(simple_handlers::receive_stock))
+                    
+                    // Prescriptions
+                    .route("/prescriptions", web::get().to(simple_handlers::get_prescriptions))
+                    .route("/prescriptions", web::post().to(simple_handlers::create_prescription))
+                    .route("/prescriptions/{id}", web::get().to(simple_handlers::get_prescription))
+                    .route("/prescriptions/{id}", web::put().to(simple_handlers::update_prescription))
+                    .route("/prescriptions/{id}", web::delete().to(simple_handlers::delete_prescription))
+                    .route("/prescriptions/{id}/dispense", web::post().to(simple_handlers::dispense_prescription))
+                    
+                    // INVENTORY MANAGEMENT ROUTES
+                    .route("/inventory/low-stock", web::get().to(simple_handlers::get_low_stock))
+                    .route("/inventory/expiring", web::get().to(simple_handlers::get_expiring_medicines))
+                    .route("/inventory/alerts", web::get().to(simple_handlers::get_stock_alerts))
+                    .route("/inventory/reconciliation", web::get().to(simple_handlers::get_stock_reconciliation))
+                    .route("/inventory/adjust/{id}", web::post().to(simple_handlers::adjust_stock))
+                    
+                    // REPORTS ROUTES
+                    .route("/reports/financial", web::get().to(simple_handlers::get_financial_report))
+                    .route("/reports/sha-claims", web::get().to(simple_handlers::get_sha_claims_report))
+                    .route("/reports/audit", web::get().to(simple_handlers::get_audit_report))
+                    .route("/reports/dashboard", web::get().to(simple_handlers::get_dashboard_report))
+            )
+            
+            // ===========================================
+            // FUTURE ROUTES TO IMPLEMENT:
+            // ===========================================
     })
     .bind(&bind_address)?
     .run()

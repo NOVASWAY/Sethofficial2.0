@@ -26,7 +26,9 @@ import {
   Clock,
   XCircle
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { prescriptionAPI, patientAPI } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
 interface Prescription {
   id: string
@@ -55,11 +57,85 @@ interface PrescriptionMedication {
 export default function PrescriptionsPage() {
   const params = useParams()
   const role = params.role as string
+  const { toast } = useToast()
   const [isNewPrescriptionOpen, setIsNewPrescriptionOpen] = useState(false)
   const [isViewPrescriptionOpen, setIsViewPrescriptionOpen] = useState(false)
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [loading, setLoading] = useState(true)
+  const [patients, setPatients] = useState<Array<{id: string, firstName: string, lastName: string, patientNumber?: string}>>([])
+  const [activeTab, setActiveTab] = useState("all")
 
+  // Fetch prescriptions from API
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      try {
+        setLoading(true)
+        const params: { page?: number; per_page?: number; status?: string } = {
+          page: 1,
+          per_page: 100
+        }
+        
+        if (activeTab !== "all") {
+          params.status = activeTab === "pending" ? "active" : activeTab === "dispensed" ? "dispensed" : activeTab === "cancelled" ? "cancelled" : undefined
+        }
+
+        const result = await prescriptionAPI.getAll(params)
+        
+        if (result && Array.isArray(result.data)) {
+          // Transform API response to match Prescription interface
+          const transformed = result.data.map((p: any) => ({
+            id: p.id || p.prescription_number || `RX-${p.id?.slice(0, 8)}`,
+            patientId: p.patient_id,
+            patientName: p.patient_name || `${p.patient_first_name || ''} ${p.patient_last_name || ''}`.trim(),
+            prescribedBy: p.doctor_name || p.prescribed_by || "Unknown Doctor",
+            date: p.date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            status: p.status === "active" ? "pending" as const : p.status === "dispensed" ? "dispensed" as const : p.status === "cancelled" ? "cancelled" as const : "pending" as const,
+            medications: p.medications || p.items || [],
+            notes: p.notes || p.instructions || "",
+            totalAmount: p.total_amount || p.total || 0
+          }))
+          setPrescriptions(transformed)
+        }
+      } catch (error) {
+        console.error("Error fetching prescriptions:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load prescriptions. Please try again.",
+          variant: "destructive"
+        })
+        // Fallback to empty array on error
+        setPrescriptions([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPrescriptions()
+  }, [activeTab, toast])
+
+  // Fetch patients for dropdown
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const result = await patientAPI.getAll()
+        if (result && Array.isArray(result)) {
+          setPatients(result.map((p: any) => ({
+            id: p.id,
+            firstName: p.first_name || p.firstName || "",
+            lastName: p.last_name || p.lastName || "",
+            patientNumber: p.patient_number || p.patientNumber
+          })))
+        }
+      } catch (error) {
+        console.error("Error fetching patients:", error)
+      }
+    }
+    fetchPatients()
+  }, [])
+
+  // Legacy mock data (kept for reference, not used)
   const mockPrescriptions: Prescription[] = [
     {
       id: "RX001",
@@ -143,7 +219,7 @@ export default function PrescriptionsPage() {
     }
   ]
 
-  const filteredPrescriptions = mockPrescriptions.filter(
+  const filteredPrescriptions = prescriptions.filter(
     (rx) =>
       rx.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       rx.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -213,7 +289,7 @@ export default function PrescriptionsPage() {
                 <ClipboardList className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-sm font-medium">Total Prescriptions</p>
-                  <p className="text-2xl font-bold">{mockPrescriptions.length}</p>
+                  <p className="text-2xl font-bold">{loading ? "..." : prescriptions.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -225,7 +301,7 @@ export default function PrescriptionsPage() {
                 <div>
                   <p className="text-sm font-medium">Pending</p>
                   <p className="text-2xl font-bold">
-                    {mockPrescriptions.filter((rx) => rx.status === "pending").length}
+                    {loading ? "..." : prescriptions.filter((rx) => rx.status === "pending").length}
                   </p>
                 </div>
               </div>
@@ -238,7 +314,7 @@ export default function PrescriptionsPage() {
                 <div>
                   <p className="text-sm font-medium">Dispensed</p>
                   <p className="text-2xl font-bold">
-                    {mockPrescriptions.filter((rx) => rx.status === "dispensed").length}
+                    {loading ? "..." : prescriptions.filter((rx) => rx.status === "dispensed").length}
                   </p>
                 </div>
               </div>
@@ -251,7 +327,7 @@ export default function PrescriptionsPage() {
                 <div>
                   <p className="text-sm font-medium">Total Value</p>
                   <p className="text-2xl font-bold">
-                    KSh {mockPrescriptions.reduce((sum, rx) => sum + rx.totalAmount, 0).toLocaleString()}
+                    KSh {loading ? "..." : prescriptions.reduce((sum, rx) => sum + rx.totalAmount, 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -259,7 +335,7 @@ export default function PrescriptionsPage() {
           </Card>
         </div>
 
-        <Tabs defaultValue="all" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="all">All Prescriptions</TabsTrigger>
             <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -284,7 +360,7 @@ export default function PrescriptionsPage() {
               <CardHeader>
                 <CardTitle>All Prescriptions</CardTitle>
                 <CardDescription>
-                  {filteredPrescriptions.length} of {mockPrescriptions.length} prescriptions
+                  {loading ? "Loading..." : `${filteredPrescriptions.length} of ${prescriptions.length} prescriptions`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -302,7 +378,20 @@ export default function PrescriptionsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPrescriptions.map((prescription) => {
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          Loading prescriptions...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredPrescriptions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No prescriptions found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredPrescriptions.map((prescription) => {
                       const StatusIcon = getStatusIcon(prescription.status)
                       return (
                         <TableRow key={prescription.id}>
@@ -339,7 +428,7 @@ export default function PrescriptionsPage() {
                           </TableCell>
                         </TableRow>
                       )
-                    })}
+                    }))}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -371,7 +460,29 @@ export default function PrescriptionsPage() {
                             View
                           </Button>
                           {role === "pharmacist" && (
-                            <Button size="sm">
+                            <Button 
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await prescriptionAPI.markDispensed(prescription.id, {
+                                    dispensed_by: role,
+                                    dispensed_at: new Date().toISOString()
+                                  })
+                                  toast({
+                                    title: "Success",
+                                    description: "Prescription dispensed successfully.",
+                                  })
+                                  // Refresh list
+                                  window.location.reload()
+                                } catch (error) {
+                                  toast({
+                                    title: "Error",
+                                    description: "Failed to dispense prescription.",
+                                    variant: "destructive"
+                                  })
+                                }
+                              }}
+                            >
                               <Pill className="w-4 h-4 mr-2" />
                               Dispense
                             </Button>
@@ -462,9 +573,14 @@ export default function PrescriptionsPage() {
                     <SelectValue placeholder="Search and select patient..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="P001">John Doe (P001)</SelectItem>
-                    <SelectItem value="P002">Sarah Johnson (P002)</SelectItem>
-                    <SelectItem value="P003">Michael Brown (P003)</SelectItem>
+                    {patients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.firstName} {patient.lastName} {patient.patientNumber ? `(${patient.patientNumber})` : `(${patient.id.slice(0, 8)})`}
+                      </SelectItem>
+                    ))}
+                    {patients.length === 0 && (
+                      <SelectItem value="" disabled>No patients available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -491,9 +607,24 @@ export default function PrescriptionsPage() {
                 Cancel
               </Button>
               <Button
-                onClick={() => {
-                  console.log("[v0] Creating new prescription")
-                  setIsNewPrescriptionOpen(false)
+                onClick={async () => {
+                  try {
+                    // TODO: Implement prescription creation with selected patient and medications
+                    // const selectedPatientId = ...
+                    // const prescriptionData = { ... }
+                    // await prescriptionAPI.create(prescriptionData)
+                    toast({
+                      title: "Coming Soon",
+                      description: "Prescription creation will be implemented soon.",
+                    })
+                    setIsNewPrescriptionOpen(false)
+                  } catch (error) {
+                    toast({
+                      title: "Error",
+                      description: "Failed to create prescription. Please try again.",
+                      variant: "destructive"
+                    })
+                  }
                 }}
               >
                 Create Prescription
@@ -587,7 +718,29 @@ export default function PrescriptionsPage() {
                   Print Prescription
                 </Button>
                 {selectedPrescription.status === "pending" && role === "pharmacist" && (
-                  <Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await prescriptionAPI.markDispensed(selectedPrescription.id, {
+                          dispensed_by: role,
+                          dispensed_at: new Date().toISOString()
+                        })
+                        toast({
+                          title: "Success",
+                          description: "Prescription dispensed successfully.",
+                        })
+                        setIsViewPrescriptionOpen(false)
+                        // Refresh prescriptions list
+                        window.location.reload()
+                      } catch (error) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to dispense prescription. Please try again.",
+                          variant: "destructive"
+                        })
+                      }
+                    }}
+                  >
                     <Pill className="w-4 h-4 mr-2" />
                     Dispense Medication
                   </Button>

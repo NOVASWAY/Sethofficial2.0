@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { EnhancedServiceCatalog, Service } from './enhanced-service-catalog'
-import { billingAPI, serviceCatalogAPI } from '@/lib/api-client'
+import { billingAPI, serviceCatalogAPI, invoiceAPI } from '@/lib/api-client'
 
 interface BillingItem {
   service_id: string
@@ -440,15 +440,62 @@ export function EnhancedBillingModule({
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => window.print()}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print
-                  </Button>
-                  <Button variant="outline" className="flex-1">
-                    <FileText className="mr-2 h-4 w-4" />
-                    PDF
-                  </Button>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={() => window.print()}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Print
+                    </Button>
+                    <Button variant="outline" className="flex-1">
+                      <FileText className="mr-2 h-4 w-4" />
+                      PDF
+                    </Button>
+                  </div>
+                  
+                  {autoBillResult.totals.patient_payment > 0 && (
+                    <Button 
+                      className="w-full" 
+                      onClick={async () => {
+                        try {
+                          setLoading(true)
+                          await invoiceAPI.processPayment(autoBillResult.invoice_id, {
+                            payment_method: insuranceType.toLowerCase() === 'cash' ? 'cash' : 
+                                          insuranceType.toLowerCase() === 'sha' ? 'sha' : 
+                                          insuranceType.toLowerCase() === 'nhif' ? 'nhif' : 'cash',
+                            amount_paid: autoBillResult.totals.patient_payment,
+                            payment_date: new Date().toISOString().split('T')[0],
+                            transaction_id: `TXN-${Date.now()}`,
+                          })
+                          toast({
+                            title: "Payment Processed",
+                            description: `Payment of KSh ${autoBillResult.totals.patient_payment.toFixed(2)} processed successfully.`,
+                          })
+                        } catch (error) {
+                          console.error("Error processing payment:", error)
+                          toast({
+                            variant: 'error',
+                            title: 'Payment Failed',
+                            description: 'Failed to process payment. Please try again.',
+                          })
+                        } finally {
+                          setLoading(false)
+                        }
+                      }}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Process Payment
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

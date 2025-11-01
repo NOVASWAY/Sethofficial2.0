@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { appointmentAPI } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,19 +11,72 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Calendar, Clock, User, Phone, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { Calendar, Clock, User, Phone, FileText, CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAppointments, type Appointment } from '@/contexts/appointment-context'
 
 export function AppointmentBooking() {
   const { toast } = useToast()
-  const { appointments, addAppointment, updateAppointment, cancelAppointment } = useAppointments()
+  const { appointments: contextAppointments, addAppointment, updateAppointment, cancelAppointment } = useAppointments()
   
+  const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  // Fetch appointments from API
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        setLoading(true)
+        const result = await appointmentAPI.getAll({ page: 1, per_page: 200 })
+        
+        if (result && Array.isArray(result.data)) {
+          // Transform API response to match Appointment interface
+          const transformed = result.data.map((apt: any) => ({
+            id: apt.id || `APT-${apt.id?.slice(0, 8)}`,
+            patientId: apt.patient_id || apt.patientId || '',
+            patientName: apt.patient_name || `${apt.patient_first_name || ''} ${apt.patient_last_name || ''}`.trim() || 'Unknown Patient',
+            patientPhone: apt.patient_phone || apt.patientPhone || '',
+            appointmentDate: apt.date || apt.appointment_date || new Date().toISOString().split('T')[0],
+            appointmentTime: apt.time || apt.appointment_time || '',
+            appointmentType: (apt.type || apt.appointment_type || 'consultation') as Appointment['appointmentType'],
+            clinicianId: apt.doctor_id || apt.clinician_id || apt.clinicianId || '',
+            clinicianName: apt.doctor_name || apt.clinician_name || apt.clinicianName || 'Unknown Doctor',
+            status: (apt.status === 'scheduled' ? 'scheduled' as const :
+                     apt.status === 'checked-in' ? 'checked-in' as const :
+                     apt.status === 'in-progress' ? 'in-progress' as const :
+                     apt.status === 'completed' ? 'completed' as const :
+                     apt.status === 'cancelled' ? 'cancelled' as const :
+                     apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
+            notes: apt.notes || apt.notes || '',
+            cancelledReason: apt.cancelled_reason || apt.cancelReason || undefined,
+            createdAt: apt.created_at || new Date().toISOString(),
+          }))
+          setAppointments(transformed)
+        } else {
+          // Fallback to context appointments if API returns unexpected format
+          setAppointments(contextAppointments)
+        }
+      } catch (error) {
+        console.error("Error fetching appointments:", error)
+        toast({
+          title: "Warning",
+          description: "Failed to load appointments from API. Using context data.",
+          variant: "default"
+        })
+        // Fallback to context appointments on error
+        setAppointments(contextAppointments)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAppointments()
+  }, [contextAppointments.length, toast])
   
   const [bookingData, setBookingData] = useState({
     patientId: '',
@@ -36,7 +90,7 @@ export function AppointmentBooking() {
     notes: '',
   })
 
-  const handleBookAppointment = () => {
+  const handleBookAppointment = async () => {
     if (!bookingData.patientName || !bookingData.patientPhone || !bookingData.appointmentDate || 
         !bookingData.appointmentTime || !bookingData.clinicianName) {
       toast({
@@ -47,45 +101,102 @@ export function AppointmentBooking() {
       return
     }
 
-    const appointmentId = addAppointment({
-      ...bookingData,
-      patientId: bookingData.patientId || `PAT-${Date.now()}`,
-      clinicianId: bookingData.clinicianId || `DOC-${Date.now()}`,
-      status: 'scheduled',
-    })
+    try {
+      // Create appointment via API
+      const appointmentData = {
+        patient_id: bookingData.patientId || null,
+        doctor_id: bookingData.clinicianId || null,
+        date: bookingData.appointmentDate,
+        time: bookingData.appointmentTime,
+        type: bookingData.appointmentType || 'consultation',
+        notes: bookingData.notes || null,
+        status: 'scheduled',
+      }
 
-    toast({
-      title: 'Appointment Booked',
-      description: `Appointment scheduled for ${bookingData.patientName} on ${bookingData.appointmentDate} at ${bookingData.appointmentTime}`,
-    })
+      const apiResponse = await appointmentAPI.create(appointmentData)
 
-    setIsBookingOpen(false)
-    setBookingData({
-      patientId: '',
-      patientName: '',
-      patientPhone: '',
-      appointmentDate: new Date().toISOString().split('T')[0],
-      appointmentTime: '',
-      appointmentType: 'consultation',
-      clinicianId: '',
-      clinicianName: '',
-      notes: '',
-    })
+      // Also add to context for immediate UI update
+      const newAppointment: Appointment = {
+        id: apiResponse?.id || `APT-${Date.now()}`,
+        patientId: bookingData.patientId || `PAT-${Date.now()}`,
+        patientName: bookingData.patientName,
+        patientPhone: bookingData.patientPhone,
+        appointmentDate: bookingData.appointmentDate,
+        appointmentTime: bookingData.appointmentTime,
+        appointmentType: bookingData.appointmentType,
+        clinicianId: bookingData.clinicianId || `DOC-${Date.now()}`,
+        clinicianName: bookingData.clinicianName,
+        status: 'scheduled',
+        notes: bookingData.notes,
+        createdAt: new Date().toISOString(),
+      }
+
+      addAppointment(newAppointment)
+      setAppointments([...appointments, newAppointment])
+
+      toast({
+        title: 'Appointment Booked',
+        description: `Appointment scheduled for ${bookingData.patientName} on ${bookingData.appointmentDate} at ${bookingData.appointmentTime}`,
+      })
+
+      setIsBookingOpen(false)
+      setBookingData({
+        patientId: '',
+        patientName: '',
+        patientPhone: '',
+        appointmentDate: new Date().toISOString().split('T')[0],
+        appointmentTime: '',
+        appointmentType: 'consultation',
+        clinicianId: '',
+        clinicianName: '',
+        notes: '',
+      })
+    } catch (error) {
+      console.error("Error creating appointment:", error)
+      toast({
+        variant: 'error',
+        title: 'Booking Failed',
+        description: 'Failed to book appointment. Please try again.',
+      })
+    }
   }
 
-  const handleCancelAppointment = () => {
+  const handleCancelAppointment = async () => {
     if (!selectedAppointment) return
 
-    cancelAppointment(selectedAppointment.id, cancelReason)
-    
-    toast({
-      title: 'Appointment Cancelled',
-      description: `Appointment for ${selectedAppointment.patientName} has been cancelled`,
-    })
+    try {
+      // Cancel appointment via API
+      await appointmentAPI.update(selectedAppointment.id, {
+        status: 'cancelled',
+        notes: cancelReason ? `${selectedAppointment.notes || ''}\nCancellation reason: ${cancelReason}`.trim() : selectedAppointment.notes,
+      })
 
-    setIsCancelOpen(false)
-    setSelectedAppointment(null)
-    setCancelReason('')
+      // Also update context
+      cancelAppointment(selectedAppointment.id, cancelReason)
+
+      // Update local state
+      setAppointments(appointments.map(apt => 
+        apt.id === selectedAppointment.id 
+          ? { ...apt, status: 'cancelled' as const, cancelledReason: cancelReason }
+          : apt
+      ))
+      
+      toast({
+        title: 'Appointment Cancelled',
+        description: `Appointment for ${selectedAppointment.patientName} has been cancelled`,
+      })
+
+      setIsCancelOpen(false)
+      setSelectedAppointment(null)
+      setCancelReason('')
+    } catch (error) {
+      console.error("Error cancelling appointment:", error)
+      toast({
+        variant: 'error',
+        title: 'Cancellation Failed',
+        description: 'Failed to cancel appointment. Please try again.',
+      })
+    }
   }
 
   const getStatusBadge = (status: Appointment['status']) => {
@@ -114,10 +225,60 @@ export function AppointmentBooking() {
             Book and manage patient appointments
           </p>
         </div>
-        <Button size="lg" onClick={() => setIsBookingOpen(true)}>
-          <Calendar className="mr-2 h-4 w-4" />
-          Book Appointment
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline"
+            onClick={async () => {
+              try {
+                setLoading(true)
+                const result = await appointmentAPI.getAll({ page: 1, per_page: 200 })
+                if (result && Array.isArray(result.data)) {
+                  const transformed = result.data.map((apt: any) => ({
+                    id: apt.id || `APT-${apt.id?.slice(0, 8)}`,
+                    patientId: apt.patient_id || apt.patientId || '',
+                    patientName: apt.patient_name || `${apt.patient_first_name || ''} ${apt.patient_last_name || ''}`.trim() || 'Unknown Patient',
+                    patientPhone: apt.patient_phone || apt.patientPhone || '',
+                    appointmentDate: apt.date || apt.appointment_date || new Date().toISOString().split('T')[0],
+                    appointmentTime: apt.time || apt.appointment_time || '',
+                    appointmentType: (apt.type || apt.appointment_type || 'consultation') as Appointment['appointmentType'],
+                    clinicianId: apt.doctor_id || apt.clinician_id || apt.clinicianId || '',
+                    clinicianName: apt.doctor_name || apt.clinician_name || apt.clinicianName || 'Unknown Doctor',
+                    status: (apt.status === 'scheduled' ? 'scheduled' as const :
+                             apt.status === 'checked-in' ? 'checked-in' as const :
+                             apt.status === 'in-progress' ? 'in-progress' as const :
+                             apt.status === 'completed' ? 'completed' as const :
+                             apt.status === 'cancelled' ? 'cancelled' as const :
+                             apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
+                    notes: apt.notes || apt.notes || '',
+                    cancelledReason: apt.cancelled_reason || apt.cancelReason || undefined,
+                    createdAt: apt.created_at || new Date().toISOString(),
+                  }))
+                  setAppointments(transformed)
+                  toast({
+                    title: "Refreshed",
+                    description: "Appointment data has been refreshed.",
+                  })
+                }
+              } catch (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to refresh appointments.",
+                  variant: "destructive"
+                })
+              } finally {
+                setLoading(false)
+              }
+            }}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button size="lg" onClick={() => setIsBookingOpen(true)}>
+            <Calendar className="mr-2 h-4 w-4" />
+            Book Appointment
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="today" className="w-full">
@@ -142,7 +303,12 @@ export function AppointmentBooking() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {todayAppointments.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin text-muted-foreground" />
+                  <p className="text-muted-foreground">Loading appointments...</p>
+                </div>
+              ) : todayAppointments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p>No appointments scheduled for today</p>

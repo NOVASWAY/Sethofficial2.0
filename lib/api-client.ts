@@ -4,7 +4,7 @@
 import { getStoredUser } from './auth'
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
 
 // Get authorization header
 function getAuthorizationHeader(): Record<string, string> {
@@ -281,16 +281,30 @@ export const prescriptionAPI = {
    * Get all prescriptions
    * GET /prescriptions
    */
-  getAll: async () => {
-    return apiCall<any[]>('/prescriptions')
+  getAll: async (params?: { page?: number; per_page?: number; patient_id?: string; status?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/prescriptions${query}`)
+    return response.data
+  },
+
+  /**
+   * Get prescription by ID
+   * GET /prescriptions/:id
+   */
+  getById: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/prescriptions/${id}`)
+    return response.data
   },
 
   /**
    * Get pending prescriptions
-   * GET /prescriptions/pending
+   * GET /prescriptions?status=active
    */
-  getPending: async () => {
-    return apiCall<any[]>('/prescriptions/pending')
+  getPending: async (params?: { page?: number; per_page?: number }) => {
+    const queryParams = { status: 'active', ...params }
+    const query = `?${new URLSearchParams(queryParams as any).toString()}`
+    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/prescriptions${query}`)
+    return response.data
   },
 
   /**
@@ -298,10 +312,34 @@ export const prescriptionAPI = {
    * POST /prescriptions
    */
   create: async (prescriptionData: any) => {
-    return apiCall<any>('/prescriptions', {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/prescriptions', {
       method: 'POST',
       body: JSON.stringify(prescriptionData),
     })
+    return response.data
+  },
+
+  /**
+   * Update prescription
+   * PUT /prescriptions/:id
+   */
+  update: async (id: string, updates: any) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/prescriptions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+    return response.data
+  },
+
+  /**
+   * Delete prescription
+   * DELETE /prescriptions/:id
+   */
+  delete: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/prescriptions/${id}`, {
+      method: 'DELETE',
+    })
+    return response.data
   },
 
   /**
@@ -309,10 +347,11 @@ export const prescriptionAPI = {
    * POST /prescriptions/:id/dispense
    */
   markDispensed: async (id: string, dispensingData: any) => {
-    return apiCall<any>(`/prescriptions/${id}/dispense`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/prescriptions/${id}/dispense`, {
       method: 'POST',
       body: JSON.stringify(dispensingData),
     })
+    return response.data
   },
 }
 
@@ -323,29 +362,29 @@ export const prescriptionAPI = {
 export const pharmacyAPI = {
   /**
    * Get all medicines
-   * GET /pharmacy/medicines
+   * GET /medicines
    */
-  getMedicines: async (params?: { page?: number; per_page?: number; search?: string }) => {
+  getMedicines: async (params?: { page?: number; per_page?: number; search?: string; low_stock?: boolean; expiring?: boolean }) => {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
-    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/pharmacy/medicines${query}`)
+    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/medicines${query}`)
     return response.data
   },
 
   /**
    * Get medicine by ID
-   * GET /pharmacy/medicines/:id
+   * GET /medicines/:id
    */
   getMedicine: async (id: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/pharmacy/medicines/${id}`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/medicines/${id}`)
     return response.data
   },
 
   /**
    * Add new medicine
-   * POST /pharmacy/medicines
+   * POST /medicines
    */
   addMedicine: async (medicineData: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/pharmacy/medicines', {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/medicines', {
       method: 'POST',
       body: JSON.stringify(medicineData),
     })
@@ -354,10 +393,10 @@ export const pharmacyAPI = {
 
   /**
    * Update medicine
-   * PUT /pharmacy/medicines/:id
+   * PUT /medicines/:id
    */
   updateMedicine: async (id: string, updates: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/pharmacy/medicines/${id}`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/medicines/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     })
@@ -365,21 +404,22 @@ export const pharmacyAPI = {
   },
 
   /**
-   * Get stock movements for a medicine
-   * GET /pharmacy/medicines/:id/stock-movements
+   * Delete medicine
+   * DELETE /medicines/:id
    */
-  getStockMovements: async (medicineId: string, params?: { page?: number; per_page?: number }) => {
-    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
-    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/pharmacy/medicines/${medicineId}/stock-movements${query}`)
+  deleteMedicine: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/medicines/${id}`, {
+      method: 'DELETE',
+    })
     return response.data
   },
 
   /**
    * Receive new stock
-   * POST /pharmacy/stock/receive
+   * POST /medicines/:id/receive
    */
-  receiveStock: async (stockData: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/pharmacy/stock/receive', {
+  receiveStock: async (id: string, stockData: any) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/medicines/${id}/receive`, {
       method: 'POST',
       body: JSON.stringify(stockData),
     })
@@ -387,32 +427,32 @@ export const pharmacyAPI = {
   },
 
   /**
+   * Get low stock medicines
+   * GET /inventory/low-stock
+   */
+  getLowStock: async (params?: { page?: number; per_page?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/inventory/low-stock${query}`)
+    return response.data
+  },
+
+  /**
+   * Get expiring medicines
+   * GET /inventory/expiring
+   */
+  getExpiring: async (params?: { page?: number; per_page?: number; days?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/inventory/expiring${query}`)
+    return response.data
+  },
+
+  /**
    * Get stock alerts
-   * GET /pharmacy/stock/alerts
+   * GET /inventory/alerts
    */
-  getStockAlerts: async () => {
-    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any }>('/pharmacy/stock/alerts')
-    return response.data || []
-  },
-
-  /**
-   * Get prescriptions
-   * GET /pharmacy/prescriptions
-   */
-  getPrescriptions: async () => {
-    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any }>('/pharmacy/prescriptions')
-    return response.data || []
-  },
-
-  /**
-   * Dispense prescription
-   * POST /pharmacy/prescriptions/:id/dispense
-   */
-  dispensePrescription: async (id: string, dispensingData: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/pharmacy/prescriptions/${id}/dispense`, {
-      method: 'POST',
-      body: JSON.stringify(dispensingData),
-    })
+  getStockAlerts: async (params?: { days?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/inventory/alerts${query}`)
     return response.data
   },
 }
@@ -470,13 +510,23 @@ export const invoiceAPI = {
 
   /**
    * Process payment for invoice
-   * POST /invoices/:id/payment
+   * POST /invoices/:id/pay
    */
   processPayment: async (id: string, paymentData: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/invoices/${id}/payment`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/invoices/${id}/pay`, {
       method: 'POST',
       body: JSON.stringify(paymentData),
     })
+    return response.data
+  },
+
+  /**
+   * Get invoice reports
+   * GET /invoices/reports
+   */
+  getReports: async (params?: { date_from?: string; date_to?: string; type?: 'summary' | 'daily' }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/invoices/reports${query}`)
     return response.data
   },
 
@@ -543,8 +593,10 @@ export const appointmentAPI = {
    * Get all appointments
    * GET /appointments
    */
-  getAll: async () => {
-    return apiCall<any[]>('/appointments')
+  getAll: async (params?: { page?: number; per_page?: number; patient_id?: string; doctor_id?: string; date?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/appointments${query}`)
+    return response.data
   },
 
   /**
@@ -552,7 +604,17 @@ export const appointmentAPI = {
    * GET /appointments/date/:date
    */
   getByDate: async (date: string) => {
-    return apiCall<any[]>(`/appointments/date/${date}`)
+    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any }>(`/appointments/date/${date}`)
+    return response.data || []
+  },
+
+  /**
+   * Get appointment by ID
+   * GET /appointments/:id
+   */
+  getById: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/appointments/${id}`)
+    return response.data
   },
 
   /**
@@ -571,21 +633,22 @@ export const appointmentAPI = {
    * PUT /appointments/:id
    */
   update: async (id: string, updates: any) => {
-    return apiCall<any>(`/appointments/${id}`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/appointments/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     })
+    return response.data
   },
 
   /**
-   * Cancel appointment
-   * POST /appointments/:id/cancel
+   * Delete appointment
+   * DELETE /appointments/:id
    */
-  cancel: async (id: string, reason: string) => {
-    return apiCall<any>(`/appointments/${id}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
+  delete: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/appointments/${id}`, {
+      method: 'DELETE',
     })
+    return response.data
   },
 }
 
@@ -658,28 +721,53 @@ export const reportsAPI = {
    * Get financial reports
    * GET /reports/financial
    */
-  getFinancial: async (startDate: string, endDate: string) => {
-    return apiCall<any>(`/reports/financial?start=${startDate}&end=${endDate}`)
+  getFinancial: async (params?: { date_from?: string; date_to?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/reports/financial${query}`)
+    return response.data
+  },
+
+  /**
+   * Get SHA claims report
+   * GET /reports/sha-claims
+   */
+  getShaClaims: async (params?: { page?: number; per_page?: number; status?: string; date_from?: string; date_to?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/reports/sha-claims${query}`)
+    return response.data
+  },
+
+  /**
+   * Get audit logs report
+   * GET /reports/audit
+   */
+  getAudit: async (params?: { page?: number; per_page?: number; user_id?: string; action?: string; date_from?: string; date_to?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/reports/audit${query}`)
+    return response.data
+  },
+
+  /**
+   * Get dashboard report
+   * GET /reports/dashboard
+   */
+  getDashboard: async () => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/reports/dashboard')
+    return response.data
   },
 
   /**
    * Get inventory reports
-   * GET /reports/inventory
+   * GET /inventory/reconciliation
    */
-  getInventory: async () => {
-    return apiCall<any>('/reports/inventory')
+  getInventory: async (params?: { date_from?: string; date_to?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/inventory/reconciliation${query}`)
+    return response.data
   },
 
   /**
-   * Get patient statistics
-   * GET /reports/patients
-   */
-  getPatientStats: async (startDate: string, endDate: string) => {
-    return apiCall<any>(`/reports/patients?start=${startDate}&end=${endDate}`)
-  },
-
-  /**
-   * Export report
+   * Export report (future enhancement)
    * GET /reports/export
    */
   export: async (reportType: string, params: any) => {

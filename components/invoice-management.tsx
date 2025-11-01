@@ -2,7 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { invoiceAPI, patientAPI } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { validateForm, validationSchemas } from "@/lib/validation"
 import { Separator } from "@/components/ui/separator"
-import { Search, Plus, Eye, Edit, Download, DollarSign, Clock, CheckCircle, XCircle, FileText, Shield, Printer } from "lucide-react"
+import { Search, Plus, Eye, Edit, Download, DollarSign, Clock, CheckCircle, XCircle, FileText, Shield, Printer, RefreshCw } from "lucide-react"
 import { InvoiceReports } from "./invoice-reports"
 import { PrintableInvoice } from "@/components/printable-invoice"
 
@@ -203,6 +205,7 @@ const mockInvoices: Invoice[] = [
 ]
 
 export function InvoiceManagement({ role }: InvoiceManagementProps) {
+  const { toast } = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -210,6 +213,95 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false)
   const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
+  // Fetch invoices from API
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        setLoading(true)
+        const params: { page?: number; per_page?: number; patient_id?: string; payment_status?: string } = {
+          page,
+          per_page: 50
+        }
+        
+        // Map status filter to backend payment_status
+        if (statusFilter !== "all") {
+          params.payment_status = statusFilter === "Paid" ? "paid" : 
+                                  statusFilter === "Pending" ? "pending" : 
+                                  statusFilter === "Overdue" ? "overdue" : "pending"
+        }
+
+        const result = await invoiceAPI.getAll(params)
+        
+        if (result && Array.isArray(result.data)) {
+          // Transform API response to match Invoice interface
+          const transformed = result.data.map((inv: any) => ({
+            id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
+            patientId: inv.patient_id,
+            patientName: inv.patient_name || `${inv.patient_first_name || ''} ${inv.patient_last_name || ''}`.trim(),
+            date: inv.date || inv.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            dueDate: inv.due_date || inv.date || new Date().toISOString().split('T')[0],
+            type: (inv.payment_method === 'sha' ? 'SHA' as const :
+                   inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
+                   inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
+            status: (inv.payment_status === 'paid' ? 'Paid' as const :
+                     inv.payment_status === 'pending' ? 'Pending' as const :
+                     inv.payment_status === 'overdue' ? 'Overdue' as const :
+                     inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
+            subtotal: inv.subtotal || inv.total_amount - (inv.tax || 0),
+            tax: inv.tax || 0,
+            total: inv.total_amount || inv.total || 0,
+            services: inv.items || inv.services || [],
+            shaDetails: inv.sha_details ? {
+              memberNumber: inv.sha_details.member_number || '',
+              scheme: inv.sha_details.scheme || '',
+              authorizationCode: inv.sha_details.authorization_code || '',
+              preAuthorizationCode: inv.sha_details.pre_authorization_code,
+              icd11Code: inv.sha_details.icd11_code || '',
+              diagnosis: inv.sha_details.diagnosis || '',
+              serviceCode: inv.sha_details.service_code || '',
+              serviceDescription: inv.sha_details.service_description || '',
+              practitionerId: inv.sha_details.practitioner_id || '',
+              practitionerName: inv.sha_details.practitioner_name || '',
+              facilityCode: inv.sha_details.facility_code || '',
+              claimStatus: inv.sha_details.claim_status,
+              submissionDate: inv.sha_details.submission_date,
+              rejectionReason: inv.sha_details.rejection_reason
+            } : undefined,
+            paymentDetails: inv.payment_status === 'paid' ? {
+              method: inv.payment_method || 'Cash',
+              transactionId: inv.transaction_id || '',
+              paidDate: inv.paid_date || inv.payment_date || '',
+              mpesaCode: inv.mpesa_code,
+              phoneNumber: inv.phone_number
+            } : undefined,
+            notes: inv.notes || ''
+          }))
+          setInvoices(transformed)
+
+          if (result.pagination) {
+            setTotalPages(result.pagination.total_pages || 1)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching invoices:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load invoices. Please try again.",
+          variant: "destructive"
+        })
+        // Fallback to empty array on error
+        setInvoices([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInvoices()
+  }, [page, statusFilter, toast])
 
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
@@ -311,23 +403,89 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
           <h1 className="text-3xl font-bold text-balance">Invoice Management</h1>
           <p className="text-muted-foreground">Manage SHA and Cash invoices</p>
         </div>
-        {canCreateInvoices && (
-          <Dialog open={isNewInvoiceOpen} onOpenChange={setIsNewInvoiceOpen}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>Create Invoice</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create New Invoice</DialogTitle>
-                <DialogDescription>Generate a new invoice for patient services</DialogDescription>
-              </DialogHeader>
-              <NewInvoiceForm onClose={() => setIsNewInvoiceOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline"
+            onClick={async () => {
+              try {
+                setLoading(true)
+                const params: { page?: number; per_page?: number; payment_status?: string } = {
+                  page,
+                  per_page: 50
+                }
+                if (statusFilter !== "all") {
+                  params.payment_status = statusFilter === "Paid" ? "paid" : 
+                                          statusFilter === "Pending" ? "pending" : 
+                                          statusFilter === "Overdue" ? "overdue" : "pending"
+                }
+                const result = await invoiceAPI.getAll(params)
+                if (result && Array.isArray(result.data)) {
+                  const transformed = result.data.map((inv: any) => ({
+                    id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
+                    patientId: inv.patient_id,
+                    patientName: inv.patient_name || `${inv.patient_first_name || ''} ${inv.patient_last_name || ''}`.trim(),
+                    date: inv.date || inv.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+                    dueDate: inv.due_date || inv.date || new Date().toISOString().split('T')[0],
+                    type: (inv.payment_method === 'sha' ? 'SHA' as const :
+                           inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
+                           inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
+                    status: (inv.payment_status === 'paid' ? 'Paid' as const :
+                             inv.payment_status === 'pending' ? 'Pending' as const :
+                             inv.payment_status === 'overdue' ? 'Overdue' as const :
+                             inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
+                    subtotal: inv.subtotal || inv.total_amount - (inv.tax || 0),
+                    tax: inv.tax || 0,
+                    total: inv.total_amount || inv.total || 0,
+                    services: inv.items || inv.services || [],
+                    shaDetails: inv.sha_details,
+                    paymentDetails: inv.payment_status === 'paid' ? {
+                      method: inv.payment_method || 'Cash',
+                      transactionId: inv.transaction_id || '',
+                      paidDate: inv.paid_date || inv.payment_date || '',
+                      mpesaCode: inv.mpesa_code,
+                      phoneNumber: inv.phone_number
+                    } : undefined,
+                    notes: inv.notes || ''
+                  }))
+                  setInvoices(transformed)
+                  toast({
+                    title: "Refreshed",
+                    description: "Invoice data has been refreshed.",
+                  })
+                }
+              } catch (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to refresh invoices.",
+                  variant: "destructive"
+                })
+              } finally {
+                setLoading(false)
+              }
+            }}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          {canCreateInvoices && (
+            <Dialog open={isNewInvoiceOpen} onOpenChange={setIsNewInvoiceOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center space-x-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Create Invoice</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create New Invoice</DialogTitle>
+                  <DialogDescription>Generate a new invoice for patient services</DialogDescription>
+                </DialogHeader>
+                <NewInvoiceForm onClose={() => setIsNewInvoiceOpen(false)} />
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -516,7 +674,20 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredInvoices.map((invoice) => {
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    Loading invoices...
+                  </TableCell>
+                </TableRow>
+              ) : filteredInvoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No invoices found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredInvoices.map((invoice) => {
                 const StatusIcon = getStatusIcon(invoice.status)
                 return (
                   <TableRow key={invoice.id}>
@@ -555,14 +726,41 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
                     </TableCell>
                   </TableRow>
                 )
-              })}
+              }))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1 || loading}
+            >
+              Previous
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages || loading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Invoice Reports */}
-      <InvoiceReports invoices={invoices} role={role} />
+      {!loading && invoices.length > 0 && <InvoiceReports invoices={invoices} role={role} />}
 
       {/* Invoice Details Dialog */}
       <Dialog open={isViewInvoiceOpen} onOpenChange={setIsViewInvoiceOpen}>
@@ -667,17 +865,62 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
         updatedAt: new Date().toISOString()
       }
       
-      // TODO: Replace with actual API call
-      console.log("Creating new invoice:", newInvoice)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Close form on success
-      onClose()
-      
-      // Show success message
-      console.log("Invoice created successfully!")
+      // Create invoice via API
+      try {
+        const invoiceData = {
+          patient_id: formData.patientId,
+          date: new Date().toISOString().split('T')[0],
+          items: formData.services.map(s => ({
+            description: s.description,
+            quantity: s.quantity,
+            unit_price: s.unitPrice,
+            total: s.unitPrice * s.quantity
+          })),
+          subtotal: subtotal,
+          tax: tax,
+          total_amount: total,
+          payment_method: formData.type.toLowerCase(),
+          payment_status: 'pending',
+          notes: formData.notes || ''
+        }
+
+        // Add SHA details if type is SHA
+        if (formData.type === 'SHA' && formData.shaDetails) {
+          invoiceData.sha_details = {
+            member_number: formData.shaDetails.memberNumber,
+            scheme: formData.shaDetails.scheme,
+            authorization_code: formData.shaDetails.authorizationCode,
+            pre_authorization_code: formData.shaDetails.preAuthorizationCode,
+            icd11_code: formData.shaDetails.icd11Code,
+            diagnosis: formData.shaDetails.diagnosis,
+            service_code: formData.shaDetails.serviceCode,
+            service_description: formData.shaDetails.serviceDescription,
+            practitioner_id: formData.shaDetails.practitionerId,
+            practitioner_name: formData.shaDetails.practitionerName,
+            facility_code: formData.shaDetails.facilityCode
+          }
+        }
+
+        await invoiceAPI.create(invoiceData)
+        
+        toast({
+          title: "Invoice Created",
+          description: "Invoice has been created successfully.",
+        })
+        
+        // Close form on success
+        onClose()
+        
+        // Refresh invoices list (trigger parent refresh)
+        window.location.reload()
+      } catch (error) {
+        console.error("Error creating invoice:", error)
+        toast({
+          title: "Error",
+          description: "Failed to create invoice. Please try again.",
+          variant: "destructive"
+        })
+      }
       
     } catch (error) {
       console.error("Error creating invoice:", error)
@@ -1016,6 +1259,7 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
 }
 
 function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
+  const { toast } = useToast()
   const [showPrintDialog, setShowPrintDialog] = useState(false)
 
   // Print invoice function
@@ -1360,7 +1604,28 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
           Print Invoice
         </Button>
         {invoice.status === "Pending" && (
-          <Button onClick={() => alert('Mark as Paid functionality - will update invoice status in backend')}>
+          <Button onClick={async () => {
+            try {
+              await invoiceAPI.processPayment(invoice.id, {
+                payment_method: 'cash',
+                amount_paid: invoice.total,
+                payment_date: new Date().toISOString().split('T')[0],
+                transaction_id: `TXN-${Date.now()}`,
+              })
+              toast({
+                title: "Payment Processed",
+                description: `Invoice ${invoice.id} has been marked as paid.`,
+              })
+              // Refresh invoices list
+              window.location.reload()
+            } catch (error) {
+              toast({
+                title: "Error",
+                description: "Failed to process payment. Please try again.",
+                variant: "destructive"
+              })
+            }
+          }}>
             <CheckCircle className="w-4 h-4 mr-2" />
             Mark as Paid
           </Button>

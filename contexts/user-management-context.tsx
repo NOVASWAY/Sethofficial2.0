@@ -75,17 +75,32 @@ export function UserManagementProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateUser = (id: string, updates: Partial<SystemUser>) => {
-    setUsers(prev =>
-      prev.map(user =>
-        user.id === id
-          ? { ...user, ...updates, updatedAt: new Date().toISOString() }
-          : user
+  const updateUser = async (id: string, updates: Partial<SystemUser>) => {
+    // Prevent deleting the last admin
+    const user = users.find(u => u.id === id)
+    if (updates.status === 'inactive' && user?.role === 'admin') {
+      const adminCount = users.filter(u => u.role === 'admin' && u.status === 'active').length
+      if (adminCount <= 1 && user.status === 'active') {
+        throw new Error('Cannot deactivate the last active admin user')
+      }
+    }
+
+    try {
+      await userAPI.update(id, updates)
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === id
+            ? { ...user, ...updates, updatedAt: new Date().toISOString() }
+            : user
+        )
       )
-    )
+    } catch (error) {
+      console.error('Error updating user:', error)
+      throw error
+    }
   }
 
-  const deleteUser = (id: string) => {
+  const deleteUser = async (id: string) => {
     // Prevent deleting the last admin
     const user = users.find(u => u.id === id)
     if (user?.role === 'admin') {
@@ -95,7 +110,13 @@ export function UserManagementProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setUsers(prev => prev.filter(user => user.id !== id))
+    try {
+      await userAPI.delete(id)
+      setUsers(prev => prev.filter(user => user.id !== id))
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      throw error
+    }
   }
 
   const getUserById = (id: string): SystemUser | undefined => {
@@ -114,8 +135,18 @@ export function UserManagementProvider({ children }: { children: ReactNode }) {
     return users.filter(user => user.status === 'active')
   }
 
-  const updateUserPermissions = (id: string, permissions: string[]) => {
-    updateUser(id, { permissions })
+  const updateUserPermissions = async (id: string, permissions: string[]) => {
+    try {
+      await userAPI.update(id, { permissions })
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === id ? { ...user, permissions, updatedAt: new Date().toISOString() } : user
+        )
+      )
+    } catch (error) {
+      console.error('Error updating user permissions:', error)
+      throw error
+    }
   }
 
   const suspendUser = (id: string, reason?: string) => {

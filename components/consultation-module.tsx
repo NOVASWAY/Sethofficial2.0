@@ -19,6 +19,7 @@ import { usePatient, type Consultation as PatientConsultation } from '@/contexts
 import { PatientHistoryPanel } from './patient-history-panel'
 import { useWorkflow } from '@/contexts/workflow-context'
 import { useRouter } from 'next/navigation'
+import { consultationAPI, serviceCatalogAPI } from '@/lib/api-client'
 
 interface VitalSigns {
   temperature?: number
@@ -99,34 +100,94 @@ export function ConsultationModule() {
   }, [])
 
   const loadServices = async () => {
-    // TODO: Replace with actual API call
-    const mockServices: Service[] = [
-      {
-        id: '1',
-        service_code: 'CONSULT-001',
-        service_name: 'General Consultation',
-        category: 'consultation',
-        unit_price: 500,
-        sha_approved: true,
-      },
-      {
-        id: '2',
-        service_code: 'LAB-001',
-        service_name: 'Complete Blood Count',
-        category: 'laboratory',
-        unit_price: 800,
-        sha_approved: true,
-      },
-      {
-        id: '3',
-        service_code: 'PROC-001',
-        service_name: 'Wound Dressing',
-        category: 'procedure',
-        unit_price: 500,
-        sha_approved: true,
-      },
-    ]
-    setServices(mockServices)
+    try {
+      setLoading(true)
+      const servicesData = await serviceCatalogAPI.getAll()
+      
+      if (servicesData && Array.isArray(servicesData)) {
+        // Transform API response to match Service interface
+        const transformed = servicesData.map((service: any) => ({
+          id: service.id || service.service_id || crypto.randomUUID(),
+          service_code: service.service_code || service.code || '',
+          service_name: service.service_name || service.name || '',
+          category: service.category || 'other',
+          unit_price: service.unit_price || service.price || 0,
+          sha_approved: service.sha_approved || service.sha_approved === true || false,
+        }))
+        setServices(transformed)
+      } else {
+        // Fallback to mock services if API fails or returns no data
+        const mockServices: Service[] = [
+          {
+            id: '1',
+            service_code: 'CONSULT-001',
+            service_name: 'General Consultation',
+            category: 'consultation',
+            unit_price: 500,
+            sha_approved: true,
+          },
+          {
+            id: '2',
+            service_code: 'LAB-001',
+            service_name: 'Complete Blood Count',
+            category: 'laboratory',
+            unit_price: 800,
+            sha_approved: true,
+          },
+          {
+            id: '3',
+            service_code: 'PROC-001',
+            service_name: 'Wound Dressing',
+            category: 'procedure',
+            unit_price: 500,
+            sha_approved: true,
+          },
+        ]
+        setServices(mockServices)
+        toast({
+          title: "Info",
+          description: "Using default services. Service catalog API not available.",
+          variant: "default"
+        })
+      }
+    } catch (error) {
+      console.error("Error loading services:", error)
+      // Fallback to mock services on error
+      const mockServices: Service[] = [
+        {
+          id: '1',
+          service_code: 'CONSULT-001',
+          service_name: 'General Consultation',
+          category: 'consultation',
+          unit_price: 500,
+          sha_approved: true,
+        },
+        {
+          id: '2',
+          service_code: 'LAB-001',
+          service_name: 'Complete Blood Count',
+          category: 'laboratory',
+          unit_price: 800,
+          sha_approved: true,
+        },
+        {
+          id: '3',
+          service_code: 'PROC-001',
+          service_name: 'Wound Dressing',
+          category: 'procedure',
+          unit_price: 500,
+          sha_approved: true,
+        },
+      ]
+      setServices(mockServices)
+      toast({
+        title: "Warning",
+        description: "Failed to load services from API. Using default services.",
+        variant: "default"
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleVitalSignsChange = (name: keyof VitalSigns, value: any) => {
@@ -267,17 +328,59 @@ export function ConsultationModule() {
         notes: consultationData.notes || '',
       }
 
+      // Prepare consultation data for API
+      const consultationPayload = {
+        patient_id: consultationData.patient_id,
+        doctor_id: consultationData.clinician_id || null,
+        appointment_id: consultationData.appointment_id || null,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toTimeString().split(' ')[0].substring(0, 5), // HH:MM format
+        chief_complaint: consultationData.chief_complaint,
+        physical_examination: consultationData.physical_examination || '',
+        diagnosis: consultationData.diagnosis,
+        icd_11_codes: consultationData.icd_11_codes || '',
+        treatment_plan: consultationData.treatment_plan || '',
+        notes: consultationData.notes || '',
+        follow_up_date: consultationData.follow_up_date || null,
+        vital_signs: {
+          temperature: vitalSigns.temperature,
+          blood_pressure: vitalSigns.blood_pressure,
+          pulse: vitalSigns.pulse,
+          weight: vitalSigns.weight,
+          height: vitalSigns.height,
+          respiratory_rate: vitalSigns.respiratory_rate,
+          oxygen_saturation: vitalSigns.oxygen_saturation,
+        },
+      }
+
+      // Save consultation to API
+      try {
+        const apiResponse = await consultationAPI.create(consultationPayload)
+        
+        // Update workflow data with API response ID if available
+        if (apiResponse && apiResponse.id) {
+          workflowData.consultation_id = apiResponse.id
+          patientConsultation.id = apiResponse.id
+        }
+
+        toast({
+          title: 'Consultation Saved',
+          description: `Consultation ${consultationNumber} has been saved to the database.`,
+        })
+      } catch (apiError) {
+        console.error("Error saving consultation to API:", apiError)
+        toast({
+          variant: 'default',
+          title: 'Consultation Saved Locally',
+          description: 'Consultation saved to workflow context. API save failed.',
+        })
+      }
+
+      // Save to patient context for history
       addConsultation(consultationData.patient_id, patientConsultation)
 
       // Set to workflow context for billing
       setPendingConsultation(workflowData)
-
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/consultations', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(consultationPayload),
-      // })
 
       toast({
         title: 'Consultation Completed',

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,6 +13,7 @@ import { usePatient } from '@/contexts/patient-context'
 import { useAuth } from '@/contexts/auth-context'
 import { getAllExpiryAlerts } from '@/lib/expiry-utils'
 import { useDataIsolation } from '@/hooks/use-data-isolation'
+import { reportsAPI } from '@/lib/api-client'
 
 interface MetricCardProps {
   title: string
@@ -174,7 +175,32 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
   const expiryAlerts = getAllExpiryAlerts(medicines)
   const criticalExpiries = expiryAlerts.filter(a => a.severity === 'expired' || a.severity === 'critical').length
   
-  // Calculate today's metrics
+  // Dashboard metrics from API
+  const [dashboardMetrics, setDashboardMetrics] = useState<{
+    today?: { appointments?: number; consultations?: number; revenue?: number }
+    alerts?: { pending_prescriptions?: number; low_stock_medicines?: number; pending_invoices?: number }
+    overview?: { total_patients?: number; monthly_revenue?: number }
+  } | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDashboardMetrics = async () => {
+      try {
+        setMetricsLoading(true)
+        const data = await reportsAPI.getDashboard()
+        setDashboardMetrics(data)
+      } catch (error) {
+        console.error("Error fetching dashboard metrics:", error)
+        // Fallback to context-based calculations
+        setDashboardMetrics(null)
+      } finally {
+        setMetricsLoading(false)
+      }
+    }
+    fetchDashboardMetrics()
+  }, [])
+
+  // Calculate today's metrics (fallback to context if API unavailable)
   const today = new Date().toISOString().split('T')[0]
   const todaysMovements = stockMovements.filter(m => m.timestamp.startsWith(today))
   const todaysConsultations = filteredPatients
@@ -184,15 +210,18 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
   // Calculate inventory value
   const totalInventoryValue = medicines.reduce((sum, m) => sum + (m.currentStock * m.unitPrice), 0)
   
-  // Mock financial data (replace with real data when backend is connected)
-  const todaysRevenue = 45000
-  const monthlyRevenue = 890000
-  const revenueChange = 12.5
+  // Use API data if available, otherwise fallback to context
+  const todaysRevenue = dashboardMetrics?.today?.revenue || 0
+  const monthlyRevenue = dashboardMetrics?.overview?.monthly_revenue || 0
+  const revenueChange = 12.5 // TODO: Calculate from historical data
   
-  const pendingPrescriptions = filteredPatients
+  const pendingPrescriptions = dashboardMetrics?.alerts?.pending_prescriptions || filteredPatients
     .flatMap(p => p.consultations)
     .flatMap(c => c.prescriptions)
     .filter(p => p.status === 'pending').length
+  
+  const todaysConsultationsCount = dashboardMetrics?.today?.consultations || todaysConsultations.length
+  const todaysAppointmentsCount = dashboardMetrics?.today?.appointments || 0
 
   return (
     <div className="space-y-6">
@@ -236,7 +265,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Today's Revenue"
-          value={`KSh ${todaysRevenue.toLocaleString()}`}
+          value={metricsLoading ? "Loading..." : `KSh ${todaysRevenue.toLocaleString()}`}
           change={revenueChange}
           icon={DollarSign}
           color="text-green-600"
@@ -244,7 +273,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
         />
         <MetricCard
           title="Today's Consultations"
-          value={todaysConsultations.length}
+          value={metricsLoading ? "..." : todaysConsultationsCount}
           icon={FileText}
           color="text-blue-600"
         />

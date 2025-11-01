@@ -91,3 +91,9 @@ tokio-tungstenite = "0.21"
 
 # Dependency overrides to avoid edition2024 issues
 base64ct = "=1.7.3"
+
+[dev-dependencies]
+# Testing
+actix-rt = "2.8"
+tokio-test = "0.4"
+actix-web = { version = "4.4", features = ["test"] }

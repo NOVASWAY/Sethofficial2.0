@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
-import { Users, Search, Plus, Shield, User, Heart, Pill, Settings, Mail, Phone, Lock, CheckCircle2, AlertCircle, UserPlus, Trash2 } from "lucide-react"
+import { Users, Search, Plus, Shield, User, Heart, Pill, Settings, Mail, Phone, Lock, CheckCircle2, AlertCircle, UserPlus, Trash2, RefreshCw } from "lucide-react"
+import { userAPI } from "@/lib/api-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
@@ -186,9 +187,9 @@ export default function UsersPage() {
     setIsViewProfileOpen(true)
   }
 
-  const handleReactivate = (user: SystemUser) => {
+  const handleReactivate = async (user: SystemUser) => {
     try {
-      activateUser(user.id)
+      await activateUser(user.id)
       toast({
         title: "User Reactivated",
         description: `${user.name} has been reactivated successfully.`,
@@ -202,9 +203,9 @@ export default function UsersPage() {
     }
   }
 
-  const handleSuspendUser = (user: SystemUser) => {
+  const handleSuspendUser = async (user: SystemUser) => {
     try {
-      suspendUser(user.id)
+      await suspendUser(user.id)
       toast({
         title: "User Suspended",
         description: `${user.name} has been suspended.`,
@@ -218,9 +219,9 @@ export default function UsersPage() {
     }
   }
 
-  const handleDeleteUser = (user: SystemUser) => {
+  const handleDeleteUser = async (user: SystemUser) => {
     try {
-      deleteUser(user.id)
+      await deleteUser(user.id)
       toast({
         title: "User Deleted",
         description: `${user.name} has been removed from the system.`,
@@ -260,7 +261,21 @@ export default function UsersPage() {
     }
 
     try {
-      const newUser = addUser({
+      // Create user via API
+      const userData = {
+        name: newUserData.name,
+        username: newUserData.username,
+        password: newUserData.password,
+        role: newUserData.role,
+        department: newUserData.department || null,
+        status: 'active',
+        permissions: getRoleDefaultPermissions(newUserData.role as SystemUser['role']),
+      }
+
+      await userAPI.create(userData)
+      
+      // Also add to context for immediate UI update
+      const newUser = await addUser({
         name: newUserData.name,
         role: newUserData.role as SystemUser['role'],
         department: newUserData.department || undefined,
@@ -322,7 +337,16 @@ export default function UsersPage() {
     if (!selectedUser) return
 
     try {
-      updateUser(selectedUser.id, {
+      // Update user via API
+      await userAPI.update(selectedUser.id, {
+        name: editUserData.name,
+        role: editUserData.role,
+        department: editUserData.department || null,
+        status: editUserData.status,
+      })
+      
+      // Also update context
+      await updateUser(selectedUser.id, {
         name: editUserData.name,
         role: editUserData.role as SystemUser['role'],
         department: editUserData.department || undefined,
@@ -353,7 +377,7 @@ export default function UsersPage() {
     if (!selectedUser) return
 
     try {
-      updateUserPermissions(selectedUser.id, userPermissions)
+      await updateUserPermissions(selectedUser.id, userPermissions)
       
       toast({
         title: "Permissions Updated",
@@ -389,10 +413,31 @@ export default function UsersPage() {
             <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
             <p className="text-muted-foreground">Manage system users and permissions</p>
           </div>
-          <Button onClick={handleAddUser}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add User
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const usersData = await userAPI.getAll()
+                  // Refresh context by triggering a reload
+                  window.location.reload()
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to refresh users.",
+                    variant: "destructive"
+                  })
+                }
+              }}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Button onClick={handleAddUser}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+          </div>
         </div>
 
         {/* User Overview Cards */}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { useParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { useInventory } from "@/contexts/inventory-context"
 import { usePurchaseOrders } from "@/contexts/purchase-order-context"
+import { pharmacyAPI } from "@/lib/api-client"
 
 export default function InventoryPage() {
   const params = useParams()
@@ -47,8 +48,67 @@ export default function InventoryPage() {
     notes: '',
   })
 
-  // Map medicines from InventoryContext to inventory format
-  const inventory = medicines.map(med => ({
+  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+
+  // Fetch medicines from API on mount and when context updates
+  useEffect(() => {
+    const fetchMedicines = async () => {
+      try {
+        setLoading(true)
+        const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
+        
+        if (result && Array.isArray(result.data)) {
+          const transformed = result.data.map((med: any) => ({
+            id: med.id,
+            name: med.name,
+            genericName: med.generic_name,
+            category: med.category || med.dosage_form || 'other',
+            currentStock: med.current_stock || med.currentStock || 0,
+            minStock: med.minimum_stock || med.minStock || 0,
+            maxStock: med.maximum_stock || med.minimum_stock * 10 || 0,
+            unitPrice: med.unit_price || med.unitPrice || 0,
+            supplier: med.manufacturer || med.supplier || "Unknown",
+            expiryDate: med.expiry_date || med.expiryDate || "",
+            status: med.current_stock === 0 ? "out-of-stock" : 
+                    med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
+            strength: med.strength,
+            dosageForm: med.dosage_form,
+            batchNumber: med.batch_number
+          }))
+          setInventoryItems(transformed)
+        }
+      } catch (error) {
+        console.error("Error fetching medicines:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load inventory. Using cached data.",
+          variant: "destructive"
+        })
+        // Fallback to context medicines
+        setInventoryItems(medicines.map(med => ({
+          id: med.id,
+          name: med.name,
+          category: med.category,
+          currentStock: med.currentStock,
+          minStock: med.minStock,
+          maxStock: med.minStock * 10,
+          unitPrice: med.unitPrice,
+          supplier: "Supplier",
+          expiryDate: "",
+          status: med.currentStock === 0 ? "out-of-stock" : med.currentStock <= med.minStock ? "low-stock" : "in-stock",
+        })))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMedicines()
+  }, [medicines.length, toast])
+
+  // Map medicines from InventoryContext to inventory format (fallback)
+  const inventory = (inventoryItems.length > 0 ? inventoryItems : medicines.map(med => ({
     id: med.id,
     name: med.name,
     category: med.category,
@@ -59,7 +119,11 @@ export default function InventoryPage() {
     supplier: "Supplier", // Not available in Medicine interface
     expiryDate: "", // Would need to track batches
     status: med.currentStock === 0 ? "out-of-stock" : med.currentStock <= med.minStock ? "low-stock" : "in-stock",
-  }))
+  }))).filter(item => 
+    searchTerm === "" || 
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.genericName && item.genericName.toLowerCase().includes(searchTerm.toLowerCase()))
+  )
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -119,26 +183,44 @@ export default function InventoryPage() {
     setIsLoading(true)
 
     try {
-      addMedicine({
-        code: `MED-${Date.now()}`,
+      // Create medicine via API
+      const newMedicine = await pharmacyAPI.addMedicine({
         name: newItemData.name,
-        genericName: newItemData.name,
-        category: newItemData.category as 'tablets' | 'capsules' | 'syrups' | 'injections' | 'creams' | 'drops' | 'other',
-        manufacturer: 'Generic',
+        generic_name: newItemData.name,
+        dosage_form: newItemData.category || 'other',
         strength: 'N/A',
-        dosageForm: 'N/A',
-        unitPrice: newItemData.unitPrice,
-        currentStock: newItemData.currentStock,
-        minStock: newItemData.minStock,
-        maxStock: newItemData.minStock * 10,
-        requiresPrescription: true,
-        isActive: true,
+        manufacturer: newItemData.supplier || 'Generic',
+        unit_price: newItemData.unitPrice,
+        current_stock: newItemData.currentStock,
+        minimum_stock: newItemData.minStock,
+        batch_number: `BATCH-${Date.now()}`,
+        expiry_date: newItemData.expiryDate || null,
       })
 
       toast({
         title: "Item Added Successfully",
         description: `${newItemData.name} has been added to inventory.`,
       })
+
+      // Refresh inventory list
+      const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
+      if (result && Array.isArray(result.data)) {
+        const transformed = result.data.map((med: any) => ({
+          id: med.id,
+          name: med.name,
+          genericName: med.generic_name,
+          category: med.category || med.dosage_form || 'other',
+          currentStock: med.current_stock || 0,
+          minStock: med.minimum_stock || 0,
+          maxStock: med.minimum_stock * 10 || 0,
+          unitPrice: med.unit_price || 0,
+          supplier: med.manufacturer || "Unknown",
+          expiryDate: med.expiry_date || "",
+          status: med.current_stock === 0 ? "out-of-stock" : 
+                  med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
+        }))
+        setInventoryItems(transformed)
+      }
 
       setNewItemData({
         name: '',
@@ -168,27 +250,50 @@ export default function InventoryPage() {
 
     try {
       if (selectedItem) {
-        updateMedicine(selectedItem.id, {
+        // Update medicine via API
+        await pharmacyAPI.updateMedicine(selectedItem.id, {
           name: newItemData.name,
-          category: newItemData.category as 'tablets' | 'capsules' | 'syrups' | 'injections' | 'creams' | 'drops' | 'other',
-          unitPrice: newItemData.unitPrice,
-          currentStock: newItemData.currentStock,
-          minStock: newItemData.minStock,
+          generic_name: newItemData.name,
+          dosage_form: newItemData.category || 'other',
+          unit_price: newItemData.unitPrice,
+          current_stock: newItemData.currentStock,
+          minimum_stock: newItemData.minStock,
+          manufacturer: newItemData.supplier || 'Generic',
         })
+
+        toast({
+          title: "Item Updated Successfully",
+          description: `${newItemData.name} has been updated.`,
+        })
+
+        // Refresh inventory list
+        const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
+        if (result && Array.isArray(result.data)) {
+          const transformed = result.data.map((med: any) => ({
+            id: med.id,
+            name: med.name,
+            genericName: med.generic_name,
+            category: med.category || med.dosage_form || 'other',
+            currentStock: med.current_stock || 0,
+            minStock: med.minimum_stock || 0,
+            maxStock: med.minimum_stock * 10 || 0,
+            unitPrice: med.unit_price || 0,
+            supplier: med.manufacturer || "Unknown",
+            expiryDate: med.expiry_date || "",
+            status: med.current_stock === 0 ? "out-of-stock" : 
+                    med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
+          }))
+          setInventoryItems(transformed)
+        }
+
+        setIsEditItemOpen(false)
+        setSelectedItem(null)
       }
-
-      toast({
-        title: "Item Updated Successfully",
-        description: `${newItemData.name} has been updated.`,
-      })
-
-      setIsEditItemOpen(false)
-      setSelectedItem(null)
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update item. Please try again.",
-        variant: "error",
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -355,8 +460,55 @@ export default function InventoryPage() {
           <div className="flex items-center space-x-2">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input placeholder="Search inventory..." className="pl-10" />
+              <Input 
+                placeholder="Search inventory..." 
+                className="pl-10" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  setLoading(true)
+                  const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
+                  if (result && Array.isArray(result.data)) {
+                    const transformed = result.data.map((med: any) => ({
+                      id: med.id,
+                      name: med.name,
+                      genericName: med.generic_name,
+                      category: med.category || med.dosage_form || 'other',
+                      currentStock: med.current_stock || 0,
+                      minStock: med.minimum_stock || 0,
+                      maxStock: med.minimum_stock * 10 || 0,
+                      unitPrice: med.unit_price || 0,
+                      supplier: med.manufacturer || "Unknown",
+                      expiryDate: med.expiry_date || "",
+                      status: med.current_stock === 0 ? "out-of-stock" : 
+                              med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
+                    }))
+                    setInventoryItems(transformed)
+                    toast({
+                      title: "Refreshed",
+                      description: "Inventory data has been refreshed.",
+                    })
+                  }
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to refresh inventory.",
+                    variant: "destructive"
+                  })
+                } finally {
+                  setLoading(false)
+                }
+              }}
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <Button variant="outline">
               <Filter className="w-4 h-4 mr-2" />
               Filter
@@ -364,8 +516,23 @@ export default function InventoryPage() {
           </div>
 
           <TabsContent value="all" className="space-y-4">
-            <div className="grid gap-4">
-              {inventory.map((item) => (
+            {loading ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">Loading inventory...</p>
+                </CardContent>
+              </Card>
+            ) : inventory.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Package className="w-8 h-8 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">No inventory items found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {inventory.map((item) => (
                 <Card key={item.id}>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -400,8 +567,9 @@ export default function InventoryPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+              )))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="low-stock">

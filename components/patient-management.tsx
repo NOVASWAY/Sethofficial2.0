@@ -2,7 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { patientAPI } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,6 +35,7 @@ import {
   Heart,
   AlertCircle,
   FileText,
+  RefreshCw,
 } from "lucide-react"
 
 interface PatientManagementProps {
@@ -112,12 +115,74 @@ const mockPatients: Patient[] = [
 ]
 
 export function PatientManagement({ role }: PatientManagementProps) {
-  const [patients, setPatients] = useState<Patient[]>(mockPatients)
+  const { toast } = useToast()
+  const [patients, setPatients] = useState<Patient[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false)
   const [isViewPatientOpen, setIsViewPatientOpen] = useState(false)
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
+  // Fetch patients from API
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setLoading(true)
+        const result = await patientAPI.getAll({ page, per_page: 50 })
+        
+        if (result && Array.isArray(result.data)) {
+          // Transform API response to match Patient interface
+          const transformed = result.data.map((p: any) => ({
+            id: p.id || p.patient_number || `P-${p.id?.slice(0, 8)}`,
+            firstName: p.first_name || p.firstName || '',
+            lastName: p.last_name || p.lastName || '',
+            dateOfBirth: p.date_of_birth || p.dateOfBirth || '',
+            gender: p.gender || 'Unknown',
+            phone: p.phone_number || p.phone || '',
+            location: p.address || p.location || '',
+            emergencyContact: p.emergency_contact_name || p.emergencyContact || '',
+            emergencyPhone: p.emergency_contact_phone || p.emergencyPhone || '',
+            bloodType: p.blood_type || p.bloodType || 'Unknown',
+            allergies: Array.isArray(p.allergies) ? p.allergies : 
+                      (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
+            medicalHistory: p.medical_history || p.medicalHistory || '',
+            registrationDate: p.registration_date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            lastVisit: p.last_visit || p.lastVisit || p.registration_date || new Date().toISOString().split('T')[0],
+            status: (p.status === 'active' || p.status === 'Active') ? 'Active' as const : 'Inactive' as const,
+          }))
+          setPatients(transformed)
+
+          if (result.pagination) {
+            setTotalPages(result.pagination.total_pages || 1)
+          }
+        } else {
+          // Fallback to mock data if API returns unexpected format
+          setPatients(mockPatients)
+          toast({
+            title: "Info",
+            description: "Using sample data. Patient API may not be available.",
+            variant: "default"
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching patients:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load patients. Using sample data.",
+          variant: "destructive"
+        })
+        // Fallback to mock data on error
+        setPatients(mockPatients)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPatients()
+  }, [page, toast])
 
   const filteredPatients = patients.filter(
     (patient) =>
@@ -149,23 +214,71 @@ export function PatientManagement({ role }: PatientManagementProps) {
           <h1 className="text-3xl font-bold text-balance">Patient Management</h1>
           <p className="text-muted-foreground">Manage patient records and registrations</p>
         </div>
-        {canRegisterPatients && (
-          <Dialog open={isNewPatientOpen} onOpenChange={setIsNewPatientOpen}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center space-x-2">
-                <UserPlus className="w-4 h-4" />
-                <span>Register New Patient</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Register New Patient</DialogTitle>
-                <DialogDescription>Enter patient information to create a new record</DialogDescription>
-              </DialogHeader>
-              <NewPatientForm onClose={() => setIsNewPatientOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline"
+            onClick={async () => {
+              try {
+                setLoading(true)
+                const result = await patientAPI.getAll({ page, per_page: 50 })
+                if (result && Array.isArray(result.data)) {
+                  const transformed = result.data.map((p: any) => ({
+                    id: p.id || p.patient_number || `P-${p.id?.slice(0, 8)}`,
+                    firstName: p.first_name || p.firstName || '',
+                    lastName: p.last_name || p.lastName || '',
+                    dateOfBirth: p.date_of_birth || p.dateOfBirth || '',
+                    gender: p.gender || 'Unknown',
+                    phone: p.phone_number || p.phone || '',
+                    location: p.address || p.location || '',
+                    emergencyContact: p.emergency_contact_name || p.emergencyContact || '',
+                    emergencyPhone: p.emergency_contact_phone || p.emergencyPhone || '',
+                    bloodType: p.blood_type || p.bloodType || 'Unknown',
+                    allergies: Array.isArray(p.allergies) ? p.allergies : 
+                              (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
+                    medicalHistory: p.medical_history || p.medicalHistory || '',
+                    registrationDate: p.registration_date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+                    lastVisit: p.last_visit || p.lastVisit || p.registration_date || new Date().toISOString().split('T')[0],
+                    status: (p.status === 'active' || p.status === 'Active') ? 'Active' as const : 'Inactive' as const,
+                  }))
+                  setPatients(transformed)
+                  toast({
+                    title: "Refreshed",
+                    description: "Patient data has been refreshed.",
+                  })
+                }
+              } catch (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to refresh patients.",
+                  variant: "destructive"
+                })
+              } finally {
+                setLoading(false)
+              }
+            }}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          {canRegisterPatients && (
+            <Dialog open={isNewPatientOpen} onOpenChange={setIsNewPatientOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center space-x-2">
+                  <UserPlus className="w-4 h-4" />
+                  <span>Register New Patient</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Register New Patient</DialogTitle>
+                  <DialogDescription>Enter patient information to create a new record</DialogDescription>
+                </DialogHeader>
+                <NewPatientForm onClose={() => setIsNewPatientOpen(false)} />
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {/* Search and Stats */}
@@ -228,7 +341,20 @@ export function PatientManagement({ role }: PatientManagementProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPatients.map((patient) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Loading patients...
+                  </TableCell>
+                </TableRow>
+              ) : filteredPatients.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No patients found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPatients.map((patient) => (
                 <TableRow key={patient.id}>
                   <TableCell className="font-medium">{patient.id}</TableCell>
                   <TableCell>
@@ -268,7 +394,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </CardContent>
@@ -338,17 +464,42 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
         updatedAt: new Date().toISOString()
       }
       
-      // TODO: Replace with actual API call
-      console.log("Creating new patient:", newPatient)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Close form on success
-      onClose()
-      
-      // Show success message
-      console.log("Patient created successfully!")
+      // Create patient via API
+      try {
+        const patientData = {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          date_of_birth: formData.dateOfBirth,
+          gender: formData.gender,
+          phone_number: formData.phone,
+          address: formData.location,
+          emergency_contact_name: formData.emergencyContact,
+          emergency_contact_phone: formData.emergencyPhone,
+          blood_type: formData.bloodType || null,
+          allergies: formData.allergies ? formData.allergies.split(',').map(a => a.trim()) : [],
+          medical_history: formData.medicalHistory || null,
+        }
+
+        await patientAPI.create(patientData)
+        
+        toast({
+          title: "Patient Registered",
+          description: "Patient has been registered successfully.",
+        })
+        
+        // Close form on success
+        onClose()
+        
+        // Refresh patients list
+        window.location.reload()
+      } catch (error) {
+        console.error("Error creating patient:", error)
+        toast({
+          title: "Error",
+          description: "Failed to register patient. Please try again.",
+          variant: "destructive"
+        })
+      }
       
     } catch (error) {
       console.error("Error creating patient:", error)
@@ -640,6 +791,7 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
 }
 
 function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     firstName: patient.firstName,
     lastName: patient.lastName,
@@ -654,11 +806,58 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
     medicalHistory: patient.medicalHistory,
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Mock form submission
-    console.log("Edited patient data:", formData)
-    onClose()
+    
+    try {
+      // Validate form data
+      const validation = validateForm(formData, validationSchemas.patient)
+      
+      if (!validation.isValid) {
+        console.error("Validation errors:", validation.errors)
+        toast({
+          title: "Validation Error",
+          description: "Please check all required fields.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Update patient via API
+      const patientData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        phone_number: formData.phone,
+        address: formData.location,
+        emergency_contact_name: formData.emergencyContact,
+        emergency_contact_phone: formData.emergencyPhone,
+        blood_type: formData.bloodType || null,
+        allergies: formData.allergies ? formData.allergies.split(',').map(a => a.trim()) : [],
+        medical_history: formData.medicalHistory || null,
+      }
+
+      await patientAPI.update(patient.id, patientData)
+      
+      toast({
+        title: "Patient Updated",
+        description: "Patient information has been updated successfully.",
+      })
+      
+      // Close form on success
+      onClose()
+      
+      // Refresh patients list
+      window.location.reload()
+    } catch (error) {
+      console.error("Error updating patient:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update patient. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   return (

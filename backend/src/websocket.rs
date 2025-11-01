@@ -231,14 +231,52 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketSession 
     }
 }
 
-// WebSocket handler function
+// WebSocket handler function with JWT authentication
 pub async fn websocket_handler(
     req: HttpRequest,
     stream: web::Payload,
     manager: web::Data<Addr<WebSocketManager>>,
+    auth_service: web::Data<crate::auth::AuthService>,
 ) -> Result<HttpResponse, Error> {
-    let resp = ws::start(WebSocketSession::new(manager.get_ref().clone()), &req, stream)?;
-    Ok(resp)
+    // Extract token from query string or headers
+    let token = req
+        .uri()
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find_map(|param| {
+                    if param.starts_with("token=") {
+                        Some(param[6..].to_string())
+                    } else {
+                        None
+                    }
+                })
+        })
+        .or_else(|| {
+            req.headers()
+                .get("Authorization")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| {
+                    if s.starts_with("Bearer ") {
+                        Some(s[7..].to_string())
+                    } else {
+                        None
+                    }
+                })
+        });
+
+    // Verify JWT token
+    if let Some(token) = token {
+        if auth_service.verify_access_token(&token).is_ok() {
+            let resp = ws::start(WebSocketSession::new(manager.get_ref().clone()), &req, stream)?;
+            return Ok(resp);
+        }
+    }
+
+    // Return 401 if authentication fails
+    Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+        "error": "Unauthorized - Valid JWT token required"
+    })))
 }
 
 // Helper functions for sending messages
