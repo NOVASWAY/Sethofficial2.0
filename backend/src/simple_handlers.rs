@@ -727,7 +727,9 @@ pub async fn import_patients(
         Some(arr) => arr,
         None => return Ok(HttpResponse::BadRequest().json(json!({
             "success": false,
-            "error": "patients array is required"
+            "data": null,
+            "error": "patients array is required",
+            "message": "Invalid request"
         })))
     };
 
@@ -787,14 +789,16 @@ pub async fn import_patients(
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
-        "message": format!("Imported {} out of {} patients", imported, patients_array.len()),
-        "imported": imported,
-        "failed": errors.len(),
-        "errors": if errors.len() > 10 {
-            errors.iter().take(10).cloned().collect::<Vec<_>>()
-        } else {
-            errors
-        }
+        "data": {
+            "imported": imported,
+            "failed": errors.len(),
+            "errors": if errors.len() > 10 {
+                errors.iter().take(10).cloned().collect::<Vec<_>>()
+            } else {
+                errors
+            }
+        },
+        "message": format!("Imported {} out of {} patients", imported, patients_array.len())
     })))
 }
 
