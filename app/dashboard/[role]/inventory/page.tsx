@@ -19,6 +19,7 @@ import { pharmacyAPI } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
+import { ListSkeleton } from "@/components/ui/loading"
 
 interface InventoryItem {
   id: string

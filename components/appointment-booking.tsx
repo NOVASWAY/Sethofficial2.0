@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { appointmentAPI } from '@/lib/api-client'
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
+import { ListSkeleton } from "@/components/ui/loading"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -334,9 +335,8 @@ export function AppointmentBooking() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin text-muted-foreground" />
-                  <p className="text-muted-foreground">Loading appointments...</p>
+                <div className="space-y-3">
+                  <ListSkeleton items={5} />
                 </div>
               ) : todayAppointments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">

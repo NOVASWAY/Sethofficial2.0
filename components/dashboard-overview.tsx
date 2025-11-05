@@ -16,6 +16,7 @@ import { useDataIsolation } from '@/hooks/use-data-isolation'
 import { reportsAPI } from '@/lib/api-client'
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useMemo, useCallback } from 'react'
+import { Skeleton } from "@/components/ui/loading"
 
 interface MetricCardProps {
   title: string
@@ -353,7 +354,9 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Today's Revenue"
-          value={metricsLoading ? "Loading..." : `KSh ${todaysRevenue.toLocaleString()}`}
+          value={metricsLoading ? (
+            <Skeleton className="h-6 w-24" />
+          ) : `KSh ${todaysRevenue.toLocaleString()}`}
           change={revenueChange}
           icon={DollarSign}
           color="text-green-600"
@@ -361,7 +364,9 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
         />
         <MetricCard
           title="Today's Consultations"
-          value={metricsLoading ? "..." : todaysConsultationsCount}
+          value={metricsLoading ? (
+            <Skeleton className="h-6 w-12" />
+          ) : todaysConsultationsCount}
           icon={FileText}
           color="text-blue-600"
         />

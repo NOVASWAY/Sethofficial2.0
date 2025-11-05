@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
+import { ListSkeleton } from "@/components/ui/loading"
 
 interface Prescription {
   id: string
