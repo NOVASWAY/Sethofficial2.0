@@ -170,12 +170,17 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
     }
   }
 
-  // Calculate metrics
-  const totalPatients = patientCount.filtered
-  const lowStockItems = getLowStockMedicines().length
-  const outOfStockItems = getOutOfStockMedicines().length
-  const expiryAlerts = getAllExpiryAlerts(medicines)
-  const criticalExpiries = expiryAlerts.filter(a => a.severity === 'expired' || a.severity === 'critical').length
+  // Calculate metrics (memoized for performance)
+  const totalPatients = useMemo(() => patientCount.filtered, [patientCount.filtered])
+  
+  const lowStockItems = useMemo(() => getLowStockMedicines().length, [medicines])
+  const outOfStockItems = useMemo(() => getOutOfStockMedicines().length, [medicines])
+  
+  const expiryAlerts = useMemo(() => getAllExpiryAlerts(medicines), [medicines])
+  const criticalExpiries = useMemo(
+    () => expiryAlerts.filter(a => a.severity === 'expired' || a.severity === 'critical').length,
+    [expiryAlerts]
+  )
   
   // Dashboard metrics from API
   const [dashboardMetrics, setDashboardMetrics] = useState<{
