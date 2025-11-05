@@ -26,10 +26,12 @@ import {
   Clock,
   XCircle
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { prescriptionAPI, patientAPI, userAPI, pharmacyAPI } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface Prescription {
   id: string
@@ -112,6 +114,12 @@ export default function PrescriptionsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  
+  // Memoized cache key
+  const prescriptionsCacheKey = useMemo(() => getCacheKey('prescriptions', { role, tab: activeTab }), [role, activeTab])
   const [patients, setPatients] = useState<Array<{id: string, firstName: string, lastName: string, patientNumber?: string}>>([])
   const [doctors, setDoctors] = useState<Array<{id: string, name: string, role: string}>>([])
   const [medicines, setMedicines] = useState<Array<{id: string, name: string, dosage_form: string, strength: string, unit_price: number}>>([])
