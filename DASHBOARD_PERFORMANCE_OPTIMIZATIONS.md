@@ -265,7 +265,7 @@ const [data1, data2] = await Promise.all([
 10. ⏳ Add keyboard shortcuts - **PENDING**
 11. ⏳ Bulk operations support - **PENDING**
 12. ⏳ Advanced filtering with debouncing - **PENDING**
-13. ⏳ Pagination for large lists - **PENDING**
+13. ✅ Pagination for large lists - **COMPLETED** (Patient & Invoice dashboards)
 14. ⏳ Virtual scrolling for 1000+ items - **PENDING**
 15. ✅ Loading skeleton screens - **COMPLETED**
 16. ✅ Optimistic updates - **COMPLETED** (Patient create/update)
