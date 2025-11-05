@@ -144,18 +144,18 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
     }
   }, [patients])
 
-  // Get Patient by ID
-  const getPatientById = (id: string): Patient | undefined => {
+  // Get Patient by ID (memoized)
+  const getPatientById = useCallback((id: string): Patient | undefined => {
     return patients.find(p => p.id === id)
-  }
+  }, [patients])
 
-  // Get Patient by Number
-  const getPatientByNumber = (number: string): Patient | undefined => {
+  // Get Patient by Number (memoized)
+  const getPatientByNumber = useCallback((number: string): Patient | undefined => {
     return patients.find(p => p.patient_number === number)
-  }
+  }, [patients])
 
-  // Import Patients (Bulk)
-  const importPatients = async (
+  // Import Patients (Bulk) (memoized)
+  const importPatients = useCallback(async (
     patientsData: Omit<Patient, 'id' | 'created_at' | 'updated_at'>[]
   ): Promise<Patient[]> => {
     try {
@@ -186,10 +186,10 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       setError(errorMessage)
       throw new Error(errorMessage)
     }
-  }
+  }, [loadPatients, patients])
 
-  // Export Patients (CSV)
-  const exportPatients = (): string => {
+  // Export Patients (CSV) (memoized)
+  const exportPatients = useCallback((): string => {
     const headers = [
       'Patient Number',
       'First Name',
@@ -231,19 +231,19 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       .join('\n')
 
     return csv
-  }
+  }, [patients])
 
-
-  // Statistics
-  const getTotalPatients = (): number => {
+  // Statistics (memoized)
+  const getTotalPatients = useCallback((): number => {
     return patients.length
-  }
+  }, [patients])
 
-  const getActivePatients = (): number => {
+  const getActivePatients = useCallback((): number => {
     return patients.length // All patients are active in the backend
-  }
+  }, [patients])
 
-  const value: PatientContextType = {
+  // Memoize context value to prevent unnecessary re-renders
+  const value: PatientContextType = useMemo(() => ({
     patients,
     loading,
     error,
@@ -258,7 +258,22 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
     loadPatients,
     getTotalPatients,
     getActivePatients,
-  }
+  }), [
+    patients,
+    loading,
+    error,
+    addPatient,
+    updatePatient,
+    deletePatient,
+    searchPatients,
+    getPatientById,
+    getPatientByNumber,
+    importPatients,
+    exportPatients,
+    loadPatients,
+    getTotalPatients,
+    getActivePatients,
+  ])
 
   return (
     <PatientContextEnhanced.Provider value={value}>
