@@ -14,6 +14,8 @@ import { useAuth } from '@/contexts/auth-context'
 import { getAllExpiryAlerts } from '@/lib/expiry-utils'
 import { useDataIsolation } from '@/hooks/use-data-isolation'
 import { reportsAPI } from '@/lib/api-client'
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useMemo, useCallback } from 'react'
 
 interface MetricCardProps {
   title: string
@@ -183,11 +185,19 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
   } | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
+  // Memoized cache key for dashboard metrics
+  const dashboardCacheKey = useMemo(() => getCacheKey('metrics', { role }), [role])
+
   useEffect(() => {
     const fetchDashboardMetrics = async () => {
       try {
         setMetricsLoading(true)
-        const data = await reportsAPI.getDashboard()
+        // Use cache wrapper to reduce redundant API calls
+        const data = await withCache(
+          dashboardCacheKey,
+          () => reportsAPI.getDashboard(),
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         setDashboardMetrics(data)
       } catch (error) {
         console.error("Error fetching dashboard metrics:", error)
@@ -198,19 +208,31 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
       }
     }
     fetchDashboardMetrics()
-  }, [])
+  }, [dashboardCacheKey])
 
-  // Calculate today's metrics (fallback to context if API unavailable)
-  const today = new Date().toISOString().split('T')[0]
-  const todaysMovements = stockMovements.filter(m => m.timestamp.startsWith(today))
-  const todaysConsultations = filteredPatients
-    .flatMap(p => p.consultations)
-    .filter(c => c.date === today)
+  // Memoize today's date to avoid recalculation
+  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
   
-  // Calculate inventory value
-  const totalInventoryValue = medicines.reduce((sum, m) => sum + (m.currentStock * m.unitPrice), 0)
+  // Memoize expensive calculations
+  const todaysMovements = useMemo(
+    () => stockMovements.filter(m => m.timestamp.startsWith(today)),
+    [stockMovements, today]
+  )
   
-  // Calculate revenue change from historical data
+  const todaysConsultations = useMemo(
+    () => filteredPatients
+      .flatMap(p => p.consultations)
+      .filter(c => c.date === today),
+    [filteredPatients, today]
+  )
+  
+  // Calculate inventory value (memoized)
+  const totalInventoryValue = useMemo(
+    () => medicines.reduce((sum, m) => sum + (m.currentStock * m.unitPrice), 0),
+    [medicines]
+  )
+  
+  // Calculate revenue change from historical data (with caching)
   const [revenueChange, setRevenueChange] = useState<number>(0)
   
   useEffect(() => {
@@ -222,14 +244,26 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
         const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
         const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
 
-        const currentMonthData = await reportsAPI.getFinancial({
+        const currentMonthKey = getCacheKey('financial', {
           date_from: currentMonthStart.toISOString().split('T')[0],
           date_to: currentMonthEnd.toISOString().split('T')[0]
         })
-        const previousMonthData = await reportsAPI.getFinancial({
+        const previousMonthKey = getCacheKey('financial', {
           date_from: previousMonthStart.toISOString().split('T')[0],
           date_to: previousMonthEnd.toISOString().split('T')[0]
         })
+
+        // Fetch both in parallel with caching
+        const [currentMonthData, previousMonthData] = await Promise.all([
+          withCache(currentMonthKey, () => reportsAPI.getFinancial({
+            date_from: currentMonthStart.toISOString().split('T')[0],
+            date_to: currentMonthEnd.toISOString().split('T')[0]
+          }), 10 * 60 * 1000), // Cache for 10 minutes
+          withCache(previousMonthKey, () => reportsAPI.getFinancial({
+            date_from: previousMonthStart.toISOString().split('T')[0],
+            date_to: previousMonthEnd.toISOString().split('T')[0]
+          }), 10 * 60 * 1000) // Cache for 10 minutes
+        ])
 
         const currentRevenue = currentMonthData?.revenue?.total_paid || 0
         const previousRevenue = previousMonthData?.revenue?.total_paid || 0
@@ -254,12 +288,22 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
   const todaysRevenue = dashboardMetrics?.today?.revenue || 0
   const monthlyRevenue = dashboardMetrics?.overview?.monthly_revenue || 0
   
-  const pendingPrescriptions = dashboardMetrics?.alerts?.pending_prescriptions || filteredPatients
-    .flatMap(p => p.consultations)
-    .flatMap(c => c.prescriptions)
-    .filter(p => p.status === 'pending').length
+  // Memoize expensive calculations
+  const pendingPrescriptions = useMemo(() => {
+    if (dashboardMetrics?.alerts?.pending_prescriptions !== undefined) {
+      return dashboardMetrics.alerts.pending_prescriptions
+    }
+    return filteredPatients
+      .flatMap(p => p.consultations)
+      .flatMap(c => c.prescriptions)
+      .filter(p => p.status === 'pending').length
+  }, [dashboardMetrics?.alerts?.pending_prescriptions, filteredPatients])
   
-  const todaysConsultationsCount = dashboardMetrics?.today?.consultations || todaysConsultations.length
+  const todaysConsultationsCount = useMemo(
+    () => dashboardMetrics?.today?.consultations || todaysConsultations.length,
+    [dashboardMetrics?.today?.consultations, todaysConsultations.length]
+  )
+  
   const todaysAppointmentsCount = dashboardMetrics?.today?.appointments || 0
 
   return (
