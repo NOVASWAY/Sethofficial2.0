@@ -19,7 +19,9 @@ import { usePatient, type Consultation as PatientConsultation } from '@/contexts
 import { PatientHistoryPanel } from './patient-history-panel'
 import { useWorkflow } from '@/contexts/workflow-context'
 import { useRouter } from 'next/navigation'
-import { consultationAPI, serviceCatalogAPI } from '@/lib/api-client'
+import { consultationAPI, serviceCatalogAPI, prescriptionAPI, patientAPI, pharmacyAPI } from '@/lib/api-client'
+import { useAuth } from '@/contexts/auth-context'
+import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
 
 interface VitalSigns {
   temperature?: number
@@ -50,9 +52,27 @@ interface Service {
   sha_approved: boolean
 }
 
+interface PatientInfo {
+  id: string
+  name: string
+  patientNumber: string
+  age: number | null
+  gender: string
+  insuranceType?: string
+}
+
 export function ConsultationModule() {
   const { toast } = useToast()
   const router = useRouter()
+  const { user } = useAuth()
+  
+  // Get search params from URL (using window.location as fallback for Next.js compatibility)
+  const getSearchParams = (): URLSearchParams | null => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search)
+    }
+    return null
+  }
   const { checkMedicationAllergy, addConsultation } = usePatient()
   const { setPendingConsultation } = useWorkflow()
   const [activeTab, setActiveTab] = useState('vitals')
@@ -60,6 +80,20 @@ export function ConsultationModule() {
   const [services, setServices] = useState<Service[]>([])
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null)
+  const [loadingPatient, setLoadingPatient] = useState(false)
+  const [medicines, setMedicines] = useState<Array<{
+    id: string
+    name: string
+    generic_name?: string
+    dosage_form: string
+    strength: string
+    current_stock?: number
+    unit_price: number
+  }>>([])
+  const [medicineSearchTerm, setMedicineSearchTerm] = useState('')
+  const [icd11SearchTerm, setIcd11SearchTerm] = useState('')
+  const [showIcd11Suggestions, setShowIcd11Suggestions] = useState(false)
   
   const [consultationData, setConsultationData] = useState({
     patient_id: '',
@@ -97,7 +131,89 @@ export function ConsultationModule() {
 
   useEffect(() => {
     loadServices()
-  }, [])
+    loadPatientData()
+    loadMedicines()
+    // Set current user as clinician if available
+    if (user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin')) {
+      setConsultationData(prev => ({ ...prev, clinician_id: user.id }))
+    }
+  }, [user])
+
+  const loadPatientData = async () => {
+    // Try to get patient ID from URL params first
+    const searchParams = getSearchParams()
+    const patientIdFromUrl = searchParams?.get('patient_id') || searchParams?.get('patientId')
+    
+    // If not in URL, try to get from consultationData (if already set)
+    const patientId = patientIdFromUrl || consultationData.patient_id
+
+    if (!patientId) {
+      // No patient ID available - user will need to select patient
+      return
+    }
+
+    try {
+      setLoadingPatient(true)
+      const patientData = await patientAPI.getById(patientId)
+      
+      if (patientData && patientData.id) {
+        // Calculate age from date of birth
+        let age: number | null = null
+        if (patientData.date_of_birth || patientData.dateOfBirth) {
+          const dob = new Date(patientData.date_of_birth || patientData.dateOfBirth)
+          const today = new Date()
+          age = today.getFullYear() - dob.getFullYear()
+          const monthDiff = today.getMonth() - dob.getMonth()
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+            age--
+          }
+        }
+
+        const patient: PatientInfo = {
+          id: patientData.id,
+          name: `${patientData.first_name || patientData.firstName || ''} ${patientData.last_name || patientData.lastName || ''}`.trim(),
+          patientNumber: patientData.patient_number || patientData.patientNumber || '',
+          age,
+          gender: patientData.gender || 'Unknown',
+          insuranceType: patientData.insurance_type || patientData.insuranceType
+        }
+
+        setPatientInfo(patient)
+        setConsultationData(prev => ({
+          ...prev,
+          patient_id: patient.id,
+          patient_name: patient.name
+        }))
+      }
+    } catch (error) {
+      console.error("Error loading patient data:", error)
+      // Silently fail - patient data will remain empty or user can select manually
+    } finally {
+      setLoadingPatient(false)
+    }
+  }
+
+  const loadMedicines = async () => {
+    try {
+      const medicinesData = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
+      
+      if (medicinesData && medicinesData.data && Array.isArray(medicinesData.data)) {
+        const transformed = medicinesData.data.map((med: any) => ({
+          id: med.id,
+          name: med.name || '',
+          generic_name: med.generic_name || med.genericName,
+          dosage_form: med.dosage_form || med.dosageForm || '',
+          strength: med.strength || '',
+          current_stock: med.current_stock || med.currentStock || 0,
+          unit_price: med.unit_price || med.unitPrice || 0
+        }))
+        setMedicines(transformed)
+      }
+    } catch (error) {
+      console.error("Error loading medicines:", error)
+      // Silently fail - user can still type manually
+    }
+  }
 
   const loadServices = async () => {
     try {
@@ -199,12 +315,54 @@ export function ConsultationModule() {
     setConsultationData(prev => ({ ...prev, [name]: value }))
   }
 
+  const handleMedicineSelect = (medicineId: string) => {
+    const selectedMedicine = medicines.find(m => m.id === medicineId)
+    if (selectedMedicine) {
+      setNewPrescription({
+        ...newPrescription,
+        medication_id: selectedMedicine.id,
+        medication_name: selectedMedicine.name,
+        dosage: selectedMedicine.strength || '',
+      })
+      setMedicineSearchTerm('')
+    }
+  }
+
+  const filteredMedicines = medicines.filter(med =>
+    med.name.toLowerCase().includes(medicineSearchTerm.toLowerCase()) ||
+    (med.generic_name && med.generic_name.toLowerCase().includes(medicineSearchTerm.toLowerCase()))
+  ).slice(0, 10) // Limit to 10 results for performance
+
+  // Filter ICD-11 diagnoses based on search term or diagnosis text
+  const filteredICD11Codes = icd11Diagnoses.filter(diagnosis => {
+    if (!icd11SearchTerm && !consultationData.diagnosis) return false
+    const searchTerm = icd11SearchTerm.toLowerCase() || consultationData.diagnosis.toLowerCase()
+    return (
+      diagnosis.code.toLowerCase().includes(searchTerm) ||
+      diagnosis.name.toLowerCase().includes(searchTerm) ||
+      diagnosis.keywords.some(kw => kw.toLowerCase().includes(searchTerm))
+    )
+  }).slice(0, 10) // Limit to 10 results
+
+  const handleICD11Select = (diagnosis: ICD11Diagnosis) => {
+    // Update diagnosis field with full diagnosis name
+    setConsultationData(prev => ({
+      ...prev,
+      diagnosis: diagnosis.name,
+      icd_11_codes: prev.icd_11_codes 
+        ? `${prev.icd_11_codes}, ${diagnosis.code}` 
+        : diagnosis.code
+    }))
+    setIcd11SearchTerm('')
+    setShowIcd11Suggestions(false)
+  }
+
   const addPrescription = () => {
     if (!newPrescription.medication_name || !newPrescription.dosage || !newPrescription.frequency) {
       toast({
         variant: 'error',
         title: 'Validation Error',
-        description: 'Please fill in all required prescription fields',
+        description: 'Please fill in all required prescription fields (medication, dosage, frequency)',
       })
       return
     }
@@ -221,6 +379,30 @@ export function ConsultationModule() {
       return
     }
 
+    // Check stock availability if medicine is from catalog
+    const selectedMedicine = newPrescription.medication_id 
+      ? medicines.find(m => m.id === newPrescription.medication_id)
+      : null
+    
+    if (selectedMedicine && selectedMedicine.current_stock !== undefined) {
+      if (selectedMedicine.current_stock <= 0) {
+        toast({
+          variant: 'error',
+          title: '⚠️ OUT OF STOCK',
+          description: `${selectedMedicine.name} is currently out of stock. Please check with pharmacy or select alternative medication.`,
+          duration: 8000,
+        })
+        return
+      } else if (selectedMedicine.current_stock < newPrescription.quantity) {
+        toast({
+          variant: 'default',
+          title: '⚠️ LOW STOCK WARNING',
+          description: `Only ${selectedMedicine.current_stock} units available. Requested quantity: ${newPrescription.quantity}`,
+          duration: 6000,
+        })
+      }
+    }
+
     setPrescriptions([...prescriptions, { ...newPrescription }])
     setNewPrescription({
       medication_id: '',
@@ -231,6 +413,7 @@ export function ConsultationModule() {
       quantity: 1,
       instructions: '',
     })
+    setMedicineSearchTerm('')
 
     toast({
       title: 'Prescription Added',
@@ -354,11 +537,13 @@ export function ConsultationModule() {
       }
 
       // Save consultation to API
+      let consultationId: string | null = null
       try {
         const apiResponse = await consultationAPI.create(consultationPayload)
         
         // Update workflow data with API response ID if available
         if (apiResponse && apiResponse.id) {
+          consultationId = apiResponse.id
           workflowData.consultation_id = apiResponse.id
           patientConsultation.id = apiResponse.id
         }
@@ -373,6 +558,59 @@ export function ConsultationModule() {
           variant: 'default',
           title: 'Consultation Saved Locally',
           description: 'Consultation saved to workflow context. API save failed.',
+        })
+      }
+
+      // 🔥 CRITICAL FIX: Auto-create prescriptions when consultation is saved
+      if (consultationId && prescriptions.length > 0) {
+        try {
+          // Prepare all medicines array for single prescription
+          const medicinesArray = prescriptions.map(prescription => ({
+            medicine_id: prescription.medication_id || undefined,
+            medicine_name: prescription.medication_name,
+            dosage: prescription.dosage,
+            frequency: prescription.frequency,
+            duration: prescription.duration_days.toString(),
+            quantity: prescription.quantity,
+            instructions: prescription.instructions || ''
+          }))
+
+          // Create a single prescription with all medicines (backend expects this format)
+          const prescriptionData = {
+            patient_id: consultationData.patient_id,
+            doctor_id: consultationData.clinician_id || user?.id || '',
+            consultation_id: consultationId, // Link to consultation
+            medicines: medicinesArray,
+            instructions: prescriptions.length === 1 
+              ? (prescriptions[0].instructions || `Take ${prescriptions[0].medication_name} ${prescriptions[0].dosage} ${prescriptions[0].frequency} for ${prescriptions[0].duration_days} days`)
+              : `Multiple medications prescribed. See individual medication instructions.`,
+            status: "active"
+          }
+
+          const prescriptionResult = await prescriptionAPI.create(prescriptionData)
+
+          if (prescriptionResult) {
+            toast({
+              title: 'Prescriptions Created Successfully',
+              description: `${prescriptions.length} medication(s) have been saved as a prescription and linked to this consultation.`,
+            })
+          }
+        } catch (prescriptionError) {
+          console.error("Error creating prescriptions:", prescriptionError)
+          toast({
+            variant: 'error',
+            title: 'Prescription Creation Failed',
+            description: prescriptionError instanceof Error 
+              ? `Consultation was saved, but prescriptions failed to save: ${prescriptionError.message}. Please create them manually from the prescriptions page.`
+              : 'Consultation was saved, but prescriptions failed to save. Please create them manually from the prescriptions page.',
+          })
+        }
+      } else if (prescriptions.length > 0 && !consultationId) {
+        // If consultation wasn't saved, warn user about prescriptions
+        toast({
+          variant: 'default',
+          title: 'Prescriptions Not Saved',
+          description: 'Prescriptions were not saved because consultation save failed. Please create prescriptions manually.',
         })
       }
 
@@ -433,25 +671,57 @@ export function ConsultationModule() {
       {/* Patient Info Banner */}
       <Card className="bg-primary/5">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label className="text-muted-foreground">Patient</Label>
-              <p className="font-semibold">John Doe</p>
-              <p className="text-sm text-muted-foreground">PAT-2025-0001</p>
+          {loadingPatient ? (
+            <div className="text-center py-4">
+              <p className="text-muted-foreground">Loading patient information...</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">Age / Gender</Label>
-              <p className="font-semibold">35 years / Male</p>
+          ) : patientInfo ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-muted-foreground">Patient</Label>
+                <p className="font-semibold">{patientInfo.name || 'Not specified'}</p>
+                <p className="text-sm text-muted-foreground">{patientInfo.patientNumber || consultationData.patient_id || 'No patient number'}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Age / Gender</Label>
+                <p className="font-semibold">
+                  {patientInfo.age !== null ? `${patientInfo.age} years` : 'Age not available'} / {patientInfo.gender || 'Unknown'}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Insurance</Label>
+                <Badge variant="outline">
+                  {patientInfo.insuranceType ? patientInfo.insuranceType.toUpperCase() : 'Not specified'}
+                </Badge>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Visit Date</Label>
+                <p className="font-semibold">{new Date().toLocaleDateString()}</p>
+              </div>
             </div>
-            <div>
-              <Label className="text-muted-foreground">Insurance</Label>
-              <Badge variant="outline">SHA Member</Badge>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-muted-foreground">Patient</Label>
+                <p className="font-semibold text-muted-foreground">No patient selected</p>
+                <p className="text-sm text-muted-foreground">
+                  {consultationData.patient_id ? `ID: ${consultationData.patient_id}` : 'Please select a patient'}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Age / Gender</Label>
+                <p className="font-semibold text-muted-foreground">Not available</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Insurance</Label>
+                <Badge variant="outline">Not specified</Badge>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Visit Date</Label>
+                <p className="font-semibold">{new Date().toLocaleDateString()}</p>
+              </div>
             </div>
-            <div>
-              <Label className="text-muted-foreground">Visit Date</Label>
-              <p className="font-semibold">{new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -641,13 +911,63 @@ export function ConsultationModule() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="icd_11_codes">ICD-11 Codes</Label>
-                <Input
-                  id="icd_11_codes"
-                  name="icd_11_codes"
-                  placeholder="e.g., 1A00, 1A01"
-                  value={consultationData.icd_11_codes}
-                  onChange={handleConsultationChange}
-                />
+                <div className="relative">
+                  <Input
+                    id="icd_11_codes"
+                    name="icd_11_codes"
+                    placeholder="Search ICD-11 codes (e.g., 1A00, Malaria, or type diagnosis)..."
+                    value={icd11SearchTerm || consultationData.icd_11_codes}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setIcd11SearchTerm(value)
+                      // Also allow manual entry
+                      if (!filteredICD11Codes.find(d => d.code === value || d.name === value)) {
+                        setConsultationData(prev => ({ ...prev, icd_11_codes: value }))
+                      }
+                    }}
+                    onFocus={() => {
+                      if (consultationData.diagnosis || icd11SearchTerm) {
+                        setShowIcd11Suggestions(true)
+                      }
+                    }}
+                    onBlur={() => {
+                      // Delay hiding suggestions to allow click
+                      setTimeout(() => setShowIcd11Suggestions(false), 200)
+                    }}
+                  />
+                  {(showIcd11Suggestions || icd11SearchTerm) && filteredICD11Codes.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+                      <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+                        ICD-11 Suggestions
+                      </div>
+                      {filteredICD11Codes.map((diagnosis) => (
+                        <div
+                          key={diagnosis.code}
+                          className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
+                          onClick={() => handleICD11Select(diagnosis)}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-medium text-sm">{diagnosis.code}</p>
+                              <p className="text-sm">{diagnosis.name}</p>
+                              {diagnosis.common && (
+                                <Badge variant="outline" className="text-xs mt-1">Common</Badge>
+                              )}
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              {diagnosis.category}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {consultationData.icd_11_codes && (
+                  <p className="text-xs text-muted-foreground">
+                    Selected codes: {consultationData.icd_11_codes}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="treatment_plan">Treatment Plan</Label>
@@ -696,11 +1016,70 @@ export function ConsultationModule() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Medication Name *</Label>
-                  <Input
-                    placeholder="e.g., Amoxicillin"
-                    value={newPrescription.medication_name}
-                    onChange={(e) => setNewPrescription({...newPrescription, medication_name: e.target.value})}
-                  />
+                  <div className="relative">
+                    <Input
+                      placeholder="Search or type medication name..."
+                      value={medicineSearchTerm || newPrescription.medication_name}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setMedicineSearchTerm(value)
+                        // Allow manual entry if not selecting from dropdown
+                        if (!medicines.find(m => m.name.toLowerCase() === value.toLowerCase())) {
+                          setNewPrescription({...newPrescription, medication_name: value, medication_id: ''})
+                        }
+                      }}
+                      onFocus={() => {
+                        // Show dropdown when focused
+                        if (medicineSearchTerm && filteredMedicines.length > 0) {
+                          // Dropdown will show via Select component
+                        }
+                      }}
+                    />
+                    {medicineSearchTerm && filteredMedicines.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredMedicines.map((medicine) => (
+                          <div
+                            key={medicine.id}
+                            className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
+                            onClick={() => {
+                              handleMedicineSelect(medicine.id)
+                            }}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{medicine.name}</p>
+                                {medicine.generic_name && (
+                                  <p className="text-sm text-muted-foreground">{medicine.generic_name}</p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  {medicine.strength} {medicine.dosage_form}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                {medicine.current_stock !== undefined && (
+                                  <Badge 
+                                    variant={medicine.current_stock === 0 ? "destructive" : medicine.current_stock < 10 ? "default" : "outline"}
+                                    className="text-xs"
+                                  >
+                                    {medicine.current_stock === 0 ? 'Out of Stock' : 
+                                     medicine.current_stock < 10 ? `Low Stock (${medicine.current_stock})` : 
+                                     `In Stock (${medicine.current_stock})`}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {newPrescription.medication_id && (
+                    <p className="text-xs text-muted-foreground">
+                      Selected from catalog. Stock: {
+                        medicines.find(m => m.id === newPrescription.medication_id)?.current_stock ?? 'Unknown'
+                      } units
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Dosage *</Label>
@@ -836,7 +1215,10 @@ export function ConsultationModule() {
         {/* Patient History Sidebar - 1 column */}
         <div className="lg:col-span-1">
           <div className="sticky top-6">
-            <PatientHistoryPanel patientId="PAT-2025-0001" compact={true} />
+            <PatientHistoryPanel 
+              patientId={patientInfo?.id || consultationData.patient_id || "PAT-2025-0001"} 
+              compact={true} 
+            />
           </div>
         </div>
       </div>
