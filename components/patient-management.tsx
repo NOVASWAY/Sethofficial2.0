@@ -284,11 +284,6 @@ export function PatientManagement({ role }: PatientManagementProps) {
           <Button 
             variant="outline"
             onClick={handleRefresh}
-                  toast({
-                    title: "Refreshed",
-                    description: "Patient data has been refreshed.",
-                  })
-                }
               } catch (error) {
                 toast({
                   title: "Error",
