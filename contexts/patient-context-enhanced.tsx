@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react'
 import { patientAPI } from '@/lib/api-client'
 
 // Enhanced Patient Interface - Aligned with backend
@@ -61,7 +61,7 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
   // Load patients from API on mount
   useEffect(() => {
     loadPatients()
-  }, [])
+  }, [loadPatients])
 
   // Load patients from backend API
   const loadPatients = async () => {
@@ -79,8 +79,8 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
     }
   }
 
-  // Add Patient
-  const addPatient = async (patientData: Omit<Patient, 'id' | 'created_at' | 'updated_at'>): Promise<Patient> => {
+  // Add Patient (memoized)
+  const addPatient = useCallback(async (patientData: Omit<Patient, 'id' | 'created_at' | 'updated_at'>): Promise<Patient> => {
     try {
       setError(null)
       const response = await patientAPI.create(patientData)
@@ -94,10 +94,10 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       setError(errorMessage)
       throw new Error(errorMessage)
     }
-  }
+  }, [loadPatients])
 
-  // Update Patient
-  const updatePatient = async (id: string, updates: Partial<Patient>): Promise<Patient> => {
+  // Update Patient (memoized)
+  const updatePatient = useCallback(async (id: string, updates: Partial<Patient>): Promise<Patient> => {
     try {
       setError(null)
       const response = await patientAPI.update(id, updates)
@@ -111,10 +111,10 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       setError(errorMessage)
       throw new Error(errorMessage)
     }
-  }
+  }, [loadPatients])
 
-  // Delete Patient
-  const deletePatient = async (id: string): Promise<void> => {
+  // Delete Patient (memoized)
+  const deletePatient = useCallback(async (id: string): Promise<void> => {
     try {
       setError(null)
       await patientAPI.delete(id)
@@ -126,10 +126,10 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       setError(errorMessage)
       throw new Error(errorMessage)
     }
-  }
+  }, [loadPatients])
 
-  // Search Patients
-  const searchPatients = async (query: string): Promise<Patient[]> => {
+  // Search Patients (memoized)
+  const searchPatients = useCallback(async (query: string): Promise<Patient[]> => {
     if (!query.trim()) return patients
 
     try {
@@ -142,7 +142,7 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       console.error('Search failed:', err)
       return []
     }
-  }
+  }, [patients])
 
   // Get Patient by ID
   const getPatientById = (id: string): Patient | undefined => {

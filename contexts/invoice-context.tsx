@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react'
 import { invoiceAPI } from '../lib/api-client'
 
 export interface InvoiceItem {
@@ -113,7 +113,8 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
 
   // Removed localStorage save effects - data is now persisted via API calls
 
-  const addInvoice = async (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber' | 'createdAt' | 'updatedAt'>): Promise<Invoice> => {
+  // Memoize all functions to prevent unnecessary re-renders
+  const addInvoice = useCallback(async (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber' | 'createdAt' | 'updatedAt'>): Promise<Invoice> => {
     try {
       const newInvoice = await invoiceAPI.create(invoiceData)
       setInvoices(prev => [newInvoice, ...prev])
@@ -122,9 +123,9 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       console.error('Error creating invoice:', error)
       throw error
     }
-  }
+  }, [])
 
-  const updateInvoice = (id: string, updates: Partial<Invoice>) => {
+  const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
     setInvoices(prev =>
       prev.map(invoice =>
         invoice.id === id
@@ -132,30 +133,30 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
           : invoice
       )
     )
-  }
+  }, [])
 
-  const getInvoiceById = (id: string): Invoice | undefined => {
+  const getInvoiceById = useCallback((id: string): Invoice | undefined => {
     return invoices.find(inv => inv.id === id)
-  }
+  }, [invoices])
 
-  const getInvoicesByPatient = (patientId: string): Invoice[] => {
+  const getInvoicesByPatient = useCallback((patientId: string): Invoice[] => {
     return invoices.filter(inv => inv.patientId === patientId)
-  }
+  }, [invoices])
 
-  const getPendingInvoices = (): Invoice[] => {
+  const getPendingInvoices = useCallback((): Invoice[] => {
     return invoices.filter(inv => inv.paymentStatus === 'pending' || inv.paymentStatus === 'partial')
-  }
+  }, [invoices])
 
-  const getOverdueInvoices = (): Invoice[] => {
+  const getOverdueInvoices = useCallback((): Invoice[] => {
     const today = new Date()
     return invoices.filter(inv => {
       if (inv.paymentStatus === 'paid') return false
       if (!inv.dueDate) return false
       return new Date(inv.dueDate) < today
     })
-  }
+  }, [invoices])
 
-  const addPayment = (paymentData: Omit<Payment, 'id' | 'createdAt'>) => {
+  const addPayment = useCallback((paymentData: Omit<Payment, 'id' | 'createdAt'>) => {
     const newPayment: Payment = {
       ...paymentData,
       id: crypto.randomUUID(),
@@ -176,13 +177,13 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
         paymentStatus: newBalance <= 0 ? 'paid' : newBalance < invoice.total ? 'partial' : 'pending',
       })
     }
-  }
+  }, [invoices, updateInvoice])
 
-  const getPaymentsByInvoice = (invoiceId: string): Payment[] => {
+  const getPaymentsByInvoice = useCallback((invoiceId: string): Payment[] => {
     return payments.filter(pay => pay.invoiceId === invoiceId)
-  }
+  }, [payments])
 
-  const getTotalRevenue = (startDate?: string, endDate?: string): number => {
+  const getTotalRevenue = useCallback((startDate?: string, endDate?: string): number => {
     let filtered = invoices.filter(inv => inv.paymentStatus === 'paid')
     
     if (startDate) {
@@ -193,9 +194,9 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     }
 
     return filtered.reduce((sum, inv) => sum + inv.total, 0)
-  }
+  }, [invoices])
 
-  const getRevenueByMethod = (method: string, startDate?: string, endDate?: string): number => {
+  const getRevenueByMethod = useCallback((method: string, startDate?: string, endDate?: string): number => {
     let filtered = invoices.filter(
       inv => inv.paymentStatus === 'paid' && inv.paymentMethod === method
     )
@@ -208,15 +209,16 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     }
 
     return filtered.reduce((sum, inv) => sum + inv.total, 0)
-  }
+  }, [invoices])
 
-  const getOutstandingBalance = (): number => {
+  const getOutstandingBalance = useCallback((): number => {
     return invoices
       .filter(inv => inv.paymentStatus !== 'paid')
       .reduce((sum, inv) => sum + inv.balance, 0)
-  }
+  }, [invoices])
 
-  const value: InvoiceContextType = {
+  // Memoize context value to prevent unnecessary re-renders
+  const value: InvoiceContextType = useMemo(() => ({
     invoices,
     payments,
     addInvoice,
@@ -230,7 +232,21 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     getTotalRevenue,
     getRevenueByMethod,
     getOutstandingBalance,
-  }
+  }), [
+    invoices,
+    payments,
+    addInvoice,
+    updateInvoice,
+    getInvoiceById,
+    getInvoicesByPatient,
+    getPendingInvoices,
+    getOverdueInvoices,
+    addPayment,
+    getPaymentsByInvoice,
+    getTotalRevenue,
+    getRevenueByMethod,
+    getOutstandingBalance,
+  ])
 
   return (
     <InvoiceContext.Provider value={value}>
