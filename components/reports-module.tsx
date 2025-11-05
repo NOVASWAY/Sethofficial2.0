@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -41,7 +41,8 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { shaClaimAPI } from "@/lib/api-client"
-import { useState, useEffect } from "react"
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useDebounce } from '@/hooks/use-debounce'
 
 // Mock SHA claims data
 const mockSHAClaims = [
@@ -193,6 +194,9 @@ export function ReportsModule() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [customDateRange, setCustomDateRange] = useState<DateRange>({ from: undefined, to: undefined })
+  
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const { toast } = useToast()
 
   // Context hooks for real data
