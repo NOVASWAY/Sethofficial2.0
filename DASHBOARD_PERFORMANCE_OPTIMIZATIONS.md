@@ -158,6 +158,35 @@ Comprehensive performance and efficiency improvements for all user dashboards to
 
 ---
 
+### 10. **Loading Skeleton Screens**
+**Status**: ✅ Completed  
+**Impact**: Improved perceived performance, better UX during loading
+
+**Improvements**:
+- ✅ Replaced spinner/text loading with skeleton screens
+- ✅ PatientListSkeleton for patient lists
+- ✅ ListSkeleton for appointments, prescriptions, invoices, inventory
+- ✅ Skeleton placeholders in dashboard overview metrics
+- ✅ Consistent loading experience across all dashboards
+
+**Code Location**: `components/ui/loading.tsx`, all dashboard components
+
+---
+
+### 11. **Optimistic Updates**
+**Status**: ✅ Completed (Patient operations)  
+**Impact**: Immediate UI feedback, improved perceived performance
+
+**Improvements**:
+- ✅ Optimistic patient create (adds to list immediately)
+- ✅ Optimistic patient update (updates UI before API confirmation)
+- ✅ Automatic revert on API failure
+- ✅ No waiting for API response before showing changes
+
+**Code Location**: `components/patient-management.tsx`
+
+---
+
 ## 📊 Performance Metrics
 
 ### Before Optimizations
@@ -238,8 +267,8 @@ const [data1, data2] = await Promise.all([
 12. ⏳ Advanced filtering with debouncing - **PENDING**
 13. ⏳ Pagination for large lists - **PENDING**
 14. ⏳ Virtual scrolling for 1000+ items - **PENDING**
-15. ⏳ Loading skeleton screens - **PENDING**
-16. ⏳ Optimistic updates - **PENDING**
+15. ✅ Loading skeleton screens - **COMPLETED**
+16. ✅ Optimistic updates - **COMPLETED** (Patient create/update)
 17. ⏳ Service worker caching - **PENDING**
 
 ---
@@ -319,14 +348,18 @@ All high and medium priority dashboard optimizations have been completed:
 - ✅ Parallel API requests where applicable
 - ✅ Cache invalidation on mutations
 - ✅ Optimized filtering and calculations
+- ✅ Loading skeleton screens for better perceived performance
+- ✅ Optimistic updates for immediate UI feedback
 
 ### Remaining Low-Priority Enhancements
 The following enhancements can be implemented incrementally as needed:
-- Pagination for large lists
-- Virtual scrolling (1000+ items)
-- Keyboard shortcuts
-- Bulk operations
-- Advanced filtering
-- Loading skeletons
-- Optimistic updates
-- Service worker caching
+- Pagination for large lists (1000+ items)
+- Virtual scrolling for very large datasets
+- Keyboard shortcuts for power users
+- Bulk operations (select, delete, update)
+- Advanced filtering with multiple criteria
+- Optimistic updates for other entities (appointments, invoices, etc.)
+- Context provider optimization
+- Batch API calls
+- Service worker caching for offline support
+- Image optimization (WebP, lazy loading)
