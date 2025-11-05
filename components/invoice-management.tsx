@@ -452,35 +452,12 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
                                           statusFilter === "Pending" ? "pending" : 
                                           statusFilter === "Overdue" ? "overdue" : "pending"
                 }
+                // Invalidate cache before refreshing
+                dashboardCache.invalidatePattern('dashboard:invoices:.*')
+                
                 const result = await invoiceAPI.getAll(params)
                 if (result && Array.isArray(result.data)) {
-                  const transformed = result.data.map((inv: any) => ({
-                    id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
-                    patientId: inv.patient_id,
-                    patientName: inv.patient_name || `${inv.patient_first_name || ''} ${inv.patient_last_name || ''}`.trim(),
-                    date: inv.date || inv.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-                    dueDate: inv.due_date || inv.date || new Date().toISOString().split('T')[0],
-                    type: (inv.payment_method === 'sha' ? 'SHA' as const :
-                           inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
-                           inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
-                    status: (inv.payment_status === 'paid' ? 'Paid' as const :
-                             inv.payment_status === 'pending' ? 'Pending' as const :
-                             inv.payment_status === 'overdue' ? 'Overdue' as const :
-                             inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
-                    subtotal: inv.subtotal || inv.total_amount - (inv.tax || 0),
-                    tax: inv.tax || 0,
-                    total: inv.total_amount || inv.total || 0,
-                    services: inv.items || inv.services || [],
-                    shaDetails: inv.sha_details,
-                    paymentDetails: inv.payment_status === 'paid' ? {
-                      method: inv.payment_method || 'Cash',
-                      transactionId: inv.transaction_id || '',
-                      paidDate: inv.paid_date || inv.payment_date || '',
-                      mpesaCode: inv.mpesa_code,
-                      phoneNumber: inv.phone_number
-                    } : undefined,
-                    notes: inv.notes || ''
-                  }))
+                  const transformed = result.data.map(transformInvoice)
                   setInvoices(transformed)
                   toast({
                     title: "Refreshed",

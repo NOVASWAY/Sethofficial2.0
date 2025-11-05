@@ -407,7 +407,7 @@ export function ReportsModule() {
     }
     
     fetchSHAClaims()
-  }, [customDateRange])
+  }, [shaClaimsCacheKey, customDateRange])
 
   return (
     <div className="space-y-6">
