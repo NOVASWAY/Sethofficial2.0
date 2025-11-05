@@ -322,14 +322,16 @@ export function ReportsModule() {
     }
   }, [invoices, patients, medicines, purchaseOrders, logs, getTotalRevenue, getRevenueByMethod, getOutstandingBalance, getTotalOrdersValue, getPendingOrdersCount, getLowStockMedicines, customDateRange])
 
-  // Filter audit logs
-  const filteredLogs = realData.recentLogs.filter((log: any) => {
-    const matchesSearch = searchQuery === "" || 
-      log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.entityType.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch
-  })
+  // Memoize filtered audit logs
+  const filteredLogs = useMemo(() => {
+    return realData.recentLogs.filter((log: any) => {
+      const matchesSearch = !debouncedSearchQuery || 
+        log.action.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        log.userName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        log.entityType.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      return matchesSearch
+    })
+  }, [realData.recentLogs, debouncedSearchQuery])
 
   // Calculate audit statistics
   const auditStats = {
