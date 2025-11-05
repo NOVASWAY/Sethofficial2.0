@@ -307,7 +307,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
       {
         ...COMMON_SHORTCUTS.NEW,
         handler: () => {
-          if (canCreatePatients) {
+          if (canRegisterPatients) {
             setIsNewPatientOpen(true)
           }
         },
