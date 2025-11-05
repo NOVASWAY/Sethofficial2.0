@@ -2,8 +2,10 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { patientAPI } from "@/lib/api-client"
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -125,39 +127,86 @@ export function PatientManagement({ role }: PatientManagementProps) {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  
+  // Debounce search term to reduce API calls
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  // Fetch patients from API
+  // Memoized cache key for patient data
+  const patientsCacheKey = useMemo(
+    () => getCacheKey('patients', { page, search: debouncedSearchTerm, role }),
+    [page, debouncedSearchTerm, role]
+  )
+
+  // Transform API response to Patient interface (memoized)
+  const transformPatient = useCallback((p: any): Patient => ({
+    id: p.id || p.patient_number || `P-${p.id?.slice(0, 8)}`,
+    firstName: p.first_name || p.firstName || '',
+    lastName: p.last_name || p.lastName || '',
+    dateOfBirth: p.date_of_birth || p.dateOfBirth || '',
+    gender: p.gender || 'Unknown',
+    phone: p.phone_number || p.phone || '',
+    location: p.address || p.location || '',
+    emergencyContact: p.emergency_contact_name || p.emergencyContact || '',
+    emergencyPhone: p.emergency_contact_phone || p.emergencyPhone || '',
+    bloodType: p.blood_type || p.bloodType || 'Unknown',
+    allergies: Array.isArray(p.allergies) ? p.allergies : 
+              (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
+    medicalHistory: p.medical_history || p.medicalHistory || '',
+    registrationDate: p.registration_date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+    lastVisit: p.last_visit || p.lastVisit || p.registration_date || new Date().toISOString().split('T')[0],
+    status: (p.status === 'active' || p.status === 'Active') ? 'Active' as const : 'Inactive' as const,
+  }), [])
+
+  // Fetch patients from API with caching and debounced search
   useEffect(() => {
     const fetchPatients = async () => {
       try {
         setLoading(true)
-        const result = await patientAPI.getAll({ page, per_page: 50 })
+        
+        // Use cached API call if available
+        const cacheKey = patientsCacheKey
+        let result: any
+        
+        if (debouncedSearchTerm) {
+          // Use search API if search term exists
+          try {
+            result = await withCache(
+              cacheKey,
+              () => patientAPI.search(debouncedSearchTerm),
+              2 * 60 * 1000 // Cache search results for 2 minutes
+            )
+            // Transform search results
+            if (result && Array.isArray(result)) {
+              const transformed = result.map(transformPatient)
+              setPatients(transformed)
+              setTotalPages(1) // Search results typically don't have pagination
+              return
+            }
+          } catch (searchError) {
+            console.warn("Search API failed, falling back to getAll:", searchError)
+          }
+        }
+        
+        // Fallback to getAll with pagination
+        result = await withCache(
+          cacheKey,
+          () => patientAPI.getAll({ page, per_page: 50 }),
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         
         if (result && Array.isArray(result.data)) {
           // Transform API response to match Patient interface
-          const transformed = result.data.map((p: any) => ({
-            id: p.id || p.patient_number || `P-${p.id?.slice(0, 8)}`,
-            firstName: p.first_name || p.firstName || '',
-            lastName: p.last_name || p.lastName || '',
-            dateOfBirth: p.date_of_birth || p.dateOfBirth || '',
-            gender: p.gender || 'Unknown',
-            phone: p.phone_number || p.phone || '',
-            location: p.address || p.location || '',
-            emergencyContact: p.emergency_contact_name || p.emergencyContact || '',
-            emergencyPhone: p.emergency_contact_phone || p.emergencyPhone || '',
-            bloodType: p.blood_type || p.bloodType || 'Unknown',
-            allergies: Array.isArray(p.allergies) ? p.allergies : 
-                      (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
-            medicalHistory: p.medical_history || p.medicalHistory || '',
-            registrationDate: p.registration_date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-            lastVisit: p.last_visit || p.lastVisit || p.registration_date || new Date().toISOString().split('T')[0],
-            status: (p.status === 'active' || p.status === 'Active') ? 'Active' as const : 'Inactive' as const,
-          }))
+          const transformed = result.data.map(transformPatient)
           setPatients(transformed)
 
           if (result.pagination) {
             setTotalPages(result.pagination.total_pages || 1)
           }
+        } else if (result && Array.isArray(result)) {
+          // Handle case where API returns array directly
+          const transformed = result.map(transformPatient)
+          setPatients(transformed)
+          setTotalPages(1)
         } else {
           // Fallback to mock data if API returns unexpected format
           setPatients(mockPatients)
@@ -182,16 +231,33 @@ export function PatientManagement({ role }: PatientManagementProps) {
     }
 
     fetchPatients()
-  }, [page, toast])
+  }, [page, debouncedSearchTerm, patientsCacheKey, transformPatient, toast])
 
-  const filteredPatients = patients.filter(
-    (patient) =>
-      patient.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone.includes(searchTerm) ||
-      patient.location.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  // Memoize filtered patients (only needed if search is client-side)
+  // If using API search, this will just return patients as-is
+  const filteredPatients = useMemo(() => {
+    // If we have a search term, API search should handle it
+    // But keep client-side filtering as fallback for immediate feedback
+    if (!searchTerm || debouncedSearchTerm !== searchTerm) {
+      // Show all patients while user is typing (before debounce)
+      return patients
+    }
+    
+    // After debounce, if API search was used, return patients as-is
+    // Otherwise, apply client-side filter
+    if (debouncedSearchTerm) {
+      return patients.filter(
+        (patient) =>
+          patient.firstName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          patient.lastName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          patient.id.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          patient.phone.includes(debouncedSearchTerm) ||
+          patient.location.toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
+      )
+    }
+    
+    return patients
+  }, [patients, searchTerm, debouncedSearchTerm])
 
   const handleViewPatient = (patient: Patient) => {
     setSelectedPatient(patient)
@@ -217,30 +283,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
         <div className="flex items-center gap-2">
           <Button 
             variant="outline"
-            onClick={async () => {
-              try {
-                setLoading(true)
-                const result = await patientAPI.getAll({ page, per_page: 50 })
-                if (result && Array.isArray(result.data)) {
-                  const transformed = result.data.map((p: any) => ({
-                    id: p.id || p.patient_number || `P-${p.id?.slice(0, 8)}`,
-                    firstName: p.first_name || p.firstName || '',
-                    lastName: p.last_name || p.lastName || '',
-                    dateOfBirth: p.date_of_birth || p.dateOfBirth || '',
-                    gender: p.gender || 'Unknown',
-                    phone: p.phone_number || p.phone || '',
-                    location: p.address || p.location || '',
-                    emergencyContact: p.emergency_contact_name || p.emergencyContact || '',
-                    emergencyPhone: p.emergency_contact_phone || p.emergencyPhone || '',
-                    bloodType: p.blood_type || p.bloodType || 'Unknown',
-                    allergies: Array.isArray(p.allergies) ? p.allergies : 
-                              (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
-                    medicalHistory: p.medical_history || p.medicalHistory || '',
-                    registrationDate: p.registration_date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-                    lastVisit: p.last_visit || p.lastVisit || p.registration_date || new Date().toISOString().split('T')[0],
-                    status: (p.status === 'active' || p.status === 'Active') ? 'Active' as const : 'Inactive' as const,
-                  }))
-                  setPatients(transformed)
+            onClick={handleRefresh}
                   toast({
                     title: "Refreshed",
                     description: "Patient data has been refreshed.",
@@ -839,6 +882,9 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
       }
 
       await patientAPI.update(patient.id, patientData)
+      
+      // Invalidate patient cache after updating
+      dashboardCache.invalidatePattern('dashboard:patients:.*')
       
       toast({
         title: "Patient Updated",
