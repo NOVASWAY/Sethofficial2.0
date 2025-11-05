@@ -1618,14 +1618,14 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
           <Button onClick={async () => {
             try {
               await invoiceAPI.processPayment(invoice.id, {
-              
-              // Invalidate invoices cache after payment
-              dashboardCache.invalidatePattern('dashboard:invoices:.*')
                 payment_method: 'cash',
                 amount_paid: invoice.total,
                 payment_date: new Date().toISOString().split('T')[0],
                 transaction_id: `TXN-${Date.now()}`,
               })
+              
+              // Invalidate invoices cache after payment
+              dashboardCache.invalidatePattern('dashboard:invoices:.*')
               toast({
                 title: "Payment Processed",
                 description: `Invoice ${invoice.id} has been marked as paid.`,
