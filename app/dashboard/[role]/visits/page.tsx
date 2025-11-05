@@ -16,14 +16,63 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
+interface Visit {
+  id: string
+  patientName: string
+  patientId: string
+  visitDate: string
+  visitTime: string
+  chiefComplaint: string
+  diagnosis: string
+  clinician: string
+  status: string
+  vitals: {
+    bp: string
+    pulse: string
+    temp: string
+    weight: string
+  }
+}
+
+interface ConsultationAPIResponse {
+  id: string
+  patient_id: string
+  patient_name?: string
+  patient_first_name?: string
+  patient_last_name?: string
+  date?: string
+  time?: string
+  created_at?: string
+  chief_complaint?: string
+  diagnosis?: string
+  doctor_name?: string
+  clinician_name?: string
+  status?: string
+  vital_signs?: {
+    blood_pressure?: string
+    bp?: string
+    pulse?: number | string
+    temperature?: number | string
+    weight?: number | string
+  }
+}
+
+interface PatientAPIResponse {
+  id: string
+  first_name?: string
+  last_name?: string
+  patient_number?: string
+  [key: string]: unknown
+}
+
 export default function VisitsPage() {
   const params = useParams()
   const role = params.role as string
   const { toast } = useToast()
   const [isNewVisitOpen, setIsNewVisitOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [visits, setVisits] = useState<any[]>([])
-  const [patients, setPatients] = useState<any[]>([])
+  const [visits, setVisits] = useState<Visit[]>([])
+  const [patients, setPatients] = useState<PatientAPIResponse[]>([])
   const [loading, setLoading] = useState(true)
 
   // Fetch consultations (visits) from API
@@ -35,7 +84,7 @@ export default function VisitsPage() {
         
         if (result && Array.isArray(result.data)) {
           // Transform API response to match visit interface
-          const transformed = result.data.map((consult: any) => ({
+          const transformed = result.data.map((consult: ConsultationAPIResponse): Visit => ({
             id: consult.id || `CONS-${consult.id?.slice(0, 8)}`,
             patientName: consult.patient_name || `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'Unknown Patient',
             patientId: consult.patient_id || '',
@@ -54,18 +103,17 @@ export default function VisitsPage() {
           }))
           setVisits(transformed)
         } else {
-          // Fallback to mock data
-          setVisits(mockVisits)
+          // No data available - show empty state
+          setVisits([])
         }
       } catch (error) {
-        console.error("Error fetching visits:", error)
         toast({
-          title: "Warning",
-          description: "Failed to load visits. Using sample data.",
-          variant: "default"
+          title: "Error",
+          description: "Failed to load visits. Please try again or check your connection.",
+          variant: "destructive"
         })
-        // Fallback to mock data on error
-        setVisits(mockVisits)
+        // Show empty state instead of mock data
+        setVisits([])
       } finally {
         setLoading(false)
       }
@@ -83,7 +131,7 @@ export default function VisitsPage() {
           setPatients(result.data)
         }
       } catch (error) {
-        console.error("Error fetching patients:", error)
+        // Silently fail - patients dropdown will show "No patients available"
       }
     }
     fetchPatients()
@@ -94,73 +142,29 @@ export default function VisitsPage() {
   }
 
   const handleContinueVisit = (visitId: string) => {
-    console.log("[v0] Continue visit:", visitId)
     // Navigate to visit details or start visit workflow
+    toast({
+      title: "Visit",
+      description: "Continuing visit workflow...",
+    })
   }
 
   const handleViewNotes = (visitId: string) => {
-    console.log("[v0] View notes for visit:", visitId)
     // Open notes dialog or navigate to notes page
+    toast({
+      title: "Visit Notes",
+      description: "Opening visit notes...",
+    })
   }
 
   const handleViewDetails = (visitId: string) => {
-    console.log("[v0] View details for visit:", visitId)
     // Open visit details dialog
+    toast({
+      title: "Visit Details",
+      description: "Opening visit details...",
+    })
   }
 
-  const mockVisits = [
-    {
-      id: "V001",
-      patientName: "John Doe",
-      patientId: "P001",
-      visitDate: "2024-01-15",
-      visitTime: "09:30",
-      chiefComplaint: "Chest pain and shortness of breath",
-      diagnosis: "Hypertension",
-      clinician: "Dr. Smith",
-      status: "in-progress",
-      vitals: {
-        bp: "140/90",
-        pulse: "88",
-        temp: "37.2°C",
-        weight: "75kg",
-      },
-    },
-    {
-      id: "V002",
-      patientName: "Jane Smith",
-      patientId: "P002",
-      visitDate: "2024-01-15",
-      visitTime: "11:00",
-      chiefComplaint: "Follow-up for diabetes management",
-      diagnosis: "Type 2 Diabetes Mellitus",
-      clinician: "Dr. Johnson",
-      status: "completed",
-      vitals: {
-        bp: "130/85",
-        pulse: "72",
-        temp: "36.8°C",
-        weight: "68kg",
-      },
-    },
-    {
-      id: "V003",
-      patientName: "Mike Wilson",
-      patientId: "P003",
-      visitDate: "2024-01-15",
-      visitTime: "14:30",
-      chiefComplaint: "Annual health check-up",
-      diagnosis: "Healthy - routine check",
-      clinician: "Dr. Brown",
-      status: "waiting",
-      vitals: {
-        bp: "120/80",
-        pulse: "68",
-        temp: "36.5°C",
-        weight: "82kg",
-      },
-    },
-  ]
 
   const filteredVisits = visits.filter(
     (visit) =>
@@ -200,7 +204,7 @@ export default function VisitsPage() {
                   setLoading(true)
                   const result = await consultationAPI.getAll({ page: 1, per_page: 100 })
                   if (result && Array.isArray(result.data)) {
-                    const transformed = result.data.map((consult: any) => ({
+                    const transformed = result.data.map((consult: ConsultationAPIResponse): Visit => ({
                       id: consult.id || `CONS-${consult.id?.slice(0, 8)}`,
                       patientName: consult.patient_name || `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'Unknown Patient',
                       patientId: consult.patient_id || '',
@@ -455,8 +459,11 @@ export default function VisitsPage() {
               </Button>
               <Button
                 onClick={() => {
-                  console.log("[v0] Starting new visit")
                   setIsNewVisitOpen(false)
+                  toast({
+                    title: "New Visit",
+                    description: "Starting new visit workflow...",
+                  })
                 }}
               >
                 Start Visit

@@ -16,18 +16,60 @@ import { useToast } from "@/hooks/use-toast"
 import { useInventory } from "@/contexts/inventory-context"
 import { usePurchaseOrders } from "@/contexts/purchase-order-context"
 import { pharmacyAPI } from "@/lib/api-client"
+import { useAuth } from "@/contexts/auth-context"
+
+interface InventoryItem {
+  id: string
+  name: string
+  genericName?: string
+  category: string
+  currentStock: number
+  minStock: number
+  maxStock: number
+  unitPrice: number
+  supplier: string
+  expiryDate: string
+  status: 'in-stock' | 'low-stock' | 'out-of-stock'
+  strength?: string
+  dosageForm?: string
+  batchNumber?: string
+}
+
+interface MedicineAPIResponse {
+  id: string
+  name: string
+  generic_name?: string
+  category?: string
+  dosage_form?: string
+  current_stock?: number
+  currentStock?: number
+  minimum_stock?: number
+  minStock?: number
+  maximum_stock?: number
+  maxStock?: number
+  unit_price?: number
+  unitPrice?: number
+  manufacturer?: string
+  supplier?: string
+  expiry_date?: string
+  expiryDate?: string
+  strength?: string
+  batch_number?: string
+  [key: string]: unknown
+}
 
 export default function InventoryPage() {
   const params = useParams()
   const role = params.role as string
   const { toast } = useToast()
+  const { user } = useAuth()
   const { medicines, addMedicine, updateMedicine } = useInventory()
   const { addPurchaseOrder, suppliers, getActiveSuppliers } = usePurchaseOrders()
   
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
   const [isEditItemOpen, setIsEditItemOpen] = useState(false)
   const [isReorderOpen, setIsReorderOpen] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   const [newItemData, setNewItemData] = useState({
@@ -48,7 +90,7 @@ export default function InventoryPage() {
     notes: '',
   })
 
-  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
 
@@ -60,7 +102,7 @@ export default function InventoryPage() {
         const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
         
         if (result && Array.isArray(result.data)) {
-          const transformed = result.data.map((med: any) => ({
+          const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
             id: med.id,
             name: med.name,
             genericName: med.generic_name,
@@ -152,7 +194,7 @@ export default function InventoryPage() {
     setIsAddItemOpen(true)
   }
 
-  const handleEditItem = (item: any) => {
+  const handleEditItem = (item: InventoryItem) => {
     setSelectedItem(item)
     setNewItemData({
       name: item.name,
@@ -167,7 +209,7 @@ export default function InventoryPage() {
     setIsEditItemOpen(true)
   }
 
-  const handleReorder = (item: any) => {
+  const handleReorder = (item: InventoryItem) => {
     setSelectedItem(item)
     setReorderData({
       quantity: item.minStock * 2, // Default to 2x min stock
@@ -205,7 +247,7 @@ export default function InventoryPage() {
       // Refresh inventory list
       const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
       if (result && Array.isArray(result.data)) {
-        const transformed = result.data.map((med: any) => ({
+        const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
           id: med.id,
           name: med.name,
           genericName: med.generic_name,
@@ -269,7 +311,7 @@ export default function InventoryPage() {
         // Refresh inventory list
         const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
         if (result && Array.isArray(result.data)) {
-          const transformed = result.data.map((med: any) => ({
+          const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
             id: med.id,
             name: med.name,
             genericName: med.generic_name,
@@ -354,7 +396,7 @@ export default function InventoryPage() {
         tax: tax,
         total: subtotal + tax,
         notes: `Reorder for ${selectedItem.name} - ${reorderData.notes || 'Low stock alert'}`,
-        createdBy: 'U001', // TODO: Get from auth context
+        createdBy: user?.id || '', // Get from auth context
       })
 
       toast({
@@ -474,7 +516,7 @@ export default function InventoryPage() {
                   setLoading(true)
                   const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
                   if (result && Array.isArray(result.data)) {
-                    const transformed = result.data.map((med: any) => ({
+                    const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
                       id: med.id,
                       name: med.name,
                       genericName: med.generic_name,

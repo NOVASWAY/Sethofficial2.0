@@ -40,6 +40,8 @@ import {
   Package,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { shaClaimAPI } from "@/lib/api-client"
+import { useState, useEffect } from "react"
 
 // Mock SHA claims data
 const mockSHAClaims = [
@@ -341,18 +343,67 @@ export function ReportsModule() {
     }).length,
   }
 
-  // Mock SHA stats for now (since we don't have SHA claims context yet)
-  const shaStats = {
+  // Fetch real SHA claims stats from API
+  const [shaStats, setShaStats] = useState({
     total: 0,
     pending: 0,
     approved: 0,
     rejected: 0,
     totalAmount: 0,
     approvedAmount: 0,
-  }
+  })
+  const [filteredClaims, setFilteredClaims] = useState<any[]>([])
+  const [shaClaimsLoading, setShaClaimsLoading] = useState(true)
 
-  // Mock filtered claims for now
-  const filteredClaims: any[] = []
+  useEffect(() => {
+    const fetchSHAClaims = async () => {
+      try {
+        setShaClaimsLoading(true)
+        const dateFrom = customDateRange.from ? format(customDateRange.from, 'yyyy-MM-dd') : undefined
+        const dateTo = customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : undefined
+        
+        const claims = await shaClaimAPI.getAll()
+        
+        if (claims && Array.isArray(claims)) {
+          // Filter claims by date range if specified
+          let filtered = claims
+          if (dateFrom || dateTo) {
+            filtered = claims.filter((claim: any) => {
+              const claimDate = claim.claim_date || claim.submission_date || claim.created_at
+              if (!claimDate) return false
+              const claimDateStr = typeof claimDate === 'string' ? claimDate.split('T')[0] : claimDate
+              
+              if (dateFrom && claimDateStr < dateFrom) return false
+              if (dateTo && claimDateStr > dateTo) return false
+              return true
+            })
+          }
+          
+          setFilteredClaims(filtered)
+          
+          // Calculate stats
+          const stats = {
+            total: filtered.length,
+            pending: filtered.filter((c: any) => c.status === 'pending' || c.status === 'submitted').length,
+            approved: filtered.filter((c: any) => c.status === 'approved' || c.status === 'paid').length,
+            rejected: filtered.filter((c: any) => c.status === 'rejected' || c.status === 'denied').length,
+            totalAmount: filtered.reduce((sum: number, c: any) => sum + (parseFloat(c.total_amount || 0)), 0),
+            approvedAmount: filtered
+              .filter((c: any) => c.status === 'approved' || c.status === 'paid')
+              .reduce((sum: number, c: any) => sum + (parseFloat(c.approved_amount || c.total_amount || 0)), 0),
+          }
+          setShaStats(stats)
+        }
+      } catch (error) {
+        console.error("Error fetching SHA claims:", error)
+        // Keep default stats on error
+      } finally {
+        setShaClaimsLoading(false)
+      }
+    }
+    
+    fetchSHAClaims()
+  }, [customDateRange])
 
   return (
     <div className="space-y-6">

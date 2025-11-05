@@ -210,10 +210,49 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
   // Calculate inventory value
   const totalInventoryValue = medicines.reduce((sum, m) => sum + (m.currentStock * m.unitPrice), 0)
   
+  // Calculate revenue change from historical data
+  const [revenueChange, setRevenueChange] = useState<number>(0)
+  
+  useEffect(() => {
+    const calculateRevenueChange = async () => {
+      try {
+        const now = new Date()
+        const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+        const currentMonthData = await reportsAPI.getFinancial({
+          date_from: currentMonthStart.toISOString().split('T')[0],
+          date_to: currentMonthEnd.toISOString().split('T')[0]
+        })
+        const previousMonthData = await reportsAPI.getFinancial({
+          date_from: previousMonthStart.toISOString().split('T')[0],
+          date_to: previousMonthEnd.toISOString().split('T')[0]
+        })
+
+        const currentRevenue = currentMonthData?.revenue?.total_paid || 0
+        const previousRevenue = previousMonthData?.revenue?.total_paid || 0
+
+        if (previousRevenue > 0) {
+          const change = ((currentRevenue - previousRevenue) / previousRevenue) * 100
+          setRevenueChange(change)
+        } else if (currentRevenue > 0) {
+          setRevenueChange(100) // 100% increase if previous was 0
+        } else {
+          setRevenueChange(0)
+        }
+      } catch (error) {
+        console.error("Error calculating revenue change:", error)
+        setRevenueChange(0)
+      }
+    }
+    calculateRevenueChange()
+  }, [])
+
   // Use API data if available, otherwise fallback to context
   const todaysRevenue = dashboardMetrics?.today?.revenue || 0
   const monthlyRevenue = dashboardMetrics?.overview?.monthly_revenue || 0
-  const revenueChange = 12.5 // TODO: Calculate from historical data
   
   const pendingPrescriptions = dashboardMetrics?.alerts?.pending_prescriptions || filteredPatients
     .flatMap(p => p.consultations)

@@ -105,7 +105,7 @@ export function FinancialOverview() {
         totalExpenses,
         netProfit,
         profitMargin,
-        growthRate: 0, // TODO: Calculate from previous period
+        growthRate: calculateGrowthRate(totalRevenue, period),
       },
       revenue: {
         cash: cashRevenue,
@@ -130,11 +130,37 @@ export function FinancialOverview() {
         thisMonth: filteredInvoices.length,
         avgTransaction: filteredInvoices.length > 0 ? totalRevenue / filteredInvoices.length : 0,
       },
-      patients: {
-        total: new Set(filteredInvoices.map(inv => inv.patientId)).size,
-        newThisMonth: 0, // TODO: Track new vs returning patients
-        returning: 0,
-      },
+      patients: (() => {
+        const uniquePatientIds = new Set(filteredInvoices.map(inv => inv.patientId))
+        const totalPatients = uniquePatientIds.size
+        
+        // Calculate new vs returning patients
+        // A patient is "new" if their first invoice ever is within the current period
+        // A patient is "returning" if they have invoices before the current period
+        let newPatients = 0
+        let returningPatients = 0
+        
+        for (const patientId of uniquePatientIds) {
+          // Check if this patient has any invoices before the current period
+          const hasPreviousInvoices = invoices.some(inv => {
+            if (inv.patientId !== patientId) return false
+            const invDate = new Date(inv.date)
+            return invDate < startDate
+          })
+          
+          if (hasPreviousInvoices) {
+            returningPatients++
+          } else {
+            newPatients++
+          }
+        }
+        
+        return {
+          total: totalPatients,
+          newThisMonth: newPatients,
+          returning: returningPatients,
+        }
+      })(),
     }
   }, [period, invoices, getTotalRevenue, getRevenueByMethod])
 

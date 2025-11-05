@@ -27,8 +27,9 @@ import {
   XCircle
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { prescriptionAPI, patientAPI } from "@/lib/api-client"
+import { prescriptionAPI, patientAPI, userAPI, pharmacyAPI } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Prescription {
   id: string
@@ -54,10 +55,57 @@ interface PrescriptionMedication {
   totalPrice: number
 }
 
+interface PrescriptionAPIResponse {
+  id: string
+  prescription_number?: string
+  patient_id: string
+  patient_name?: string
+  patient_first_name?: string
+  patient_last_name?: string
+  doctor_name?: string
+  prescribed_by?: string
+  date?: string
+  created_at?: string
+  status: string
+  medications?: PrescriptionMedication[]
+  items?: PrescriptionMedication[]
+  notes?: string
+  instructions?: string
+  total_amount?: number
+  total?: number
+}
+
+interface PatientAPIResponse {
+  id: string
+  first_name?: string
+  firstName?: string
+  last_name?: string
+  lastName?: string
+  patient_number?: string
+  patientNumber?: string
+}
+
+interface DoctorAPIResponse {
+  id: string
+  name?: string
+  username?: string
+  role: string
+}
+
+interface MedicineAPIResponse {
+  id: string
+  name: string
+  dosage_form?: string
+  strength?: string
+  unit_price?: number
+  unitPrice?: number
+}
+
 export default function PrescriptionsPage() {
   const params = useParams()
   const role = params.role as string
   const { toast } = useToast()
+  const { user } = useAuth()
   const [isNewPrescriptionOpen, setIsNewPrescriptionOpen] = useState(false)
   const [isViewPrescriptionOpen, setIsViewPrescriptionOpen] = useState(false)
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null)
@@ -65,7 +113,24 @@ export default function PrescriptionsPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
   const [patients, setPatients] = useState<Array<{id: string, firstName: string, lastName: string, patientNumber?: string}>>([])
+  const [doctors, setDoctors] = useState<Array<{id: string, name: string, role: string}>>([])
+  const [medicines, setMedicines] = useState<Array<{id: string, name: string, dosage_form: string, strength: string, unit_price: number}>>([])
   const [activeTab, setActiveTab] = useState("all")
+  
+  // Form state for new prescription
+  const [selectedPatientId, setSelectedPatientId] = useState<string>("")
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("")
+  const [prescriptionInstructions, setPrescriptionInstructions] = useState<string>("")
+  const [selectedMedicines, setSelectedMedicines] = useState<Array<{
+    medicine_id: string
+    medicine_name: string
+    dosage: string
+    frequency: string
+    duration: string
+    quantity: number
+    instructions: string
+  }>>([])
+  const [isCreating, setIsCreating] = useState(false)
 
   // Fetch prescriptions from API
   useEffect(() => {
@@ -85,7 +150,7 @@ export default function PrescriptionsPage() {
         
         if (result && Array.isArray(result.data)) {
           // Transform API response to match Prescription interface
-          const transformed = result.data.map((p: any) => ({
+          const transformed = result.data.map((p: PrescriptionAPIResponse) => ({
             id: p.id || p.prescription_number || `RX-${p.id?.slice(0, 8)}`,
             patientId: p.patient_id,
             patientName: p.patient_name || `${p.patient_first_name || ''} ${p.patient_last_name || ''}`.trim(),
@@ -121,7 +186,7 @@ export default function PrescriptionsPage() {
       try {
         const result = await patientAPI.getAll()
         if (result && Array.isArray(result)) {
-          setPatients(result.map((p: any) => ({
+          setPatients(result.map((p: PatientAPIResponse) => ({
             id: p.id,
             firstName: p.first_name || p.firstName || "",
             lastName: p.last_name || p.lastName || "",
@@ -133,6 +198,57 @@ export default function PrescriptionsPage() {
       }
     }
     fetchPatients()
+  }, [])
+
+  // Fetch doctors/clinicians for prescription form
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const result = await userAPI.getAll()
+        if (result && Array.isArray(result)) {
+          // Filter for clinicians/doctors
+          const doctorUsers = result
+            .filter((u: DoctorAPIResponse) => u.role === 'clinician' || u.role === 'doctor' || u.role === 'admin')
+            .map((u: DoctorAPIResponse) => ({
+              id: u.id,
+              name: u.name || u.username || 'Unknown',
+              role: u.role
+            }))
+          setDoctors(doctorUsers)
+          
+          // Set current user as default doctor if they're a clinician
+          if (user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin')) {
+            setSelectedDoctorId(user.id)
+          } else if (doctorUsers.length > 0) {
+            setSelectedDoctorId(doctorUsers[0].id)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching doctors:", error)
+      }
+    }
+    fetchDoctors()
+  }, [user])
+
+  // Fetch medicines for prescription form
+  useEffect(() => {
+    const fetchMedicines = async () => {
+      try {
+        const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 100 })
+        if (result && result.data && Array.isArray(result.data)) {
+          setMedicines(result.data.map((m: MedicineAPIResponse) => ({
+            id: m.id,
+            name: m.name || '',
+            dosage_form: m.dosage_form || '',
+            strength: m.strength || '',
+            unit_price: m.unit_price || 0
+          })))
+        }
+      } catch (error) {
+        console.error("Error fetching medicines:", error)
+      }
+    }
+    fetchMedicines()
   }, [])
 
   // Legacy mock data (kept for reference, not used)
@@ -567,8 +683,8 @@ export default function PrescriptionsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Select Patient</Label>
-                <Select>
+                <Label>Select Patient *</Label>
+                <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Search and select patient..." />
                   </SelectTrigger>
@@ -585,49 +701,273 @@ export default function PrescriptionsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Prescribing Doctor</Label>
-                <Select>
+                <Label>Prescribing Doctor *</Label>
+                <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select doctor..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="dr-smith">Dr. Smith</SelectItem>
-                    <SelectItem value="dr-johnson">Dr. Johnson</SelectItem>
-                    <SelectItem value="dr-brown">Dr. Brown</SelectItem>
+                    {doctors.map((doctor) => (
+                      <SelectItem key={doctor.id} value={doctor.id}>
+                        {doctor.name} ({doctor.role})
+                      </SelectItem>
+                    ))}
+                    {doctors.length === 0 && (
+                      <SelectItem value="" disabled>No doctors available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            
+            {/* Medicines Selection */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Medications *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedMedicines([...selectedMedicines, {
+                      medicine_id: '',
+                      medicine_name: '',
+                      dosage: '',
+                      frequency: '',
+                      duration: '',
+                      quantity: 1,
+                      instructions: ''
+                    }])
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Medication
+                </Button>
+              </div>
+              {selectedMedicines.map((med, index) => (
+                <div key={index} className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+                  <div className="space-y-2">
+                    <Label>Medicine</Label>
+                    <Select
+                      value={med.medicine_id}
+                      onValueChange={(value) => {
+                        const selectedMed = medicines.find(m => m.id === value)
+                        const updated = [...selectedMedicines]
+                        updated[index] = {
+                          ...updated[index],
+                          medicine_id: value,
+                          medicine_name: selectedMed?.name || ''
+                        }
+                        setSelectedMedicines(updated)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select medicine..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {medicines.map((medicine) => (
+                          <SelectItem key={medicine.id} value={medicine.id}>
+                            {medicine.name} ({medicine.strength} {medicine.dosage_form})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={med.quantity}
+                      onChange={(e) => {
+                        const updated = [...selectedMedicines]
+                        updated[index].quantity = parseInt(e.target.value) || 1
+                        setSelectedMedicines(updated)
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dosage</Label>
+                    <Input
+                      placeholder="e.g., 500mg"
+                      value={med.dosage}
+                      onChange={(e) => {
+                        const updated = [...selectedMedicines]
+                        updated[index].dosage = e.target.value
+                        setSelectedMedicines(updated)
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Frequency</Label>
+                    <Input
+                      placeholder="e.g., 2 times daily"
+                      value={med.frequency}
+                      onChange={(e) => {
+                        const updated = [...selectedMedicines]
+                        updated[index].frequency = e.target.value
+                        setSelectedMedicines(updated)
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Duration</Label>
+                    <Input
+                      placeholder="e.g., 7 days"
+                      value={med.duration}
+                      onChange={(e) => {
+                        const updated = [...selectedMedicines]
+                        updated[index].duration = e.target.value
+                        setSelectedMedicines(updated)
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Instructions</Label>
+                    <Input
+                      placeholder="e.g., Take after meals"
+                      value={med.instructions}
+                      onChange={(e) => {
+                        const updated = [...selectedMedicines]
+                        updated[index].instructions = e.target.value
+                        setSelectedMedicines(updated)
+                      }}
+                    />
+                  </div>
+                  <div className="col-span-2 flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedMedicines(selectedMedicines.filter((_, i) => i !== index))
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {selectedMedicines.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Click "Add Medication" to add medications to this prescription
+                </p>
+              )}
+            </div>
+            
             <div className="space-y-2">
-              <Label>Prescription Notes</Label>
-              <Textarea placeholder="Enter prescription notes and instructions..." rows={3} />
+              <Label>Prescription Instructions/Notes *</Label>
+              <Textarea
+                placeholder="Enter prescription notes and instructions..."
+                rows={3}
+                value={prescriptionInstructions}
+                onChange={(e) => setPrescriptionInstructions(e.target.value)}
+              />
             </div>
             <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsNewPrescriptionOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsNewPrescriptionOpen(false)
+                  setSelectedPatientId("")
+                  setSelectedDoctorId(user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin') ? user.id : "")
+                  setPrescriptionInstructions("")
+                  setSelectedMedicines([])
+                }}
+                disabled={isCreating}
+              >
                 Cancel
               </Button>
               <Button
                 onClick={async () => {
-                  try {
-                    // TODO: Implement prescription creation with selected patient and medications
-                    // const selectedPatientId = ...
-                    // const prescriptionData = { ... }
-                    // await prescriptionAPI.create(prescriptionData)
+                  // Validation
+                  if (!selectedPatientId) {
                     toast({
-                      title: "Coming Soon",
-                      description: "Prescription creation will be implemented soon.",
-                    })
-                    setIsNewPrescriptionOpen(false)
-                  } catch (error) {
-                    toast({
-                      title: "Error",
-                      description: "Failed to create prescription. Please try again.",
+                      title: "Validation Error",
+                      description: "Please select a patient",
                       variant: "destructive"
                     })
+                    return
+                  }
+                  if (!selectedDoctorId) {
+                    toast({
+                      title: "Validation Error",
+                      description: "Please select a doctor",
+                      variant: "destructive"
+                    })
+                    return
+                  }
+                  if (selectedMedicines.length === 0) {
+                    toast({
+                      title: "Validation Error",
+                      description: "Please add at least one medication",
+                      variant: "destructive"
+                    })
+                    return
+                  }
+                  if (!prescriptionInstructions.trim()) {
+                    toast({
+                      title: "Validation Error",
+                      description: "Please enter prescription instructions",
+                      variant: "destructive"
+                    })
+                    return
+                  }
+
+                  try {
+                    setIsCreating(true)
+                    
+                    // Prepare medicines array for backend
+                    const medicinesArray = selectedMedicines.map(med => ({
+                      medicine_id: med.medicine_id,
+                      medicine_name: med.medicine_name,
+                      dosage: med.dosage,
+                      frequency: med.frequency,
+                      duration: med.duration,
+                      quantity: med.quantity,
+                      instructions: med.instructions
+                    }))
+                    
+                    const prescriptionData = {
+                      patient_id: selectedPatientId,
+                      doctor_id: selectedDoctorId,
+                      medicines: medicinesArray,
+                      instructions: prescriptionInstructions,
+                      status: "active"
+                    }
+
+                    const result = await prescriptionAPI.create(prescriptionData)
+                    
+                    if (result) {
+                      toast({
+                        title: "Success",
+                        description: "Prescription created successfully",
+                      })
+                      
+                      // Reset form
+                      setSelectedPatientId("")
+                      setSelectedDoctorId(user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin') ? user.id : "")
+                      setPrescriptionInstructions("")
+                      setSelectedMedicines([])
+                      setIsNewPrescriptionOpen(false)
+                      
+                      // Refresh prescriptions list
+                      window.location.reload()
+                    }
+                  } catch (error: unknown) {
+                    const errorMessage = error instanceof Error ? error.message : "Failed to create prescription. Please try again."
+                    toast({
+                      title: "Error",
+                      description: errorMessage,
+                      variant: "destructive"
+                    })
+                  } finally {
+                    setIsCreating(false)
                   }
                 }}
+                disabled={isCreating}
               >
-                Create Prescription
+                {isCreating ? "Creating..." : "Create Prescription"}
               </Button>
             </div>
           </div>
