@@ -259,6 +259,44 @@ export function PatientManagement({ role }: PatientManagementProps) {
     return patients
   }, [patients, searchTerm, debouncedSearchTerm])
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      setLoading(true)
+      // Invalidate cache before refreshing
+      dashboardCache.invalidate(patientsCacheKey)
+      dashboardCache.invalidatePattern('dashboard:patients:.*')
+      
+      const result = await patientAPI.getAll({ page, per_page: 50 })
+      
+      if (result && Array.isArray(result.data)) {
+        const transformed = result.data.map(transformPatient)
+        setPatients(transformed)
+
+        if (result.pagination) {
+          setTotalPages(result.pagination.total_pages || 1)
+        }
+      } else if (result && Array.isArray(result)) {
+        const transformed = result.map(transformPatient)
+        setPatients(transformed)
+        setTotalPages(1)
+      }
+      
+      toast({
+        title: "Refreshed",
+        description: "Patient data has been refreshed.",
+      })
+    } catch (error) {
+      console.error("Error refreshing patients:", error)
+      toast({
+        title: "Error",
+        description: "Failed to refresh patients.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [page, patientsCacheKey, transformPatient, toast])
+
   const handleViewPatient = (patient: Patient) => {
     setSelectedPatient(patient)
     setIsViewPatientOpen(true)
