@@ -8,6 +8,7 @@ import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton, PatientListSkeleton } from "@/components/ui/loading"
+import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
