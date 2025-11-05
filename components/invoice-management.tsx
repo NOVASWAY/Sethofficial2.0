@@ -747,29 +747,18 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4">
-          <p className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1 || loading}
-            >
-              Previous
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages || loading}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={invoices.length}
+          itemsPerPage={50}
+          onPageChange={(newPage) => setPage(newPage)}
+          onItemsPerPageChange={(itemsPerPage) => {
+            // TODO: Implement items per page change
+            console.log('Items per page changed to:', itemsPerPage)
+          }}
+          disabled={loading}
+        />
       )}
 
       {/* Invoice Reports */}
