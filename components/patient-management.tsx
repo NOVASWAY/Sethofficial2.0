@@ -322,16 +322,6 @@ export function PatientManagement({ role }: PatientManagementProps) {
           <Button 
             variant="outline"
             onClick={handleRefresh}
-              } catch (error) {
-                toast({
-                  title: "Error",
-                  description: "Failed to refresh patients.",
-                  variant: "destructive"
-                })
-              } finally {
-                setLoading(false)
-              }
-            }}
             disabled={loading}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
