@@ -908,21 +908,66 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
         medical_history: formData.medicalHistory || null,
       }
 
-      await patientAPI.update(patient.id, patientData)
+      // Optimistic update: Update patient in list immediately
+      const originalPatient = patients.find(p => p.id === patient.id)
+      if (originalPatient) {
+        const optimisticUpdate: Patient = {
+          ...originalPatient,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender as 'Male' | 'Female' | 'Other',
+          phone: formData.phone,
+          location: formData.location,
+          emergencyContact: formData.emergencyContact,
+          emergencyPhone: formData.emergencyPhone,
+          bloodType: formData.bloodType || 'Unknown',
+          allergies: formData.allergies ? formData.allergies.split(',').map(a => a.trim()) : [],
+          medicalHistory: formData.medicalHistory || '',
+        }
+        
+        // Update optimistically
+        setPatients(prev => prev.map(p => 
+          p.id === patient.id ? optimisticUpdate : p
+        ))
+      }
       
-      // Invalidate patient cache after updating
-      dashboardCache.invalidatePattern('dashboard:patients:.*')
-      
-      toast({
-        title: "Patient Updated",
-        description: "Patient information has been updated successfully.",
-      })
-      
-      // Close form on success
-      onClose()
-      
-      // Refresh patients list
-      window.location.reload()
+      try {
+        const result = await patientAPI.update(patient.id, patientData)
+        
+        // Replace with real updated data
+        if (result) {
+          setPatients(prev => prev.map(p => 
+            p.id === patient.id ? transformPatient(result) : p
+          ))
+        }
+        
+        // Invalidate patient cache after updating
+        dashboardCache.invalidatePattern('dashboard:patients:.*')
+        
+        toast({
+          title: "Patient Updated",
+          description: "Patient information has been updated successfully.",
+        })
+        
+        // Close form on success
+        onClose()
+      } catch (error) {
+        // Revert optimistic update on error
+        if (originalPatient) {
+          setPatients(prev => prev.map(p => 
+            p.id === patient.id ? originalPatient : p
+          ))
+        }
+        
+        console.error("Error updating patient:", error)
+        toast({
+          title: "Error",
+          description: "Failed to update patient. Please try again.",
+          variant: "destructive"
+        })
+        throw error
+      }
     } catch (error) {
       console.error("Error updating patient:", error)
       toast({
