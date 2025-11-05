@@ -520,6 +520,9 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
 
         await patientAPI.create(patientData)
         
+        // Invalidate patient cache after creating new patient
+        dashboardCache.invalidatePattern('dashboard:patients:.*')
+        
         toast({
           title: "Patient Registered",
           description: "Patient has been registered successfully.",
