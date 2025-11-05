@@ -2,8 +2,10 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { invoiceAPI, patientAPI } from "@/lib/api-client"
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -216,8 +218,61 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  
+  // Memoized cache key for invoices
+  const invoicesCacheKey = useMemo(
+    () => getCacheKey('invoices', { page, status: statusFilter, role }),
+    [page, statusFilter, role]
+  )
+  
+  // Memoized transform function
+  const transformInvoice = useCallback((inv: any): Invoice => ({
+    id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
+    patientId: inv.patient_id,
+    patientName: inv.patient_name || `${inv.patient_first_name || ''} ${inv.patient_last_name || ''}`.trim(),
+    date: inv.date || inv.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+    dueDate: inv.due_date || inv.date || new Date().toISOString().split('T')[0],
+    type: (inv.payment_method === 'sha' ? 'SHA' as const :
+           inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
+           inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
+    status: (inv.payment_status === 'paid' ? 'Paid' as const :
+             inv.payment_status === 'pending' ? 'Pending' as const :
+             inv.payment_status === 'overdue' ? 'Overdue' as const :
+             inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
+    subtotal: inv.subtotal || inv.total_amount - (inv.tax || 0),
+    tax: inv.tax || 0,
+    total: inv.total_amount || inv.total || 0,
+    services: inv.items || inv.services || [],
+    shaDetails: inv.sha_details ? {
+      memberNumber: inv.sha_details.member_number || '',
+      scheme: inv.sha_details.scheme || '',
+      authorizationCode: inv.sha_details.authorization_code || '',
+      preAuthorizationCode: inv.sha_details.pre_authorization_code,
+      icd11Code: inv.sha_details.icd11_code || '',
+      diagnosis: inv.sha_details.diagnosis || '',
+      serviceCode: inv.sha_details.service_code || '',
+      serviceDescription: inv.sha_details.service_description || '',
+      practitionerId: inv.sha_details.practitioner_id || '',
+      practitionerName: inv.sha_details.practitioner_name || '',
+      facilityCode: inv.sha_details.facility_code || '',
+      claimStatus: inv.sha_details.claim_status,
+      submissionDate: inv.sha_details.submission_date,
+      rejectionReason: inv.sha_details.rejection_reason
+    } : undefined,
+    paymentDetails: inv.payment_status === 'paid' ? {
+      method: inv.payment_method || 'Cash',
+      transactionId: inv.transaction_id || '',
+      paidDate: inv.paid_date || inv.payment_date || '',
+      mpesaCode: inv.mpesa_code,
+      phoneNumber: inv.phone_number
+    } : undefined,
+    notes: inv.notes || ''
+  }), [])
 
-  // Fetch invoices from API
+  // Fetch invoices from API with caching
   useEffect(() => {
     const fetchInvoices = async () => {
       try {
@@ -234,52 +289,15 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
                                   statusFilter === "Overdue" ? "overdue" : "pending"
         }
 
-        const result = await invoiceAPI.getAll(params)
+        const result = await withCache(
+          invoicesCacheKey,
+          () => invoiceAPI.getAll(params),
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         
         if (result && Array.isArray(result.data)) {
-          // Transform API response to match Invoice interface
-          const transformed = result.data.map((inv: any) => ({
-            id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
-            patientId: inv.patient_id,
-            patientName: inv.patient_name || `${inv.patient_first_name || ''} ${inv.patient_last_name || ''}`.trim(),
-            date: inv.date || inv.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-            dueDate: inv.due_date || inv.date || new Date().toISOString().split('T')[0],
-            type: (inv.payment_method === 'sha' ? 'SHA' as const :
-                   inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
-                   inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
-            status: (inv.payment_status === 'paid' ? 'Paid' as const :
-                     inv.payment_status === 'pending' ? 'Pending' as const :
-                     inv.payment_status === 'overdue' ? 'Overdue' as const :
-                     inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
-            subtotal: inv.subtotal || inv.total_amount - (inv.tax || 0),
-            tax: inv.tax || 0,
-            total: inv.total_amount || inv.total || 0,
-            services: inv.items || inv.services || [],
-            shaDetails: inv.sha_details ? {
-              memberNumber: inv.sha_details.member_number || '',
-              scheme: inv.sha_details.scheme || '',
-              authorizationCode: inv.sha_details.authorization_code || '',
-              preAuthorizationCode: inv.sha_details.pre_authorization_code,
-              icd11Code: inv.sha_details.icd11_code || '',
-              diagnosis: inv.sha_details.diagnosis || '',
-              serviceCode: inv.sha_details.service_code || '',
-              serviceDescription: inv.sha_details.service_description || '',
-              practitionerId: inv.sha_details.practitioner_id || '',
-              practitionerName: inv.sha_details.practitioner_name || '',
-              facilityCode: inv.sha_details.facility_code || '',
-              claimStatus: inv.sha_details.claim_status,
-              submissionDate: inv.sha_details.submission_date,
-              rejectionReason: inv.sha_details.rejection_reason
-            } : undefined,
-            paymentDetails: inv.payment_status === 'paid' ? {
-              method: inv.payment_method || 'Cash',
-              transactionId: inv.transaction_id || '',
-              paidDate: inv.paid_date || inv.payment_date || '',
-              mpesaCode: inv.mpesa_code,
-              phoneNumber: inv.phone_number
-            } : undefined,
-            notes: inv.notes || ''
-          }))
+          // Transform API response using memoized function
+          const transformed = result.data.map(transformInvoice)
           setInvoices(transformed)
 
           if (result.pagination) {
@@ -301,19 +319,23 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
     }
 
     fetchInvoices()
-  }, [page, statusFilter, toast])
+  }, [page, statusFilter, invoicesCacheKey, transformInvoice, toast])
 
-  const filteredInvoices = invoices.filter((invoice) => {
-    const matchesSearch =
-      invoice.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.patientId.toLowerCase().includes(searchTerm.toLowerCase())
+  // Memoize filtered invoices
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((invoice) => {
+      const matchesSearch =
+        !debouncedSearchTerm ||
+        invoice.id.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        invoice.patientName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        invoice.patientId.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" || invoice.status === statusFilter
-    const matchesType = typeFilter === "all" || invoice.type === typeFilter
+      const matchesStatus = statusFilter === "all" || invoice.status === statusFilter
+      const matchesType = typeFilter === "all" || invoice.type === typeFilter
 
-    return matchesSearch && matchesStatus && matchesType
-  })
+      return matchesSearch && matchesStatus && matchesType
+    })
+  }, [invoices, debouncedSearchTerm, statusFilter, typeFilter])
 
   const handleViewInvoice = (invoice: Invoice) => {
     setSelectedInvoice(invoice)
@@ -391,9 +413,21 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
     }
   }
 
-  const totalRevenue = invoices.filter((inv) => inv.status === "Paid").reduce((sum, inv) => sum + inv.total, 0)
-  const pendingAmount = invoices.filter((inv) => inv.status === "Pending").reduce((sum, inv) => sum + inv.total, 0)
-  const overdueAmount = invoices.filter((inv) => inv.status === "Overdue").reduce((sum, inv) => sum + inv.total, 0)
+  // Memoize financial calculations
+  const totalRevenue = useMemo(
+    () => invoices.filter((inv) => inv.status === "Paid").reduce((sum, inv) => sum + inv.total, 0),
+    [invoices]
+  )
+  
+  const pendingAmount = useMemo(
+    () => invoices.filter((inv) => inv.status === "Pending").reduce((sum, inv) => sum + inv.total, 0),
+    [invoices]
+  )
+  
+  const overdueAmount = useMemo(
+    () => invoices.filter((inv) => inv.status === "Overdue").reduce((sum, inv) => sum + inv.total, 0),
+    [invoices]
+  )
 
   return (
     <div className="space-y-6">
@@ -1607,6 +1641,9 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
           <Button onClick={async () => {
             try {
               await invoiceAPI.processPayment(invoice.id, {
+              
+              // Invalidate invoices cache after payment
+              dashboardCache.invalidatePattern('dashboard:invoices:.*')
                 payment_method: 'cash',
                 amount_paid: invoice.total,
                 payment_date: new Date().toISOString().split('T')[0],
