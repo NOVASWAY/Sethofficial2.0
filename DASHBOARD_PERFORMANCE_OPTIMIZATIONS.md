@@ -218,6 +218,22 @@ Comprehensive performance and efficiency improvements for all user dashboards to
 
 ---
 
+### 14. **Batch API Calls**
+**Status**: ✅ Completed  
+**Impact**: Reduced network overhead, improved performance for parallel requests
+
+**Improvements**:
+- ✅ Created `batchRequests` utility for combining multiple API calls
+- ✅ Implemented `useBatchAPI` hook for React components
+- ✅ Added batchHelpers for common patterns (GET multiple, POST multiple)
+- ✅ Configurable batch size and timeout
+- ✅ Processes requests in parallel within batches
+- ✅ Reduces network round trips for multiple API calls
+
+**Code Location**: `lib/batch-api.ts`
+
+---
+
 ## 📊 Performance Metrics
 
 ### Before Optimizations
@@ -301,7 +317,8 @@ const [data1, data2] = await Promise.all([
 15. ✅ Loading skeleton screens - **COMPLETED**
 16. ✅ Optimistic updates - **COMPLETED** (Patient create/update)
 17. ✅ Context provider optimization - **COMPLETED** (Patient & Invoice contexts)
-18. ⏳ Service worker caching - **PENDING**
+18. ✅ Batch API calls - **COMPLETED**
+19. ⏳ Service worker caching - **PENDING**
 
 ---
 
@@ -385,6 +402,7 @@ All high and medium priority dashboard optimizations have been completed:
 - ✅ Keyboard shortcuts for power user efficiency
 - ✅ Enhanced pagination for large datasets
 - ✅ Context provider optimization to reduce re-renders
+- ✅ Batch API calls utility for combining multiple requests
 
 ### Remaining Low-Priority Enhancements
 The following enhancements can be implemented incrementally as needed:
