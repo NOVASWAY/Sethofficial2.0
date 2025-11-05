@@ -11,6 +11,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { AppStateProvider } from "@/contexts/app-state-context"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { Toaster } from "@/components/ui/toaster"
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
 
 export const metadata: Metadata = {
   title: "Seth Medical Clinic - Management System",
@@ -32,16 +33,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Register service worker for persistent caching
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      import('@/lib/service-worker').then(({ registerServiceWorker }) => {
-        registerServiceWorker().catch((error) => {
-          console.warn('Service Worker registration failed:', error)
-        })
-      })
-    }
-  }, [])
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
@@ -49,6 +40,7 @@ export default function RootLayout({
               <AuthProvider>
                 <Providers>
                   <AppStateProvider>
+                    <ServiceWorkerRegistration />
                     <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
                     <Toaster />
                   </AppStateProvider>
