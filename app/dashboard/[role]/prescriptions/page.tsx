@@ -140,7 +140,30 @@ export default function PrescriptionsPage() {
   }>>([])
   const [isCreating, setIsCreating] = useState(false)
 
-  // Fetch prescriptions from API
+  // Memoized transform function
+  const transformPrescription = useCallback((p: PrescriptionAPIResponse): Prescription => ({
+    id: p.id || p.prescription_number || `RX-${p.id?.slice(0, 8)}`,
+    patientId: p.patient_id,
+    patientName: p.patient_name || `${p.patient_first_name || ''} ${p.patient_last_name || ''}`.trim() || 'Unknown Patient',
+    prescribedBy: p.doctor_name || p.prescribed_by || "Unknown Doctor",
+    date: p.date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+    status: p.status === "active" ? "pending" as const : p.status === "dispensed" ? "dispensed" as const : p.status === "cancelled" ? "cancelled" as const : "pending" as const,
+    medications: (p.medications || p.items || []).map((m: any) => ({
+      id: m.id || m.medicine_id || '',
+      name: m.medicine_name || m.name || '',
+      dosage: m.dosage || '',
+      frequency: m.frequency || '',
+      duration: m.duration || m.duration_days ? `${m.duration_days} days` : '',
+      quantity: m.quantity || 0,
+      instructions: m.instructions || '',
+      unitPrice: m.unit_price || 0,
+      totalPrice: (m.quantity || 0) * (m.unit_price || 0),
+    })),
+    notes: p.notes || p.instructions || "",
+    totalAmount: p.total_amount || p.total || 0,
+  }), [])
+
+  // Fetch prescriptions from API with caching
   useEffect(() => {
     const fetchPrescriptions = async () => {
       try {
@@ -154,21 +177,15 @@ export default function PrescriptionsPage() {
           params.status = activeTab === "pending" ? "active" : activeTab === "dispensed" ? "dispensed" : activeTab === "cancelled" ? "cancelled" : undefined
         }
 
-        const result = await prescriptionAPI.getAll(params)
+        const result = await withCache(
+          prescriptionsCacheKey,
+          () => prescriptionAPI.getAll(params),
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         
         if (result && Array.isArray(result.data)) {
-          // Transform API response to match Prescription interface
-          const transformed = result.data.map((p: PrescriptionAPIResponse) => ({
-            id: p.id || p.prescription_number || `RX-${p.id?.slice(0, 8)}`,
-            patientId: p.patient_id,
-            patientName: p.patient_name || `${p.patient_first_name || ''} ${p.patient_last_name || ''}`.trim(),
-            prescribedBy: p.doctor_name || p.prescribed_by || "Unknown Doctor",
-            date: p.date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-            status: p.status === "active" ? "pending" as const : p.status === "dispensed" ? "dispensed" as const : p.status === "cancelled" ? "cancelled" as const : "pending" as const,
-            medications: p.medications || p.items || [],
-            notes: p.notes || p.instructions || "",
-            totalAmount: p.total_amount || p.total || 0
-          }))
+          // Transform API response using memoized function
+          const transformed = result.data.map(transformPrescription)
           setPrescriptions(transformed)
         }
       } catch (error) {
@@ -186,7 +203,7 @@ export default function PrescriptionsPage() {
     }
 
     fetchPrescriptions()
-  }, [activeTab, toast])
+  }, [activeTab, prescriptionsCacheKey, transformPrescription, toast])
 
   // Fetch patients for dropdown
   useEffect(() => {
@@ -343,13 +360,16 @@ export default function PrescriptionsPage() {
     }
   ]
 
-  const filteredPrescriptions = prescriptions.filter(
-    (rx) =>
-      rx.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rx.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rx.patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rx.prescribedBy.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Memoize filtered prescriptions
+  const filteredPrescriptions = useMemo(() => {
+    if (!debouncedSearchTerm) return prescriptions
+    return prescriptions.filter(rx =>
+      rx.id.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      rx.patientName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      rx.patientId.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      rx.prescribedBy.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+    )
+  }, [prescriptions, debouncedSearchTerm])
 
   const handleViewPrescription = (prescription: Prescription) => {
     setSelectedPrescription(prescription)
