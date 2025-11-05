@@ -32,6 +32,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Register service worker for persistent caching
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      import('@/lib/service-worker').then(({ registerServiceWorker }) => {
+        registerServiceWorker().catch((error) => {
+          console.warn('Service Worker registration failed:', error)
+        })
+      })
+    }
+  }, [])
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
