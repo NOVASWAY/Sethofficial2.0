@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,8 @@ import { useInventory } from "@/contexts/inventory-context"
 import { usePurchaseOrders } from "@/contexts/purchase-order-context"
 import { pharmacyAPI } from "@/lib/api-client"
 import { useAuth } from "@/contexts/auth-context"
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface InventoryItem {
   id: string
@@ -93,32 +95,50 @@ export default function InventoryPage() {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  
+  // Debounce search term to reduce filtering calculations
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  
+  // Memoized cache key for inventory data
+  const inventoryCacheKey = useMemo(() => getCacheKey('inventory', { role }), [role])
+  
+  // Memoized transform function
+  const transformMedicine = useCallback((med: MedicineAPIResponse): InventoryItem => ({
+    id: med.id,
+    name: med.name,
+    genericName: med.generic_name,
+    category: med.category || med.dosage_form || 'other',
+    currentStock: med.current_stock || med.currentStock || 0,
+    minStock: med.minimum_stock || med.minStock || 0,
+    maxStock: med.maximum_stock || med.minimum_stock * 10 || 0,
+    unitPrice: med.unit_price || med.unitPrice || 0,
+    supplier: med.manufacturer || med.supplier || "Unknown",
+    expiryDate: med.expiry_date || med.expiryDate || "",
+    status: med.current_stock === 0 ? "out-of-stock" : 
+            med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
+    strength: med.strength,
+    dosageForm: med.dosage_form,
+    batchNumber: med.batch_number
+  }), [])
 
-  // Fetch medicines from API on mount and when context updates
+  // Fetch medicines from API with caching
   useEffect(() => {
     const fetchMedicines = async () => {
       try {
         setLoading(true)
-        const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
+        
+        // Use cached API call if available
+        const result = await withCache(
+          inventoryCacheKey,
+          () => pharmacyAPI.getMedicines({ page: 1, per_page: 200 }),
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         
         if (result && Array.isArray(result.data)) {
-          const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
-            id: med.id,
-            name: med.name,
-            genericName: med.generic_name,
-            category: med.category || med.dosage_form || 'other',
-            currentStock: med.current_stock || med.currentStock || 0,
-            minStock: med.minimum_stock || med.minStock || 0,
-            maxStock: med.maximum_stock || med.minimum_stock * 10 || 0,
-            unitPrice: med.unit_price || med.unitPrice || 0,
-            supplier: med.manufacturer || med.supplier || "Unknown",
-            expiryDate: med.expiry_date || med.expiryDate || "",
-            status: med.current_stock === 0 ? "out-of-stock" : 
-                    med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
-            strength: med.strength,
-            dosageForm: med.dosage_form,
-            batchNumber: med.batch_number
-          }))
+          const transformed = result.data.map(transformMedicine)
+          setInventoryItems(transformed)
+        } else if (result && Array.isArray(result)) {
+          const transformed = result.map(transformMedicine)
           setInventoryItems(transformed)
         }
       } catch (error) {
@@ -147,24 +167,46 @@ export default function InventoryPage() {
     }
 
     fetchMedicines()
-  }, [medicines.length, toast])
+  }, [inventoryCacheKey, transformMedicine, medicines, toast])
 
-  // Map medicines from InventoryContext to inventory format (fallback)
-  const inventory = (inventoryItems.length > 0 ? inventoryItems : medicines.map(med => ({
-    id: med.id,
-    name: med.name,
-    category: med.category,
-    currentStock: med.currentStock,
-    minStock: med.minStock,
-    maxStock: med.minStock * 10, // Estimate max as 10x min
-    unitPrice: med.unitPrice,
-    supplier: "Supplier", // Not available in Medicine interface
-    expiryDate: "", // Would need to track batches
-    status: med.currentStock === 0 ? "out-of-stock" : med.currentStock <= med.minStock ? "low-stock" : "in-stock",
-  }))).filter(item => 
-    searchTerm === "" || 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.genericName && item.genericName.toLowerCase().includes(searchTerm.toLowerCase()))
+  // Memoize inventory calculations and filtering
+  const inventory = useMemo(() => {
+    const baseInventory = inventoryItems.length > 0 ? inventoryItems : medicines.map(med => ({
+      id: med.id,
+      name: med.name,
+      category: med.category,
+      currentStock: med.currentStock,
+      minStock: med.minStock,
+      maxStock: med.minStock * 10, // Estimate max as 10x min
+      unitPrice: med.unitPrice,
+      supplier: "Supplier", // Not available in Medicine interface
+      expiryDate: "", // Would need to track batches
+      status: med.currentStock === 0 ? "out-of-stock" : med.currentStock <= med.minStock ? "low-stock" : "in-stock",
+    }))
+    
+    // Apply debounced search filter
+    if (!debouncedSearchTerm) return baseInventory
+    
+    return baseInventory.filter(item => 
+      item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      (item.genericName && item.genericName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+    )
+  }, [inventoryItems, medicines, debouncedSearchTerm])
+  
+  // Memoize stock calculations
+  const totalInventoryValue = useMemo(
+    () => inventory.reduce((sum, item) => sum + (item.currentStock * item.unitPrice), 0),
+    [inventory]
+  )
+  
+  const lowStockItems = useMemo(
+    () => inventory.filter(item => item.status === 'low-stock').length,
+    [inventory]
+  )
+  
+  const outOfStockItems = useMemo(
+    () => inventory.filter(item => item.status === 'out-of-stock').length,
+    [inventory]
   )
 
   const getStatusColor = (status: string) => {

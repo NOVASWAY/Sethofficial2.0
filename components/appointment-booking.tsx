@@ -1,7 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { appointmentAPI } from '@/lib/api-client'
+import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { useDebounce } from '@/hooks/use-debounce'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,36 +28,66 @@ export function AppointmentBooking() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [loading, setLoading] = useState(true)
+  
+  // Debounce selected date changes to reduce API calls when navigating dates
+  const debouncedSelectedDate = useDebounce(selectedDate, 300)
+  
+  // Memoized cache key for appointments
+  const appointmentsCacheKey = useMemo(
+    () => getCacheKey('appointments', { date: debouncedSelectedDate }),
+    [debouncedSelectedDate]
+  )
+  
+  // Memoized transform function
+  const transformAppointment = useCallback((apt: any): Appointment => ({
+    id: apt.id || `APT-${apt.id?.slice(0, 8)}`,
+    patientId: apt.patient_id || apt.patientId || '',
+    patientName: apt.patient_name || `${apt.patient_first_name || ''} ${apt.patient_last_name || ''}`.trim() || 'Unknown Patient',
+    patientPhone: apt.patient_phone || apt.patientPhone || '',
+    appointmentDate: apt.date || apt.appointment_date || new Date().toISOString().split('T')[0],
+    appointmentTime: apt.time || apt.appointment_time || '',
+    appointmentType: (apt.type || apt.appointment_type || 'consultation') as Appointment['appointmentType'],
+    clinicianId: apt.doctor_id || apt.clinician_id || apt.clinicianId || '',
+    clinicianName: apt.doctor_name || apt.clinician_name || apt.clinicianName || 'Unknown Doctor',
+    status: (apt.status === 'scheduled' ? 'scheduled' as const :
+             apt.status === 'checked-in' ? 'checked-in' as const :
+             apt.status === 'in-progress' ? 'in-progress' as const :
+             apt.status === 'completed' ? 'completed' as const :
+             apt.status === 'cancelled' ? 'cancelled' as const :
+             apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
+    notes: apt.notes || apt.notes || '',
+    cancelledReason: apt.cancelled_reason || apt.cancelReason || undefined,
+    createdAt: apt.created_at || new Date().toISOString(),
+  }), [])
 
-  // Fetch appointments from API
+  // Fetch appointments from API with caching and lazy loading by date
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
         setLoading(true)
-        const result = await appointmentAPI.getAll({ page: 1, per_page: 200 })
+        
+        // Use cached API call if available
+        const cacheKey = appointmentsCacheKey
+        const result = await withCache(
+          cacheKey,
+          () => {
+            // If date is selected, fetch appointments for that date
+            if (debouncedSelectedDate) {
+              return appointmentAPI.getByDate(debouncedSelectedDate)
+            }
+            // Otherwise fetch all with pagination
+            return appointmentAPI.getAll({ page: 1, per_page: 200 })
+          },
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         
         if (result && Array.isArray(result.data)) {
           // Transform API response to match Appointment interface
-          const transformed = result.data.map((apt: any) => ({
-            id: apt.id || `APT-${apt.id?.slice(0, 8)}`,
-            patientId: apt.patient_id || apt.patientId || '',
-            patientName: apt.patient_name || `${apt.patient_first_name || ''} ${apt.patient_last_name || ''}`.trim() || 'Unknown Patient',
-            patientPhone: apt.patient_phone || apt.patientPhone || '',
-            appointmentDate: apt.date || apt.appointment_date || new Date().toISOString().split('T')[0],
-            appointmentTime: apt.time || apt.appointment_time || '',
-            appointmentType: (apt.type || apt.appointment_type || 'consultation') as Appointment['appointmentType'],
-            clinicianId: apt.doctor_id || apt.clinician_id || apt.clinicianId || '',
-            clinicianName: apt.doctor_name || apt.clinician_name || apt.clinicianName || 'Unknown Doctor',
-            status: (apt.status === 'scheduled' ? 'scheduled' as const :
-                     apt.status === 'checked-in' ? 'checked-in' as const :
-                     apt.status === 'in-progress' ? 'in-progress' as const :
-                     apt.status === 'completed' ? 'completed' as const :
-                     apt.status === 'cancelled' ? 'cancelled' as const :
-                     apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
-            notes: apt.notes || apt.notes || '',
-            cancelledReason: apt.cancelled_reason || apt.cancelReason || undefined,
-            createdAt: apt.created_at || new Date().toISOString(),
-          }))
+          const transformed = result.data.map(transformAppointment)
+          setAppointments(transformed)
+        } else if (result && Array.isArray(result)) {
+          // Handle case where API returns array directly
+          const transformed = result.map(transformAppointment)
           setAppointments(transformed)
         } else {
           // Fallback to context appointments if API returns unexpected format
@@ -76,7 +108,7 @@ export function AppointmentBooking() {
     }
 
     fetchAppointments()
-  }, [contextAppointments.length, toast])
+  }, [debouncedSelectedDate, appointmentsCacheKey, transformAppointment, contextAppointments, toast])
   
   const [bookingData, setBookingData] = useState({
     patientId: '',
@@ -114,6 +146,9 @@ export function AppointmentBooking() {
       }
 
       const apiResponse = await appointmentAPI.create(appointmentData)
+      
+      // Invalidate appointment cache after creating new appointment
+      dashboardCache.invalidatePattern('dashboard:appointments:.*')
 
       // Also add to context for immediate UI update
       const newAppointment: Appointment = {
@@ -170,6 +205,9 @@ export function AppointmentBooking() {
         status: 'cancelled',
         notes: cancelReason ? `${selectedAppointment.notes || ''}\nCancellation reason: ${cancelReason}`.trim() : selectedAppointment.notes,
       })
+      
+      // Invalidate appointment cache after cancelling
+      dashboardCache.invalidatePattern('dashboard:appointments:.*')
 
       // Also update context
       cancelAppointment(selectedAppointment.id, cancelReason)
@@ -211,9 +249,17 @@ export function AppointmentBooking() {
     return <Badge className={styles[status]}>{status}</Badge>
   }
 
-  const todayAppointments = appointments.filter(apt => apt.appointmentDate === selectedDate)
-  const upcomingAppointments = appointments.filter(apt => 
-    new Date(apt.appointmentDate) > new Date(selectedDate) && apt.status === 'scheduled'
+  // Memoize filtered appointments for performance
+  const todayAppointments = useMemo(
+    () => appointments.filter(apt => apt.appointmentDate === selectedDate),
+    [appointments, selectedDate]
+  )
+  
+  const upcomingAppointments = useMemo(
+    () => appointments.filter(apt => 
+      new Date(apt.appointmentDate) > new Date(selectedDate) && apt.status === 'scheduled'
+    ),
+    [appointments, selectedDate]
   )
 
   return (
@@ -231,28 +277,12 @@ export function AppointmentBooking() {
             onClick={async () => {
               try {
                 setLoading(true)
+                // Invalidate cache before refreshing
+                dashboardCache.invalidatePattern('dashboard:appointments:.*')
+                
                 const result = await appointmentAPI.getAll({ page: 1, per_page: 200 })
                 if (result && Array.isArray(result.data)) {
-                  const transformed = result.data.map((apt: any) => ({
-                    id: apt.id || `APT-${apt.id?.slice(0, 8)}`,
-                    patientId: apt.patient_id || apt.patientId || '',
-                    patientName: apt.patient_name || `${apt.patient_first_name || ''} ${apt.patient_last_name || ''}`.trim() || 'Unknown Patient',
-                    patientPhone: apt.patient_phone || apt.patientPhone || '',
-                    appointmentDate: apt.date || apt.appointment_date || new Date().toISOString().split('T')[0],
-                    appointmentTime: apt.time || apt.appointment_time || '',
-                    appointmentType: (apt.type || apt.appointment_type || 'consultation') as Appointment['appointmentType'],
-                    clinicianId: apt.doctor_id || apt.clinician_id || apt.clinicianId || '',
-                    clinicianName: apt.doctor_name || apt.clinician_name || apt.clinicianName || 'Unknown Doctor',
-                    status: (apt.status === 'scheduled' ? 'scheduled' as const :
-                             apt.status === 'checked-in' ? 'checked-in' as const :
-                             apt.status === 'in-progress' ? 'in-progress' as const :
-                             apt.status === 'completed' ? 'completed' as const :
-                             apt.status === 'cancelled' ? 'cancelled' as const :
-                             apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
-                    notes: apt.notes || apt.notes || '',
-                    cancelledReason: apt.cancelled_reason || apt.cancelReason || undefined,
-                    createdAt: apt.created_at || new Date().toISOString(),
-                  }))
+                  const transformed = result.data.map(transformAppointment)
                   setAppointments(transformed)
                   toast({
                     title: "Refreshed",
