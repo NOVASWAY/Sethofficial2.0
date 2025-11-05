@@ -359,6 +359,15 @@ export function ReportsModule() {
   const [filteredClaims, setFilteredClaims] = useState<any[]>([])
   const [shaClaimsLoading, setShaClaimsLoading] = useState(true)
 
+  // Memoized cache key for SHA claims
+  const shaClaimsCacheKey = useMemo(
+    () => getCacheKey('sha-claims', { 
+      dateFrom: customDateRange.from?.toISOString(),
+      dateTo: customDateRange.to?.toISOString()
+    }),
+    [customDateRange.from, customDateRange.to]
+  )
+
   useEffect(() => {
     const fetchSHAClaims = async () => {
       try {
@@ -366,7 +375,11 @@ export function ReportsModule() {
         const dateFrom = customDateRange.from ? format(customDateRange.from, 'yyyy-MM-dd') : undefined
         const dateTo = customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : undefined
         
-        const claims = await shaClaimAPI.getAll()
+        const claims = await withCache(
+          shaClaimsCacheKey,
+          () => shaClaimAPI.getAll(),
+          5 * 60 * 1000 // Cache for 5 minutes
+        )
         
         if (claims && Array.isArray(claims)) {
           // Filter claims by date range if specified
