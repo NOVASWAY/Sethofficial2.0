@@ -7,6 +7,7 @@ import { patientAPI } from "@/lib/api-client"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
+import { useKeyboardShortcuts, COMMON_SHORTCUTS } from '@/hooks/use-keyboard-shortcuts'
 import { Skeleton, PatientListSkeleton } from "@/components/ui/loading"
 import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
@@ -269,7 +270,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
       dashboardCache.invalidatePattern('dashboard:patients:.*')
       
       const result = await patientAPI.getAll({ page, per_page: 50 })
-      
+
       if (result && Array.isArray(result.data)) {
         const transformed = result.data.map(transformPatient)
         setPatients(transformed)
@@ -282,7 +283,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
         setPatients(transformed)
         setTotalPages(1)
       }
-      
+
       toast({
         title: "Refreshed",
         description: "Patient data has been refreshed.",
@@ -298,6 +299,41 @@ export function PatientManagement({ role }: PatientManagementProps) {
       setLoading(false)
     }
   }, [page, patientsCacheKey, transformPatient, toast])
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    shortcuts: [
+      {
+        ...COMMON_SHORTCUTS.NEW,
+        handler: () => {
+          if (canCreatePatients) {
+            setIsNewPatientOpen(true)
+          }
+        },
+      },
+      {
+        ...COMMON_SHORTCUTS.REFRESH,
+        handler: () => handleRefresh(),
+      },
+      {
+        ...COMMON_SHORTCUTS.SEARCH,
+        handler: () => {
+          // Focus search input
+          const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement
+          searchInput?.focus()
+        },
+      },
+      {
+        key: 'Escape',
+        handler: () => {
+          setIsNewPatientOpen(false)
+          setIsEditPatientOpen(false)
+          setIsViewPatientOpen(false)
+        },
+      },
+    ],
+  })
 
   const handleViewPatient = (patient: Patient) => {
     setSelectedPatient(patient)

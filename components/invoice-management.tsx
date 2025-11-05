@@ -385,6 +385,73 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
   const canCreateInvoices = role === "receptionist" || role === "admin"
   const canEditInvoices = role === "receptionist" || role === "admin"
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    shortcuts: [
+      {
+        ...COMMON_SHORTCUTS.NEW,
+        handler: () => {
+          if (canCreateInvoices) {
+            setIsNewInvoiceOpen(true)
+          }
+        },
+      },
+      {
+        ...COMMON_SHORTCUTS.REFRESH,
+        handler: async () => {
+          try {
+            setLoading(true)
+            const params: { page?: number; per_page?: number; payment_status?: string } = {
+              page,
+              per_page: 50
+            }
+            if (statusFilter !== "all") {
+              params.payment_status = statusFilter === "Paid" ? "paid" : 
+                                      statusFilter === "Pending" ? "pending" : 
+                                      statusFilter === "Overdue" ? "overdue" : "pending"
+            }
+            // Invalidate cache before refreshing
+            dashboardCache.invalidatePattern('dashboard:invoices:.*')
+            
+            const result = await invoiceAPI.getAll(params)
+            if (result && Array.isArray(result.data)) {
+              const transformed = result.data.map(transformInvoice)
+              setInvoices(transformed)
+              toast({
+                title: "Refreshed",
+                description: "Invoice data has been refreshed.",
+              })
+            }
+          } catch (error) {
+            console.error("Error refreshing invoices:", error)
+            toast({
+              title: "Error",
+              description: "Failed to refresh invoices.",
+              variant: "destructive"
+            })
+          } finally {
+            setLoading(false)
+          }
+        },
+      },
+      {
+        ...COMMON_SHORTCUTS.SEARCH,
+        handler: () => {
+          const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement
+          searchInput?.focus()
+        },
+      },
+      {
+        key: 'Escape',
+        handler: () => {
+          setIsNewInvoiceOpen(false)
+          setIsViewInvoiceOpen(false)
+        },
+      },
+    ],
+  })
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Paid":
