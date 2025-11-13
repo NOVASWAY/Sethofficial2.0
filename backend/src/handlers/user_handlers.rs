@@ -56,11 +56,11 @@ pub async fn get_users(
     );
 
     let users_result = sqlx::query(&users_query)
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await;
 
     let count_result = sqlx::query_scalar::<_, i64>(&count_query)
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await;
 
     match (users_result, count_result) {
@@ -148,7 +148,7 @@ pub async fn create_user(
         "SELECT COUNT(*) FROM users WHERE username = $1"
     )
     .bind(&user_data.username)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     match existing_user {
@@ -191,7 +191,7 @@ pub async fn create_user(
     .bind(true) // Default to active
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -300,7 +300,7 @@ pub async fn update_user(
 
     let result = sqlx::query(&update_query)
         .bind(user_id)
-        .execute(&data.database.pool)
+        .execute(&data.db_pool)
         .await;
 
     match result {
@@ -348,7 +348,7 @@ pub async fn delete_user(
     )
     .bind(Utc::now())
     .bind(user_id)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -395,7 +395,7 @@ pub async fn get_user(
          FROM users WHERE id = $1"
     )
     .bind(user_id)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     match result {
@@ -470,7 +470,7 @@ pub async fn update_user_permissions(
     .bind(&permissions)
     .bind(Utc::now())
     .bind(user_id)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {

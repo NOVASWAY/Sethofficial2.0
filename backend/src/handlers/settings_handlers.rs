@@ -54,7 +54,7 @@ pub async fn get_settings(
     let settings = sqlx::query_as::<_, SystemSetting>(
         "SELECT * FROM system_settings ORDER BY category, key"
     )
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to fetch settings: {}", e))))?;
 
@@ -163,7 +163,7 @@ pub async fn update_settings(
                 )
                 .bind(key)
                 .bind(final_value)
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
             match result {
@@ -180,7 +180,7 @@ pub async fn update_settings(
         }
 
         // Log the settings update
-        let audit_logger = crate::audit::AuditLogger::new(data.database.pool.clone());
+        let audit_logger = crate::audit::AuditLogger::new(data.db_pool.clone());
         let audit_log = crate::audit::AuditLog {
             id: uuid::Uuid::new_v4(),
             user_id: Some(claims.sub.parse().unwrap_or_else(|_| uuid::Uuid::new_v4())),
@@ -261,7 +261,7 @@ pub async fn get_user_settings(
         "SELECT * FROM user_settings WHERE user_id = $1 ORDER BY category, key"
     )
     .bind(user_id)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to fetch user settings: {}", e))))?;
 
@@ -363,7 +363,7 @@ pub async fn update_user_settings(
             .bind(user_id)
             .bind(key)
             .bind(final_value)
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
             match result {
@@ -380,7 +380,7 @@ pub async fn update_user_settings(
         }
 
         // Log the user settings update
-        let audit_logger = crate::audit::AuditLogger::new(data.database.pool.clone());
+        let audit_logger = crate::audit::AuditLogger::new(data.db_pool.clone());
         let audit_log = crate::audit::AuditLog {
             id: uuid::Uuid::new_v4(),
             user_id: Some(user_id),
@@ -440,14 +440,14 @@ pub async fn delete_user_setting(
     )
     .bind(user_id)
     .bind(&setting_key)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
         Ok(result) => {
             if result.rows_affected() > 0 {
                 // Log the deletion
-                let audit_logger = crate::audit::AuditLogger::new(data.database.pool.clone());
+                let audit_logger = crate::audit::AuditLogger::new(data.db_pool.clone());
                 let audit_log = crate::audit::AuditLog {
                     id: uuid::Uuid::new_v4(),
                     user_id: Some(user_id),

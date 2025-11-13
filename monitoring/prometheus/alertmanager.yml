@@ -1,0 +1,107 @@
+# Alertmanager Configuration
+# Routes alerts to appropriate channels (email, Slack, etc.)
+
+global:
+  resolve_timeout: 5m
+  # Default email sender
+  smtp_from: 'alerts@sethmedicalclinic.com'
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_auth_username: 'alerts@sethmedicalclinic.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+# Route tree
+route:
+  receiver: 'default-receiver'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+      
+    # Warning alerts - grouped notifications
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 1h
+
+# Receivers
+receivers:
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'admin@sethmedicalclinic.com'
+        headers:
+          Subject: 'Clinic Management System Alert'
+        html: |
+          <h2>Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt }}</p>
+          <hr>
+          <h3>Affected Services:</h3>
+          <ul>
+          {{ range .Alerts }}
+            <li>{{ .Labels.service }} - {{ .Annotations.summary }}</li>
+          {{ end }}
+          </ul>
+
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'admin@sethmedicalclinic.com'
+        to: 'devops@sethmedicalclinic.com'
+        headers:
+          Subject: '[CRITICAL] Clinic Management System Alert'
+        html: |
+          <h2 style="color: red;">CRITICAL ALERT: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt }}</p>
+          <hr>
+          <h3>Affected Services:</h3>
+          <ul>
+          {{ range .Alerts }}
+            <li>{{ .Labels.service }} - {{ .Annotations.summary }}</li>
+          {{ end }}
+          </ul>
+          <p><strong>Action Required:</strong> Immediate investigation needed.</p>
+    
+    # Slack webhook (if configured)
+    # webhook_configs:
+    #   - url: '${SLACK_WEBHOOK_URL}'
+    #     send_resolved: true
+
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'admin@sethmedicalclinic.com'
+        headers:
+          Subject: '[WARNING] Clinic Management System Alert'
+        html: |
+          <h2 style="color: orange;">Warning: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt }}</p>
+          <hr>
+          <h3>Affected Services:</h3>
+          <ul>
+          {{ range .Alerts }}
+            <li>{{ .Labels.service }} - {{ .Annotations.summary }}</li>
+          {{ end }}
+          </ul>
+
+# Inhibition rules (suppress certain alerts when others are firing)
+inhibit_rules:
+  # Suppress warning alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']
+

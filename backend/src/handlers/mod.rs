@@ -19,6 +19,9 @@ pub mod user_preferences_handlers;
 pub mod activity_log_handlers;
 pub mod data_isolation_handlers;
 pub mod validation_handlers;
+pub mod mfa_handlers;
+pub mod password_reset_handlers;
+pub mod email_verification_handlers;
 
 // Re-export handlers for easier imports
 pub use auth_handlers::*;

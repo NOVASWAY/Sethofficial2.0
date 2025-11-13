@@ -110,7 +110,7 @@ pub async fn upload_avatar(
         description,
         is_public
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -261,7 +261,7 @@ pub async fn upload_document(
         description,
         is_public
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -303,7 +303,7 @@ pub async fn get_file(
         "#,
         file_id
     )
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -393,7 +393,7 @@ pub async fn get_files(
     let count_query = format!("SELECT COUNT(*) as total FROM files {}", where_clause);
     let total: i64 = sqlx::query_scalar(&count_query)
         .bind(&Uuid::parse_str(&_claims.sub).unwrap_or_default())
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -413,7 +413,7 @@ pub async fn get_files(
 
     let files = sqlx::query(&files_query)
         .bind(&Uuid::parse_str(&_claims.sub).unwrap_or_default())
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -472,7 +472,7 @@ pub async fn delete_file(
         "#,
         file_id
     )
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -500,7 +500,7 @@ pub async fn delete_file(
                 "DELETE FROM files WHERE id = $1",
                 file_id
             )
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await
             .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 

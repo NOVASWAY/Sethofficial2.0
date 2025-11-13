@@ -425,16 +425,15 @@ async fn validate_patient_business_rules(
     let mut rules = Vec::new();
 
     // Check if patient is under 18 and has guardian information
-    if let Some(dob) = patient_data.date_of_birth {
-        let age = chrono::Utc::now().date_naive() - dob;
-        if age.num_days() < 6570 { // Less than 18 years
-            rules.push(BusinessRuleValidation {
-                rule_name: "guardian_required".to_string(),
-                is_valid: patient_data.location.is_some(), // Simplified check
-                message: "Guardian information required for patients under 18".to_string(),
-                severity: "warning".to_string(),
-            });
-        }
+    let dob_naive = patient_data.date_of_birth.date_naive();
+    let age = chrono::Utc::now().date_naive().signed_duration_since(dob_naive);
+    if age.num_days() < 6570 { // Less than 18 years
+        rules.push(BusinessRuleValidation {
+            rule_name: "guardian_required".to_string(),
+            is_valid: patient_data.location.is_some(), // Simplified check
+            message: "Guardian information required for patients under 18".to_string(),
+            severity: "warning".to_string(),
+        });
     }
 
     // Check for insurance number format
@@ -470,10 +469,10 @@ async fn validate_user_business_rules(
     let mut rules = Vec::new();
 
     // Check username uniqueness
-    let existing_user = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM users WHERE username = $1",
-        user_data.username
+    let existing_user = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM users WHERE username = $1"
     )
+    .bind(&user_data.username)
     .fetch_one(pool)
     .await
     .unwrap_or(0);
@@ -607,7 +606,7 @@ async fn check_patient_duplicates(
                 record_data: serde_json::json!({
                     "first_name": record.first_name,
                     "last_name": record.last_name,
-                    "phone_number": record.phone_number,
+                    "phone_number": record.phone,
                     "date_of_birth": record.date_of_birth
                 }),
             });
@@ -636,7 +635,7 @@ async fn check_patient_duplicates(
                     record_data: serde_json::json!({
                         "first_name": record.first_name,
                         "last_name": record.last_name,
-                        "phone_number": record.phone_number,
+                        "phone_number": record.phone,
                         "date_of_birth": record.date_of_birth
                     }),
                 });

@@ -1,4 +1,5 @@
 pub mod security;
+pub mod auth;
 
 pub use security::{
     SecurityMiddleware,

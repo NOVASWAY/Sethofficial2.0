@@ -7,8 +7,9 @@ use std::collections::HashMap;
 
 use crate::models::ApiResponse;
 use crate::auth::verify_jwt_token;
+use crate::errors::AppError;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UserActivity {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -43,19 +44,19 @@ pub struct ActivityStats {
     pub hourly_distribution: Vec<HourlyCount>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ActionCount {
     pub action: String,
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ModuleCount {
     pub module: String,
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct HourlyCount {
     pub hour: i32,
     pub count: i64,
@@ -292,10 +293,9 @@ pub async fn get_user_activity(
     params.push(Box::new(offset));
 
     // Execute query
-    let activities = match sqlx::query_as::<_, UserActivity>(&query_builder.build().sql())
-        .bind(&user_id)
-        .bind_all(params.iter().map(|p| p.as_ref()))
-        .fetch_all(&**pool)
+    let mut query = query_builder.build_query_as::<UserActivity>();
+    query.bind(user_id);
+    let activities = match query.fetch_all(&**pool)
         .await
     {
         Ok(activities) => activities,
@@ -474,28 +474,28 @@ pub async fn get_activity_statistics(
     )
     .bind(days)
     .fetch_one(&**pool)
-    .await?
+    .await
     .unwrap_or(0);
 
     let activities_today = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= CURRENT_DATE"
     )
     .fetch_one(&**pool)
-    .await?
+    .await
     .unwrap_or(0);
 
     let activities_this_week = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= DATE_TRUNC('week', CURRENT_DATE)"
     )
     .fetch_one(&**pool)
-    .await?
+    .await
     .unwrap_or(0);
 
     let activities_this_month = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)"
     )
     .fetch_one(&**pool)
-    .await?
+    .await
     .unwrap_or(0);
 
     // Get top actions
@@ -509,7 +509,8 @@ pub async fn get_activity_statistics(
     )
     .bind(days)
     .fetch_all(&**pool)
-    .await?;
+    .await
+    .map_err(|e| AppError::Database(e))?;
 
     // Get top modules
     let top_modules = sqlx::query_as::<_, ModuleCount>(
@@ -522,7 +523,8 @@ pub async fn get_activity_statistics(
     )
     .bind(days)
     .fetch_all(&**pool)
-    .await?;
+    .await
+    .map_err(|e| AppError::Database(e))?;
 
     // Get hourly distribution
     let hourly_distribution = sqlx::query_as::<_, HourlyCount>(
@@ -534,7 +536,8 @@ pub async fn get_activity_statistics(
     )
     .bind(days)
     .fetch_all(&**pool)
-    .await?;
+    .await
+    .map_err(|e| AppError::Database(e))?;
 
     let stats = ActivityStats {
         total_activities,

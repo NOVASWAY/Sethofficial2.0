@@ -27,6 +27,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       const result = await authenticateUser(credentials)
+      
+      // Check if MFA is required
+      if (result && 'mfaRequired' in result && result.mfaRequired) {
+        // Return result with MFA info - don't redirect yet
+        setAuthState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: null
+        }))
+        return result
+      }
+      
       if (result && result.user && result.token) {
         storeAuthToken(result.token)
         setAuthState({
@@ -36,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           error: null
         })
         router.push(`/dashboard/${result.user.role}`)
+        return result
       } else {
         throw new Error('Invalid login response')
       }
@@ -45,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         error: error instanceof Error ? error.message : 'Login failed'
       }))
+      throw error
     }
   }
 

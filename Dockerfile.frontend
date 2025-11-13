@@ -8,7 +8,9 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (skip scripts to avoid Husky)
-RUN npm ci --only=production --ignore-scripts
+# Using npm install to handle out-of-sync lock files
+# Builder stage needs dev dependencies for building
+RUN npm install --ignore-scripts
 
 # Copy source code
 COPY . .
@@ -26,7 +28,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production --ignore-scripts
+# Using npm install to handle out-of-sync lock files
+RUN npm install --omit=dev --ignore-scripts
 
 # Copy built application from builder stage
 COPY --from=builder /app/.next ./.next

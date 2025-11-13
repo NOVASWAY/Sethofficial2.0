@@ -2,8 +2,9 @@ use actix_web::{web, HttpResponse, Result, HttpRequest};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration, Datelike};
+use chrono::{DateTime, Utc, Duration, Datelike, NaiveDate};
 use std::collections::HashMap;
+use sqlx::types::BigDecimal;
 
 use crate::models::ApiResponse;
 use crate::auth::verify_jwt_token;
@@ -129,7 +130,9 @@ pub async fn get_user_dashboard_metrics(
     };
 
     // Calculate metrics based on user role and permissions
-    let metrics = match calculate_user_metrics(&pool, &user_id, &user.0, &user.1).await {
+    let role_str = user.0.as_str();
+    let dept_str = user.1.as_deref().unwrap_or("");
+    let metrics = match calculate_user_metrics(&pool, &user_id, role_str, dept_str).await {
         Ok(metrics) => metrics,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -277,7 +280,7 @@ pub async fn get_department_dashboard_metrics(
     };
 
     // Check if user has access to department data
-    if claims.role != "admin" && claims.department != department {
+    if claims.role != "admin" && claims.department.as_deref() != Some(&department) {
         return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -388,16 +391,18 @@ async fn calculate_user_metrics(
     department: &str,
 ) -> Result<DashboardMetrics, sqlx::Error> {
     let today = Utc::now().date_naive();
-    let start_of_month = today.with_day(1).unwrap_or(today);
+    // Get first day of month using format parsing
+    let first_day_str = format!("{}-{:02}-01", today.format("%Y"), today.format("%m"));
+    let start_of_month = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(today);
     let start_of_last_month = start_of_month - Duration::days(30);
 
     // Base metrics that apply to all users
-    let total_patients = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM patients WHERE created_at >= $1",
-        start_of_month
+    let total_patients = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM patients WHERE created_at >= $1"
     )
+    .bind(start_of_month)
     .fetch_one(pool)
-    .await?
+    .await
     .unwrap_or(0);
 
     let today_consultations = sqlx::query_scalar!(
@@ -433,29 +438,32 @@ async fn calculate_user_metrics(
     let (total_revenue, monthly_revenue, revenue_change, active_users, system_health, critical_alerts, pending_tasks) = 
         match role {
             "admin" => {
-                let total_revenue = sqlx::query_scalar!(
-                    "SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE created_at >= $1",
-                    start_of_month
+                let total_revenue = sqlx::query_scalar::<_, Option<BigDecimal>>(
+                    "SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE created_at >= $1"
                 )
+                .bind(start_of_month)
                 .fetch_one(pool)
                 .await?
+                .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
                 .unwrap_or(0.0);
 
-                let monthly_revenue = sqlx::query_scalar!(
-                    "SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE created_at >= $1",
-                    start_of_month
+                let monthly_revenue = sqlx::query_scalar::<_, Option<BigDecimal>>(
+                    "SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE created_at >= $1"
                 )
+                .bind(start_of_month)
                 .fetch_one(pool)
                 .await?
+                .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
                 .unwrap_or(0.0);
 
-                let last_month_revenue = sqlx::query_scalar!(
-                    "SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE created_at >= $1 AND created_at < $2",
-                    start_of_last_month,
-                    start_of_month
+                let last_month_revenue = sqlx::query_scalar::<_, Option<BigDecimal>>(
+                    "SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE created_at >= $1 AND created_at < $2"
                 )
+                .bind(start_of_last_month)
+                .bind(start_of_month)
                 .fetch_one(pool)
                 .await?
+                .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
                 .unwrap_or(0.0);
 
                 let revenue_change = if last_month_revenue > 0.0 {
@@ -534,13 +542,15 @@ async fn calculate_role_metrics(
     role: &str,
 ) -> Result<DashboardMetrics, sqlx::Error> {
     let today = Utc::now().date_naive();
-    let start_of_month = today.with_day(1).unwrap_or(today);
+    // Get first day of month using format parsing
+    let first_day_str = format!("{}-{:02}-01", today.format("%Y"), today.format("%m"));
+    let start_of_month = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(today);
 
     // Calculate metrics for all users with the specified role
-    let total_patients = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM patients WHERE created_at >= $1",
-        start_of_month
+    let total_patients = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM patients WHERE created_at >= $1"
     )
+    .bind(start_of_month)
     .fetch_one(pool)
     .await?
     .unwrap_or(0);
@@ -631,13 +641,15 @@ async fn calculate_department_metrics(
     department: &str,
 ) -> Result<DashboardMetrics, sqlx::Error> {
     let today = Utc::now().date_naive();
-    let start_of_month = today.with_day(1).unwrap_or(today);
+    // Get first day of month using format parsing
+    let first_day_str = format!("{}-{:02}-01", today.format("%Y"), today.format("%m"));
+    let start_of_month = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(today);
 
     // Calculate metrics for all users in the specified department
-    let total_patients = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM patients WHERE created_at >= $1",
-        start_of_month
+    let total_patients = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM patients WHERE created_at >= $1"
     )
+    .bind(start_of_month)
     .fetch_one(pool)
     .await?
     .unwrap_or(0);

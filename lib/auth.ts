@@ -48,9 +48,19 @@ export interface LoginCredentials {
 // No mock data - all authentication is handled via API
 
 // Real authentication function using API
-export async function authenticateUser(credentials: LoginCredentials): Promise<{ user: User; token: string } | null> {
+export async function authenticateUser(credentials: LoginCredentials): Promise<{ user: User; token: string; mfaRequired?: boolean; mfaSessionToken?: string } | null> {
   try {
     const response = await authAPI.login(credentials.username, credentials.password)
+    
+    // Check if MFA is required
+    if (response.mfa_required && response.mfa_session_token) {
+      return {
+        user: response.user,
+        token: '', // No token yet, MFA verification needed
+        mfaRequired: true,
+        mfaSessionToken: response.mfa_session_token,
+      }
+    }
     
     // Validate response structure
     if (!response || !response.user) {

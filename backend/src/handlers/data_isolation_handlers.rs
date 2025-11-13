@@ -652,9 +652,8 @@ async fn build_filtered_patients_query(
     params.push(Box::new(offset));
 
     // Execute query
-    let patients = sqlx::query_as::<_, Patient>(&query_builder.build().sql())
-        .bind_all(params.iter().map(|p| p.as_ref()))
-        .fetch_all(pool)
+    let query = query_builder.build_query_as::<Patient>();
+    let patients = query.fetch_all(pool)
         .await?;
 
     Ok(patients)
@@ -756,9 +755,8 @@ async fn build_filtered_consultations_query(
     params.push(Box::new(offset));
 
     // Execute query
-    let consultations = sqlx::query_as::<_, Consultation>(&query_builder.build().sql())
-        .bind_all(params.iter().map(|p| p.as_ref()))
-        .fetch_all(pool)
+    let query = query_builder.build_query_as::<Consultation>();
+    let consultations = query.fetch_all(pool)
         .await?;
 
     Ok(consultations)
@@ -846,9 +844,8 @@ async fn build_filtered_prescriptions_query(
     params.push(Box::new(offset));
 
     // Execute query
-    let prescriptions = sqlx::query_as::<_, Prescription>(&query_builder.build().sql())
-        .bind_all(params.iter().map(|p| p.as_ref()))
-        .fetch_all(pool)
+    let query = query_builder.build_query_as::<Prescription>();
+    let prescriptions = query.fetch_all(pool)
         .await?;
 
     Ok(prescriptions)
@@ -951,9 +948,8 @@ async fn build_filtered_invoices_query(
     params.push(Box::new(offset));
 
     // Execute query
-    let invoices = sqlx::query_as::<_, Invoice>(&query_builder.build().sql())
-        .bind_all(params.iter().map(|p| p.as_ref()))
-        .fetch_all(pool)
+    let query = query_builder.build_query_as::<Invoice>();
+    let invoices = query.fetch_all(pool)
         .await?;
 
     Ok(invoices)

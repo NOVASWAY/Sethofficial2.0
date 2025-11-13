@@ -25,6 +25,30 @@ pub struct EmailConfig {
     pub templates: HashMap<String, EmailTemplate>,
 }
 
+impl EmailConfig {
+    pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(EmailConfig {
+            api_key: std::env::var("SENDGRID_API_KEY")
+                .unwrap_or_else(|_| "".to_string()),
+            from_email: std::env::var("FROM_EMAIL")
+                .unwrap_or_else(|_| "noreply@sethmedicalclinic.com".to_string()),
+            from_name: std::env::var("FROM_NAME")
+                .unwrap_or_else(|_| "Seth Medical Clinic".to_string()),
+            smtp_host: std::env::var("SMTP_HOST")
+                .unwrap_or_else(|_| "smtp.gmail.com".to_string()),
+            smtp_port: std::env::var("SMTP_PORT")
+                .unwrap_or_else(|_| "587".to_string())
+                .parse::<u16>()
+                .unwrap_or(587),
+            smtp_username: std::env::var("SMTP_USERNAME")
+                .unwrap_or_else(|_| "".to_string()),
+            smtp_password: std::env::var("SMTP_PASSWORD")
+                .unwrap_or_else(|_| "".to_string()),
+            templates: HashMap::new(),
+        })
+    }
+}
+
 pub struct EmailService {
     config: EmailConfig,
     mailer: AsyncSmtpTransport<Tokio1Executor>,

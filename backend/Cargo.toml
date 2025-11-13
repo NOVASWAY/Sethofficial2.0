@@ -24,6 +24,7 @@ tracing-actix-web = "0.7"
 
 # Validation
 validator = { version = "0.18", features = ["derive"] }
+thiserror = "1.0"
 
 # Rate limiting
 governor = "0.6"
@@ -89,11 +90,21 @@ regex = "1.10"
 # WebSocket support
 tokio-tungstenite = "0.21"
 
+# TOTP (Time-based One-Time Password) for MFA/2FA
+totp-lite = "2.0"
+qrcode = "0.14"
+urlencoding = "2.1"
+base32 = "0.4"
+
 # Dependency overrides to avoid edition2024 issues
 base64ct = "=1.7.3"
+# Pin moxcms to avoid edition2024 requirement (if it gets pulled in)
+[patch.crates-io]
+# Override moxcms if it's pulled in as a dependency
+# moxcms = { version = "0.7.8" }  # Uncomment if needed
 
 [dev-dependencies]
 # Testing
 actix-rt = "2.8"
 tokio-test = "0.4"
-actix-web = { version = "4.4", features = ["test"] }
+# Note: actix-web is already in [dependencies], no need to duplicate here

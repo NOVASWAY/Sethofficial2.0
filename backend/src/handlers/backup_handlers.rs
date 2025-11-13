@@ -13,7 +13,16 @@ pub async fn create_backup(
     // TODO: Add authentication check
     let user_id = None; // Extract from JWT token
 
-    let backup_service = BackupService::new(data.database.pool.clone(), data.backup_config.clone());
+    let backup_config = BackupConfig {
+        enabled: true,
+        cron_expression: "0 2 * * *".to_string(),
+        retention_days: 30,
+        backup_path: "/backups".to_string(),
+        compression: true,
+        include_files: true,
+        max_backup_size_mb: 1024,
+    };
+    let backup_service = BackupService::new(data.db_pool.clone(), backup_config);
     
     match backup_service.create_backup(req.into_inner(), user_id).await {
         Ok(backup_job) => {
@@ -37,7 +46,16 @@ pub async fn list_backups(
     let limit = query.get("limit").and_then(|s| s.parse().ok());
     let offset = query.get("offset").and_then(|s| s.parse().ok());
 
-    let backup_service = BackupService::new(data.database.pool.clone(), data.backup_config.clone());
+    let backup_config = BackupConfig {
+        enabled: true,
+        cron_expression: "0 2 * * *".to_string(),
+        retention_days: 30,
+        backup_path: "/backups".to_string(),
+        compression: true,
+        include_files: true,
+        max_backup_size_mb: 1024,
+    };
+    let backup_service = BackupService::new(data.db_pool.clone(), backup_config);
     
     match backup_service.list_backups(limit, offset).await {
         Ok(backups) => {
@@ -57,7 +75,16 @@ pub async fn list_backups(
 pub async fn get_backup_stats(
     data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, ApiError> {
-    let backup_service = BackupService::new(data.database.pool.clone(), data.backup_config.clone());
+    let backup_config = BackupConfig {
+        enabled: true,
+        cron_expression: "0 2 * * *".to_string(),
+        retention_days: 30,
+        backup_path: "/backups".to_string(),
+        compression: true,
+        include_files: true,
+        max_backup_size_mb: 1024,
+    };
+    let backup_service = BackupService::new(data.db_pool.clone(), backup_config);
     
     match backup_service.get_backup_stats().await {
         Ok(stats) => {
@@ -85,7 +112,7 @@ pub async fn get_backup(
         "SELECT * FROM backup_jobs WHERE id = $1"
     )
     .bind(backup_id)
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to get backup job: {}", e))))?
     .ok_or_else(|| ApiError::not_found("Backup not found"))?;
@@ -111,7 +138,7 @@ pub async fn delete_backup(
         "DELETE FROM backup_jobs WHERE id = $1",
         backup_id
     )
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to delete backup: {}", e))))?;
 
@@ -140,7 +167,7 @@ pub async fn download_backup(
         "SELECT * FROM backup_jobs WHERE id = $1"
     )
     .bind(backup_id)
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to get backup job: {}", e))))?
     .ok_or_else(|| ApiError::not_found("Backup not found"))?;
@@ -165,7 +192,16 @@ pub async fn download_backup(
 pub async fn cleanup_backups(
     data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, ApiError> {
-    let backup_service = BackupService::new(data.database.pool.clone(), data.backup_config.clone());
+    let backup_config = BackupConfig {
+        enabled: true,
+        cron_expression: "0 2 * * *".to_string(),
+        retention_days: 30,
+        backup_path: "/backups".to_string(),
+        compression: true,
+        include_files: true,
+        max_backup_size_mb: 1024,
+    };
+    let backup_service = BackupService::new(data.db_pool.clone(), backup_config);
     
     match backup_service.cleanup_old_backups().await {
         Ok(deleted_count) => {
@@ -183,11 +219,20 @@ pub async fn cleanup_backups(
 
 /// Get backup configuration
 pub async fn get_backup_config(
-    data: web::Data<crate::AppState>,
+    _data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, ApiError> {
+    let backup_config = BackupConfig {
+        enabled: true,
+        cron_expression: "0 2 * * *".to_string(),
+        retention_days: 30,
+        backup_path: "/backups".to_string(),
+        compression: true,
+        include_files: true,
+        max_backup_size_mb: 1024,
+    };
     Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
-        data: Some(serde_json::json!(data.backup_config)),
+        data: Some(serde_json::json!(backup_config)),
         message: Some("Backup configuration retrieved successfully".to_string()),
         timestamp: chrono::Utc::now().to_rfc3339(),
         request_id: None,
@@ -217,7 +262,7 @@ pub async fn get_backup_schedules(
     let schedules = sqlx::query_as::<_, crate::backup::BackupSchedule>(
         "SELECT * FROM backup_schedules ORDER BY created_at DESC"
     )
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to get backup schedules: {}", e))))?;
 
@@ -251,7 +296,7 @@ pub async fn create_backup_schedule(
     .bind(&schedule.backup_type)
     .bind(schedule.enabled)
     .bind(schedule.retention_days)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to create backup schedule: {}", e))))?;
 
@@ -288,7 +333,7 @@ pub async fn update_backup_schedule(
     .bind(schedule.enabled)
     .bind(schedule.retention_days)
     .bind(schedule_id)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to update backup schedule: {}", e))))?;
 
@@ -316,7 +361,7 @@ pub async fn delete_backup_schedule(
         "DELETE FROM backup_schedules WHERE id = $1",
         schedule_id
     )
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to delete backup schedule: {}", e))))?;
 
@@ -348,7 +393,7 @@ pub async fn toggle_backup_schedule(
         "#,
         schedule_id
     )
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to toggle backup schedule: {}", e))))?;
 

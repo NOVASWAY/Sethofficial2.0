@@ -1,4 +1,4 @@
-use redis::{Client, ConnectionManager, RedisResult};
+use redis::{Client, aio::ConnectionManager, AsyncCommands, RedisResult};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -20,18 +20,9 @@ impl RedisClient {
         let mut conn = self.connection_manager.clone();
         
         if let Some(ttl) = ttl {
-            redis::cmd("SETEX")
-                .arg(key)
-                .arg(ttl.as_secs())
-                .arg(value)
-                .execute_async(&mut conn)
-                .await?;
+            conn.set_ex(key, value, ttl.as_secs() as u64).await?;
         } else {
-            redis::cmd("SET")
-                .arg(key)
-                .arg(value)
-                .execute_async(&mut conn)
-                .await?;
+            conn.set(key, value).await?;
         }
         
         Ok(())
@@ -39,41 +30,28 @@ impl RedisClient {
 
     pub async fn get(&self, key: &str) -> RedisResult<Option<String>> {
         let mut conn = self.connection_manager.clone();
-        let result: Option<String> = redis::cmd("GET")
-            .arg(key)
-            .query_async(&mut conn)
-            .await?;
+        let result: Option<String> = conn.get(key).await?;
         
         Ok(result)
     }
 
     pub async fn del(&self, key: &str) -> RedisResult<()> {
         let mut conn = self.connection_manager.clone();
-        redis::cmd("DEL")
-            .arg(key)
-            .execute_async(&mut conn)
-            .await?;
+        conn.del(key).await?;
         
         Ok(())
     }
 
     pub async fn exists(&self, key: &str) -> RedisResult<bool> {
         let mut conn = self.connection_manager.clone();
-        let result: bool = redis::cmd("EXISTS")
-            .arg(key)
-            .query_async(&mut conn)
-            .await?;
+        let result: i64 = conn.exists(key).await?;
         
-        Ok(result)
+        Ok(result > 0)
     }
 
     pub async fn publish(&self, channel: &str, message: &str) -> RedisResult<()> {
         let mut conn = self.connection_manager.clone();
-        redis::cmd("PUBLISH")
-            .arg(channel)
-            .arg(message)
-            .execute_async(&mut conn)
-            .await?;
+        conn.publish(channel, message).await?;
         
         Ok(())
     }
@@ -113,9 +91,8 @@ impl RedisClient {
     // Health check
     pub async fn health_check(&self) -> RedisResult<()> {
         let mut conn = self.connection_manager.clone();
-        redis::cmd("PING")
-            .execute_async(&mut conn)
-            .await?;
+        // Use get with a test key or just check connection
+        let _: Option<String> = conn.get("__health_check__").await?;
         Ok(())
     }
 }

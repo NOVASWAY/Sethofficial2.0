@@ -90,11 +90,17 @@ export default function LoginPage() {
 
     try {
       // Login with username and password - the auth system will determine the role
-      await login({
+      const result = await login({
         username: credentials.username,
         password: credentials.password,
         role: '' // Role will be determined by the auth system
       })
+      
+      // Check if MFA is required
+      if (result && 'mfaRequired' in result && result.mfaRequired && result.mfaSessionToken) {
+        router.push(`/mfa-verify?session=${result.mfaSessionToken}`)
+        return
+      }
     } catch (error) {
       console.error('Login error:', error)
       setErrors({ form: 'Invalid credentials. Please try again.' })

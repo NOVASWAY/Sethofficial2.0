@@ -207,7 +207,8 @@ where
 
     async fn evict_entries(&self, cache: &mut HashMap<String, CacheEntry<T>>, metrics: &mut CacheMetrics) {
         // Simple LRU eviction - remove oldest accessed entries
-        let mut entries: Vec<_> = cache.iter().collect();
+        let entries: Vec<_> = cache.iter().collect();
+        let mut entries: Vec<_> = entries;
         entries.sort_by_key(|(_, entry)| entry.last_accessed);
         
         let to_remove = entries.len() / 4; // Remove 25% of entries
@@ -358,10 +359,14 @@ where
     }
 
     pub async fn invalidate_user_data(&self, user_id: &Uuid) {
+        let metrics_key = CacheKeys::dashboard_user_metrics(user_id);
+        let prefs_key = CacheKeys::user_preferences(user_id);
+        let activity_key = format!("user:activity:{}", user_id);
+        
         let patterns = vec![
-            &CacheKeys::dashboard_user_metrics(user_id),
-            &CacheKeys::user_preferences(user_id),
-            &format!("user:activity:{}", user_id),
+            metrics_key.as_str(),
+            prefs_key.as_str(),
+            activity_key.as_str(),
         ];
 
         for pattern in patterns {

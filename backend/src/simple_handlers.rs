@@ -4,9 +4,11 @@ use uuid::Uuid;
 use chrono::{Utc, NaiveDate, NaiveTime};
 use rand::Rng;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use sqlx::Row;
 
 use crate::{AppState, models::{User, Patient, Consultation, Appointment, Invoice, Medicine, Prescription}, jwt_utils::verify_jwt_from_request};
-use crate::mpesa::{MpesaService, StkPushRequestPayload};
+use crate::mpesa::{MpesaService, StkPushRequestPayload, create_mpesa_transaction, update_mpesa_transaction, get_mpesa_transaction_by_checkout_id, get_mpesa_transactions_by_invoice};
+use crate::mfa::MfaService;
 use crate::services;
 use crate::websocket;
 
@@ -190,6 +192,47 @@ pub async fn login(
             // Verify password
             match state.auth_service.verify_password(password, &user.password_hash) {
                 Ok(true) => {
+                    // Check if MFA is enabled for this user
+                    let mfa_enabled: Option<bool> = sqlx::query_scalar(
+                        "SELECT mfa_enabled FROM users WHERE id = $1"
+                    )
+                    .bind(user.id)
+                    .fetch_optional(&state.db_pool)
+                    .await
+                    .unwrap_or(None);
+
+                    // If MFA is enabled, create MFA session instead of generating token
+                    if mfa_enabled.unwrap_or(false) {
+                        let mfa_service = MfaService::new(state.db_pool.clone());
+                        match mfa_service.create_mfa_session(user.id, None, None).await {
+                            Ok(mfa_session_token) => {
+                                return Ok(HttpResponse::Ok().json(json!({
+                                    "success": true,
+                                    "data": {
+                                        "user": {
+                                            "id": user.id,
+                                            "username": user.username,
+                                            "role": user.role,
+                                            "name": user.name,
+                                            "department": user.department,
+                                            "permissions": user.permissions,
+                                            "is_active": user.is_active
+                                        },
+                                        "mfa_required": true,
+                                        "mfa_session_token": mfa_session_token
+                                    },
+                                    "message": "MFA verification required"
+                                })))
+                            },
+                            Err(e) => {
+                                return Ok(HttpResponse::InternalServerError().json(json!({
+                                    "success": false,
+                                    "error": format!("Failed to create MFA session: {}", e)
+                                })))
+                            }
+                        }
+                    }
+
                     // Generate JWT tokens
                     match state.auth_service.generate_access_token(&user) {
                         Ok(access_token) => {
@@ -197,16 +240,20 @@ pub async fn login(
                             match state.auth_service.generate_refresh_token(user.id) {
                                 Ok(refresh_token) => Ok(HttpResponse::Ok().json(json!({
                                     "success": true,
-                                    "access_token": access_token,
-                                    "refresh_token": refresh_token,
-                                    "user": {
-                                        "id": user.id,
-                                        "username": user.username,
-                                        "role": user.role,
-                                        "name": user.name,
-                                        "department": user.department,
-                                        "permissions": user.permissions
-                                    }
+                                    "data": {
+                                        "token": access_token,
+                                        "refresh_token": refresh_token,
+                                        "user": {
+                                            "id": user.id,
+                                            "username": user.username,
+                                            "role": user.role,
+                                            "name": user.name,
+                                            "department": user.department,
+                                            "permissions": user.permissions,
+                                            "is_active": user.is_active
+                                        }
+                                    },
+                                    "message": "Login successful"
                                 }))),
                                 Err(e) => Ok(HttpResponse::InternalServerError().json(json!({
                                     "success": false,
@@ -257,7 +304,7 @@ pub async fn get_profile(req: HttpRequest, state: web::Data<AppState>) -> Result
                     "data": {
                         "id": user.id,
                         "username": user.username,
-                        "email": user.email,
+                        "email": format!("{}@example.com", user.username), // TODO: Add email field to User model
                         "role": user.role,
                         "name": user.name,
                         "department": user.department,
@@ -1415,7 +1462,7 @@ async fn check_appointment_conflict(
         .await
     };
 
-    conflict_query
+    conflict_query.map(|opt| opt.flatten())
 }
 
 // GET /api/appointments - List appointments with pagination and filters
@@ -1539,16 +1586,16 @@ pub async fn get_appointments(
         Ok(rows) => {
             let appointments: Vec<serde_json::Value> = rows.iter().map(|row| {
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "patient_id": row.get::<Uuid, _>("patient_id"),
-                    "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                    "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                    "id": row.get::<Uuid, &str>("id"),
+                    "patient_id": row.get::<Uuid, &str>("patient_id"),
+                    "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                    "appointment_date": row.get::<NaiveDate, &str>("appointment_date"),
                     "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
                     "duration": row.get::<Option<i32>, _>("duration").unwrap_or(30),
-                    "status": row.get::<String, _>("status"),
-                    "notes": row.get::<Option<String>, _>("notes"),
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "status": row.get::<String, &str>("status"),
+                    "notes": row.get::<Option<String>, &str>("notes"),
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 })
             }).collect();
 
@@ -1614,16 +1661,16 @@ pub async fn get_appointments_by_date(
         Ok(rows) => {
             let appointments: Vec<serde_json::Value> = rows.iter().map(|row| {
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "patient_id": row.get::<Uuid, _>("patient_id"),
-                    "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                    "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                    "id": row.get::<Uuid, &str>("id"),
+                    "patient_id": row.get::<Uuid, &str>("patient_id"),
+                    "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                    "appointment_date": row.get::<NaiveDate, &str>("appointment_date"),
                     "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
                     "duration": row.get::<Option<i32>, _>("duration").unwrap_or(30),
-                    "status": row.get::<String, _>("status"),
-                    "notes": row.get::<Option<String>, _>("notes"),
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "status": row.get::<String, &str>("status"),
+                    "notes": row.get::<Option<String>, &str>("notes"),
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 })
             }).collect();
 
@@ -1658,16 +1705,16 @@ pub async fn get_appointment(
     {
         Ok(Some(row)) => {
             let appointment = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "appointment_date": row.get::<NaiveDate, &str>("appointment_date"),
                 "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
                 "duration": row.get::<Option<i32>, _>("duration").unwrap_or(30),
-                "status": row.get::<String, _>("status"),
-                "notes": row.get::<Option<String>, _>("notes"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "status": row.get::<String, &str>("status"),
+                "notes": row.get::<Option<String>, &str>("notes"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Ok().json(json!({
@@ -1814,16 +1861,16 @@ pub async fn create_appointment(
     {
         Ok(row) => {
             let appointment = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "appointment_date": row.get::<NaiveDate, &str>("appointment_date"),
                 "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
                 "duration": row.get::<Option<i32>, _>("duration").unwrap_or(30),
-                "status": row.get::<String, _>("status"),
-                "notes": row.get::<Option<String>, _>("notes"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "status": row.get::<String, &str>("status"),
+                "notes": row.get::<Option<String>, &str>("notes"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             // Invalidate appointment list cache
@@ -1948,16 +1995,16 @@ pub async fn update_appointment(
     {
         Ok(Some(row)) => {
             let appointment = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "appointment_date": row.get::<NaiveDate, &str>("appointment_date"),
                 "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
                 "duration": row.get::<Option<i32>, _>("duration").unwrap_or(30),
-                "status": row.get::<String, _>("status"),
-                "notes": row.get::<Option<String>, _>("notes"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "status": row.get::<String, &str>("status"),
+                "notes": row.get::<Option<String>, &str>("notes"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             // Invalidate appointment list cache
@@ -2006,13 +2053,13 @@ pub async fn delete_appointment(
     {
         Ok(Some(row)) => {
             let appointment_json = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "appointment_date": row.get::<NaiveDate, _>("appointment_date"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "appointment_date": row.get::<NaiveDate, &str>("appointment_date"),
                 "appointment_time": row.get::<NaiveTime, _>("appointment_time"),
-                "status": row.get::<String, _>("status"),
-                "notes": row.get::<Option<String>, _>("notes"),
+                "status": row.get::<String, &str>("status"),
+                "notes": row.get::<Option<String>, &str>("notes"),
             });
 
             match sqlx::query("DELETE FROM appointments WHERE id = $1")
@@ -2231,23 +2278,23 @@ pub async fn get_invoices(
         Ok(rows) => {
             let invoices: Vec<serde_json::Value> = rows.iter().map(|row| {
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "patient_id": row.get::<Uuid, _>("patient_id"),
-                    "invoice_number": row.get::<String, _>("invoice_number"),
-                    "date": row.get::<NaiveDate, _>("date"),
-                    "items": row.get::<serde_json::Value, _>("items"),
-                    "subtotal": row.get::<f64, _>("subtotal"),
-                    "tax_amount": row.get::<f64, _>("tax_amount"),
-                    "total_amount": row.get::<f64, _>("total_amount"),
-                    "payment_status": row.get::<String, _>("payment_status"),
-                    "payment_method": row.get::<Option<String>, _>("payment_method"),
+                    "id": row.try_get::<Uuid, _>("id").unwrap_or_default(),
+                    "patient_id": row.try_get::<Uuid, _>("patient_id").unwrap_or_default(),
+                    "invoice_number": row.try_get::<String, _>("invoice_number").unwrap_or_default(),
+                    "date": row.try_get::<NaiveDate, _>("date").unwrap_or_default(),
+                    "items": row.try_get::<serde_json::Value, _>("items").unwrap_or(serde_json::json!(null)),
+                    "subtotal": row.try_get::<f64, _>("subtotal").unwrap_or(0.0),
+                    "tax_amount": row.try_get::<f64, _>("tax_amount").unwrap_or(0.0),
+                    "total_amount": row.try_get::<f64, _>("total_amount").unwrap_or(0.0),
+                    "payment_status": row.try_get::<String, _>("payment_status").unwrap_or_default(),
+                    "payment_method": row.try_get::<Option<String>, _>("payment_method").ok().flatten(),
                     "patient_name": format!("{} {}", 
-                        row.get::<Option<String>, _>("first_name").unwrap_or_default(),
-                        row.get::<Option<String>, _>("last_name").unwrap_or_default()
+                        row.try_get::<Option<String>, _>("first_name").ok().flatten().unwrap_or_default(),
+                        row.try_get::<Option<String>, _>("last_name").ok().flatten().unwrap_or_default()
                     ),
-                    "patient_phone": row.get::<Option<String>, _>("phone").unwrap_or_default(),
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "patient_phone": row.try_get::<Option<String>, _>("phone").ok().flatten().unwrap_or_default(),
+                    "created_at": row.try_get::<chrono::DateTime<Utc>, _>("created_at").unwrap_or_default(),
+                    "updated_at": row.try_get::<chrono::DateTime<Utc>, _>("updated_at").unwrap_or_default()
                 })
             }).collect();
 
@@ -2345,27 +2392,27 @@ pub async fn get_invoice(
     {
         Ok(Some(row)) => {
             let invoice = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "invoice_number": row.get::<String, _>("invoice_number"),
-                "date": row.get::<NaiveDate, _>("date"),
-                "items": row.get::<serde_json::Value, _>("items"),
-                "subtotal": row.get::<f64, _>("subtotal"),
-                "tax_amount": row.get::<f64, _>("tax_amount"),
-                "total_amount": row.get::<f64, _>("total_amount"),
-                "payment_status": row.get::<String, _>("payment_status"),
-                "payment_method": row.get::<Option<String>, _>("payment_method"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "invoice_number": row.get::<String, &str>("invoice_number"),
+                "date": row.get::<NaiveDate, &str>("date"),
+                "items": row.get::<serde_json::Value, &str>("items"),
+                "subtotal": row.get::<f64, &str>("subtotal"),
+                "tax_amount": row.get::<f64, &str>("tax_amount"),
+                "total_amount": row.get::<f64, &str>("total_amount"),
+                "payment_status": row.get::<String, &str>("payment_status"),
+                "payment_method": row.get::<Option<String>, &str>("payment_method"),
                 "patient": {
-                    "id": row.get::<Uuid, _>("patient_id"),
+                    "id": row.get::<Uuid, &str>("patient_id"),
                     "name": format!("{} {}", 
-                        row.get::<Option<String>, _>("first_name").unwrap_or_default(),
-                        row.get::<Option<String>, _>("last_name").unwrap_or_default()
+                        row.get::<Option<String>, &str>("first_name").unwrap_or_default(),
+                        row.get::<Option<String>, &str>("last_name").unwrap_or_default()
                     ),
-                    "phone": row.get::<Option<String>, _>("phone").unwrap_or_default(),
-                    "patient_number": row.get::<Option<String>, _>("patient_number").unwrap_or_default()
+                    "phone": row.get::<Option<String>, &str>("phone").unwrap_or_default(),
+                    "patient_number": row.get::<Option<String>, &str>("patient_number").unwrap_or_default()
                 },
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Ok().json(json!({
@@ -2508,18 +2555,18 @@ pub async fn create_invoice(
     {
         Ok(row) => {
             let invoice = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "invoice_number": row.get::<String, _>("invoice_number"),
-                "date": row.get::<NaiveDate, _>("date"),
-                "items": row.get::<serde_json::Value, _>("items"),
-                "subtotal": row.get::<f64, _>("subtotal"),
-                "tax_amount": row.get::<f64, _>("tax_amount"),
-                "total_amount": row.get::<f64, _>("total_amount"),
-                "payment_status": row.get::<String, _>("payment_status"),
-                "payment_method": row.get::<Option<String>, _>("payment_method"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "invoice_number": row.get::<String, &str>("invoice_number"),
+                "date": row.get::<NaiveDate, &str>("date"),
+                "items": row.get::<serde_json::Value, &str>("items"),
+                "subtotal": row.get::<f64, &str>("subtotal"),
+                "tax_amount": row.get::<f64, &str>("tax_amount"),
+                "total_amount": row.get::<f64, &str>("total_amount"),
+                "payment_status": row.get::<String, &str>("payment_status"),
+                "payment_method": row.get::<Option<String>, &str>("payment_method"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             // Broadcast invoice update via WebSocket
@@ -2650,18 +2697,18 @@ pub async fn update_invoice(
     {
         Ok(Some(row)) => {
             let invoice = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "invoice_number": row.get::<String, _>("invoice_number"),
-                "date": row.get::<NaiveDate, _>("date"),
-                "items": row.get::<serde_json::Value, _>("items"),
-                "subtotal": row.get::<f64, _>("subtotal"),
-                "tax_amount": row.get::<f64, _>("tax_amount"),
-                "total_amount": row.get::<f64, _>("total_amount"),
-                "payment_status": row.get::<String, _>("payment_status"),
-                "payment_method": row.get::<Option<String>, _>("payment_method"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "invoice_number": row.get::<String, &str>("invoice_number"),
+                "date": row.get::<NaiveDate, &str>("date"),
+                "items": row.get::<serde_json::Value, &str>("items"),
+                "subtotal": row.get::<f64, &str>("subtotal"),
+                "tax_amount": row.get::<f64, &str>("tax_amount"),
+                "total_amount": row.get::<f64, &str>("total_amount"),
+                "payment_status": row.get::<String, &str>("payment_status"),
+                "payment_method": row.get::<Option<String>, &str>("payment_method"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             // Broadcast invoice update via WebSocket
@@ -2788,12 +2835,16 @@ pub async fn pay_invoice(
 
     // If payment method is M-Pesa, initiate STK push instead of direct payment
     if payment_method.to_lowercase() == "mpesa" || payment_method.to_lowercase() == "m-pesa" {
-        let phone_number = payment_data.get("phone_number")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| HttpResponse::BadRequest().json(json!({
-                "success": false,
-                "error": "phone_number is required for M-Pesa payments"
-            })))?;
+        let phone_number = match payment_data.get("phone_number")
+            .and_then(|v| v.as_str()) {
+            Some(phone) => phone,
+            None => {
+                return Ok(HttpResponse::BadRequest().json(json!({
+                    "success": false,
+                    "error": "phone_number is required for M-Pesa payments"
+                })));
+            }
+        };
 
         // Generate account reference
         let account_ref = format!("INV-{}", invoice_id.to_string().split('-').next().unwrap_or(""));
@@ -2853,16 +2904,16 @@ pub async fn pay_invoice(
     {
         Ok(Some(row)) => {
             let invoice = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "invoice_number": row.get::<String, _>("invoice_number"),
-                "date": row.get::<NaiveDate, _>("date"),
-                "items": row.get::<serde_json::Value, _>("items"),
-                "subtotal": row.get::<f64, _>("subtotal"),
-                "tax_amount": row.get::<f64, _>("tax_amount"),
-                "total_amount": row.get::<f64, _>("total_amount"),
-                "payment_status": row.get::<String, _>("payment_status"),
-                "payment_method": row.get::<Option<String>, _>("payment_method"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "invoice_number": row.get::<String, &str>("invoice_number"),
+                "date": row.get::<NaiveDate, &str>("date"),
+                "items": row.get::<serde_json::Value, &str>("items"),
+                "subtotal": row.get::<f64, &str>("subtotal"),
+                "tax_amount": row.get::<f64, &str>("tax_amount"),
+                "total_amount": row.get::<f64, &str>("total_amount"),
+                "payment_status": row.get::<String, &str>("payment_status"),
+                "payment_method": row.get::<Option<String>, &str>("payment_method"),
             });
 
             // Broadcast invoice payment update via WebSocket
@@ -2917,8 +2968,9 @@ pub async fn get_invoice_reports(
         )
     } else {
         let now = Utc::now().date_naive();
-        let first_day = NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .unwrap_or(now);
+        // Get first day of month using format parsing
+        let first_day_str = format!("{}-{:02}-01", now.format("%Y"), now.format("%m"));
+        let first_day = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(now);
         (first_day, now)
     };
 
@@ -3007,10 +3059,10 @@ pub async fn get_invoice_reports(
                 Ok(rows) => {
                     let daily_data: Vec<serde_json::Value> = rows.iter().map(|row| {
                         json!({
-                            "date": row.get::<NaiveDate, _>("date"),
-                            "count": row.get::<i64, _>("count"),
-                            "total": row.get::<Option<f64>, _>("total").unwrap_or(0.0),
-                            "paid": row.get::<Option<f64>, _>("paid").unwrap_or(0.0)
+                            "date": row.get::<NaiveDate, &str>("date"),
+                            "count": row.get::<i64, &str>("count"),
+                            "total": row.get::<Option<f64>, &str>("total").unwrap_or(0.0),
+                            "paid": row.get::<Option<f64>, &str>("paid").unwrap_or(0.0)
                         })
                     }).collect();
 
@@ -3103,7 +3155,7 @@ pub async fn get_medicines(
 
     match medicines_result {
         Ok(rows) => {
-            let medicines: Vec<serde_json::Value> = rows.iter().map(|row| {
+            let medicines: Vec<serde_json::Value> = rows.iter().filter_map(|row| {
                 let name: String = row.get("name");
                 let generic_name: Option<String> = row.get("generic_name");
                 let current_stock: i32 = row.get("current_stock");
@@ -3114,7 +3166,7 @@ pub async fn get_medicines(
                 let stock_status = if current_stock <= minimum_stock {
                     "low_stock"
                 } else if let Some(exp_date) = expiry_date {
-                    let days_until_expiry = (exp_date - Utc::now().date_naive()).num_days();
+                    let days_until_expiry = (exp_date.signed_duration_since(Utc::now().date_naive())).num_days();
                     if days_until_expiry <= 30 && days_until_expiry >= 0 {
                         "expiring_soon"
                     } else if days_until_expiry < 0 {
@@ -3127,20 +3179,20 @@ pub async fn get_medicines(
                 };
 
                 Some(json!({
-                    "id": row.get::<Uuid, _>("id"),
+                    "id": row.get::<Uuid, &str>("id"),
                     "name": name,
                     "generic_name": generic_name,
-                    "dosage_form": row.get::<String, _>("dosage_form"),
-                    "strength": row.get::<String, _>("strength"),
-                    "manufacturer": row.get::<Option<String>, _>("manufacturer"),
-                    "batch_number": row.get::<Option<String>, _>("batch_number"),
+                    "dosage_form": row.get::<String, &str>("dosage_form"),
+                    "strength": row.get::<String, &str>("strength"),
+                    "manufacturer": row.get::<Option<String>, &str>("manufacturer"),
+                    "batch_number": row.get::<Option<String>, &str>("batch_number"),
                     "expiry_date": expiry_date,
                     "current_stock": current_stock,
                     "minimum_stock": minimum_stock,
-                    "unit_price": row.get::<f64, _>("unit_price"),
+                    "unit_price": row.get::<f64, &str>("unit_price"),
                     "stock_status": stock_status,
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 }))
             }).collect();
 
@@ -3208,20 +3260,20 @@ pub async fn get_medicine(
             };
 
             let medicine = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "name": row.get::<String, _>("name"),
-                "generic_name": row.get::<Option<String>, _>("generic_name"),
-                "dosage_form": row.get::<String, _>("dosage_form"),
-                "strength": row.get::<String, _>("strength"),
-                "manufacturer": row.get::<Option<String>, _>("manufacturer"),
-                "batch_number": row.get::<Option<String>, _>("batch_number"),
+                "id": row.get::<Uuid, &str>("id"),
+                "name": row.get::<String, &str>("name"),
+                "generic_name": row.get::<Option<String>, &str>("generic_name"),
+                "dosage_form": row.get::<String, &str>("dosage_form"),
+                "strength": row.get::<String, &str>("strength"),
+                "manufacturer": row.get::<Option<String>, &str>("manufacturer"),
+                "batch_number": row.get::<Option<String>, &str>("batch_number"),
                 "expiry_date": expiry_date,
                 "current_stock": current_stock,
                 "minimum_stock": minimum_stock,
-                "unit_price": row.get::<f64, _>("unit_price"),
+                "unit_price": row.get::<f64, &str>("unit_price"),
                 "stock_status": stock_status,
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Ok().json(json!({
@@ -3323,19 +3375,19 @@ pub async fn create_medicine(
     {
         Ok(row) => {
             let medicine = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "name": row.get::<String, _>("name"),
-                "generic_name": row.get::<Option<String>, _>("generic_name"),
-                "dosage_form": row.get::<String, _>("dosage_form"),
-                "strength": row.get::<String, _>("strength"),
-                "manufacturer": row.get::<Option<String>, _>("manufacturer"),
-                "batch_number": row.get::<Option<String>, _>("batch_number"),
-                "expiry_date": row.get::<Option<NaiveDate>, _>("expiry_date"),
-                "current_stock": row.get::<i32, _>("current_stock"),
-                "minimum_stock": row.get::<i32, _>("minimum_stock"),
-                "unit_price": row.get::<f64, _>("unit_price"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "id": row.get::<Uuid, &str>("id"),
+                "name": row.get::<String, &str>("name"),
+                "generic_name": row.get::<Option<String>, &str>("generic_name"),
+                "dosage_form": row.get::<String, &str>("dosage_form"),
+                "strength": row.get::<String, &str>("strength"),
+                "manufacturer": row.get::<Option<String>, &str>("manufacturer"),
+                "batch_number": row.get::<Option<String>, &str>("batch_number"),
+                "expiry_date": row.get::<Option<NaiveDate>, &str>("expiry_date"),
+                "current_stock": row.get::<i32, &str>("current_stock"),
+                "minimum_stock": row.get::<i32, &str>("minimum_stock"),
+                "unit_price": row.get::<f64, &str>("unit_price"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Created().json(json!({
@@ -3426,19 +3478,19 @@ pub async fn update_medicine(
     {
         Ok(Some(row)) => {
             let medicine = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "name": row.get::<String, _>("name"),
-                "generic_name": row.get::<Option<String>, _>("generic_name"),
-                "dosage_form": row.get::<String, _>("dosage_form"),
-                "strength": row.get::<String, _>("strength"),
-                "manufacturer": row.get::<Option<String>, _>("manufacturer"),
-                "batch_number": row.get::<Option<String>, _>("batch_number"),
-                "expiry_date": row.get::<Option<NaiveDate>, _>("expiry_date"),
-                "current_stock": row.get::<i32, _>("current_stock"),
-                "minimum_stock": row.get::<i32, _>("minimum_stock"),
-                "unit_price": row.get::<f64, _>("unit_price"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "id": row.get::<Uuid, &str>("id"),
+                "name": row.get::<String, &str>("name"),
+                "generic_name": row.get::<Option<String>, &str>("generic_name"),
+                "dosage_form": row.get::<String, &str>("dosage_form"),
+                "strength": row.get::<String, &str>("strength"),
+                "manufacturer": row.get::<Option<String>, &str>("manufacturer"),
+                "batch_number": row.get::<Option<String>, &str>("batch_number"),
+                "expiry_date": row.get::<Option<NaiveDate>, &str>("expiry_date"),
+                "current_stock": row.get::<i32, &str>("current_stock"),
+                "minimum_stock": row.get::<i32, &str>("minimum_stock"),
+                "unit_price": row.get::<f64, &str>("unit_price"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Ok().json(json!({
@@ -3555,12 +3607,12 @@ pub async fn receive_stock(
                 "message": "Stock received successfully",
                 "data": {
                     "medicine_id": medicine_id,
-                    "medicine_name": row.get::<String, _>("name"),
+                    "medicine_name": row.get::<String, &str>("name"),
                     "quantity_received": quantity,
-                    "new_stock": row.get::<i32, _>("current_stock"),
-                    "batch_number": row.get::<Option<String>, _>("batch_number"),
-                    "expiry_date": row.get::<Option<NaiveDate>, _>("expiry_date"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "new_stock": row.get::<i32, &str>("current_stock"),
+                    "batch_number": row.get::<Option<String>, &str>("batch_number"),
+                    "expiry_date": row.get::<Option<NaiveDate>, &str>("expiry_date"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 }
             })))
         },
@@ -3599,8 +3651,8 @@ pub async fn get_prescriptions(
     match prescriptions_result {
         Ok(rows) => {
             let prescriptions: Vec<serde_json::Value> = rows.iter().filter_map(|row| {
-                let row_patient_id = row.get::<Uuid, _>("patient_id");
-                let row_status = row.get::<String, _>("status");
+                let row_patient_id = row.get::<Uuid, &str>("patient_id");
+                let row_status = row.get::<String, &str>("status");
 
                 // Filter by patient_id if provided
                 if let Some(pid_str) = patient_id {
@@ -3619,20 +3671,20 @@ pub async fn get_prescriptions(
                 }
 
                 Some(json!({
-                    "id": row.get::<Uuid, _>("id"),
+                    "id": row.get::<Uuid, &str>("id"),
                     "patient_id": row_patient_id,
-                    "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                    "consultation_id": row.get::<Option<Uuid>, _>("consultation_id"),
-                    "medicines": row.get::<serde_json::Value, _>("medicines"),
-                    "instructions": row.get::<String, _>("instructions"),
+                    "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                    "consultation_id": row.get::<Option<Uuid>, &str>("consultation_id"),
+                    "medicines": row.get::<serde_json::Value, &str>("medicines"),
+                    "instructions": row.get::<String, &str>("instructions"),
                     "status": row_status,
                     "patient_name": format!("{} {}", 
-                        row.get::<Option<String>, _>("first_name").unwrap_or_default(),
-                        row.get::<Option<String>, _>("last_name").unwrap_or_default()
+                        row.get::<Option<String>, &str>("first_name").unwrap_or_default(),
+                        row.get::<Option<String>, &str>("last_name").unwrap_or_default()
                     ),
-                    "patient_phone": row.get::<Option<String>, _>("phone").unwrap_or_default(),
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "patient_phone": row.get::<Option<String>, &str>("phone").unwrap_or_default(),
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 }))
             }).collect();
 
@@ -3683,24 +3735,24 @@ pub async fn get_prescription(
     {
         Ok(Some(row)) => {
             let prescription = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "consultation_id": row.get::<Option<Uuid>, _>("consultation_id"),
-                "medicines": row.get::<serde_json::Value, _>("medicines"),
-                "instructions": row.get::<String, _>("instructions"),
-                "status": row.get::<String, _>("status"),
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "consultation_id": row.get::<Option<Uuid>, &str>("consultation_id"),
+                "medicines": row.get::<serde_json::Value, &str>("medicines"),
+                "instructions": row.get::<String, &str>("instructions"),
+                "status": row.get::<String, &str>("status"),
                 "patient": {
-                    "id": row.get::<Uuid, _>("patient_id"),
+                    "id": row.get::<Uuid, &str>("patient_id"),
                     "name": format!("{} {}", 
-                        row.get::<Option<String>, _>("first_name").unwrap_or_default(),
-                        row.get::<Option<String>, _>("last_name").unwrap_or_default()
+                        row.get::<Option<String>, &str>("first_name").unwrap_or_default(),
+                        row.get::<Option<String>, &str>("last_name").unwrap_or_default()
                     ),
-                    "phone": row.get::<Option<String>, _>("phone").unwrap_or_default(),
-                    "patient_number": row.get::<Option<String>, _>("patient_number").unwrap_or_default()
+                    "phone": row.get::<Option<String>, &str>("phone").unwrap_or_default(),
+                    "patient_number": row.get::<Option<String>, &str>("patient_number").unwrap_or_default()
                 },
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Ok().json(json!({
@@ -3807,15 +3859,15 @@ pub async fn create_prescription(
     {
         Ok(row) => {
             let prescription = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "consultation_id": row.get::<Option<Uuid>, _>("consultation_id"),
-                "medicines": row.get::<serde_json::Value, _>("medicines"),
-                "instructions": row.get::<String, _>("instructions"),
-                "status": row.get::<String, _>("status"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "consultation_id": row.get::<Option<Uuid>, &str>("consultation_id"),
+                "medicines": row.get::<serde_json::Value, &str>("medicines"),
+                "instructions": row.get::<String, &str>("instructions"),
+                "status": row.get::<String, &str>("status"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Created().json(json!({
@@ -3891,15 +3943,15 @@ pub async fn update_prescription(
     {
         Ok(Some(row)) => {
             let prescription = json!({
-                "id": row.get::<Uuid, _>("id"),
-                "patient_id": row.get::<Uuid, _>("patient_id"),
-                "doctor_id": row.get::<Uuid, _>("doctor_id"),
-                "consultation_id": row.get::<Option<Uuid>, _>("consultation_id"),
-                "medicines": row.get::<serde_json::Value, _>("medicines"),
-                "instructions": row.get::<String, _>("instructions"),
-                "status": row.get::<String, _>("status"),
-                "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                "id": row.get::<Uuid, &str>("id"),
+                "patient_id": row.get::<Uuid, &str>("patient_id"),
+                "doctor_id": row.get::<Uuid, &str>("doctor_id"),
+                "consultation_id": row.get::<Option<Uuid>, &str>("consultation_id"),
+                "medicines": row.get::<serde_json::Value, &str>("medicines"),
+                "instructions": row.get::<String, &str>("instructions"),
+                "status": row.get::<String, &str>("status"),
+                "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
             });
 
             Ok(HttpResponse::Ok().json(json!({
@@ -4165,22 +4217,22 @@ pub async fn get_low_stock(
                 };
 
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "name": row.get::<String, _>("name"),
-                    "generic_name": row.get::<Option<String>, _>("generic_name"),
-                    "dosage_form": row.get::<String, _>("dosage_form"),
-                    "strength": row.get::<String, _>("strength"),
-                    "manufacturer": row.get::<Option<String>, _>("manufacturer"),
-                    "batch_number": row.get::<Option<String>, _>("batch_number"),
-                    "expiry_date": row.get::<Option<NaiveDate>, _>("expiry_date"),
+                    "id": row.get::<Uuid, &str>("id"),
+                    "name": row.get::<String, &str>("name"),
+                    "generic_name": row.get::<Option<String>, &str>("generic_name"),
+                    "dosage_form": row.get::<String, &str>("dosage_form"),
+                    "strength": row.get::<String, &str>("strength"),
+                    "manufacturer": row.get::<Option<String>, &str>("manufacturer"),
+                    "batch_number": row.get::<Option<String>, &str>("batch_number"),
+                    "expiry_date": row.get::<Option<NaiveDate>, &str>("expiry_date"),
                     "current_stock": current_stock,
                     "minimum_stock": minimum_stock,
-                    "unit_price": row.get::<f64, _>("unit_price"),
+                    "unit_price": row.get::<f64, &str>("unit_price"),
                     "stock_percentage": stock_percentage,
                     "stock_deficit": minimum_stock - current_stock,
                     "stock_status": "low_stock",
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 })
             }).collect();
 
@@ -4245,24 +4297,24 @@ pub async fn get_expiring_medicines(
             let now = Utc::now().date_naive();
             let medicines: Vec<serde_json::Value> = rows.iter().map(|row| {
                 let expiry_date: Option<NaiveDate> = row.get("expiry_date");
-                let days_until_expiry = expiry_date.map(|exp| (exp - now).num_days()).unwrap_or(0);
+                let days_until_expiry = expiry_date.map(|exp| exp.signed_duration_since(now).num_days()).unwrap_or(0);
 
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "name": row.get::<String, _>("name"),
-                    "generic_name": row.get::<Option<String>, _>("generic_name"),
-                    "dosage_form": row.get::<String, _>("dosage_form"),
-                    "strength": row.get::<String, _>("strength"),
-                    "manufacturer": row.get::<Option<String>, _>("manufacturer"),
-                    "batch_number": row.get::<Option<String>, _>("batch_number"),
+                    "id": row.get::<Uuid, &str>("id"),
+                    "name": row.get::<String, &str>("name"),
+                    "generic_name": row.get::<Option<String>, &str>("generic_name"),
+                    "dosage_form": row.get::<String, &str>("dosage_form"),
+                    "strength": row.get::<String, &str>("strength"),
+                    "manufacturer": row.get::<Option<String>, &str>("manufacturer"),
+                    "batch_number": row.get::<Option<String>, &str>("batch_number"),
                     "expiry_date": expiry_date,
-                    "current_stock": row.get::<i32, _>("current_stock"),
-                    "minimum_stock": row.get::<i32, _>("minimum_stock"),
-                    "unit_price": row.get::<f64, _>("unit_price"),
+                    "current_stock": row.get::<i32, &str>("current_stock"),
+                    "minimum_stock": row.get::<i32, &str>("minimum_stock"),
+                    "unit_price": row.get::<f64, &str>("unit_price"),
                     "days_until_expiry": days_until_expiry,
                     "stock_status": if days_until_expiry <= 0 { "expired" } else { "expiring_soon" },
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 })
             }).collect();
 
@@ -4370,8 +4422,9 @@ pub async fn get_stock_reconciliation(
         )
     } else {
         let now = Utc::now().date_naive();
-        let first_day = NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .unwrap_or(now);
+        // Get first day of month using format parsing
+        let first_day_str = format!("{}-{:02}-01", now.format("%Y"), now.format("%m"));
+        let first_day = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(now);
         (first_day, now)
     };
 
@@ -4454,8 +4507,8 @@ pub async fn adjust_stock(
 
     let (medicine_name, current_stock) = match medicine_result {
         Ok(Some(row)) => (
-            row.get::<String, _>("name"),
-            row.get::<i32, _>("current_stock")
+            row.get::<String, &str>("name"),
+            row.get::<i32, &str>("current_stock")
         ),
         Ok(None) => return Ok(HttpResponse::NotFound().json(json!({
             "success": false,
@@ -4547,11 +4600,11 @@ pub async fn adjust_stock(
                     "previous_stock": current_stock,
                     "adjustment_quantity": if adjustment_type == "set" { new_stock - current_stock } else { quantity },
                     "new_stock": new_stock,
-                    "minimum_stock": row.get::<i32, _>("minimum_stock"),
-                    "stock_status": if new_stock <= row.get::<i32, _>("minimum_stock") { "low_stock" } else { "normal" },
+                    "minimum_stock": row.get::<i32, &str>("minimum_stock"),
+                    "stock_status": if new_stock <= row.get::<i32, &str>("minimum_stock") { "low_stock" } else { "normal" },
                     "reason": reason,
                     "notes": notes,
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 }
             })))
         },
@@ -4582,8 +4635,9 @@ pub async fn get_financial_report(
         )
     } else {
         let now = Utc::now().date_naive();
-        let first_day = NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .unwrap_or(now);
+        // Get first day of month using format parsing
+        let first_day_str = format!("{}-{:02}-01", now.format("%Y"), now.format("%m"));
+        let first_day = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(now);
         (first_day, now)
     };
 
@@ -4646,25 +4700,25 @@ pub async fn get_financial_report(
         (Ok(total_revenue), Ok(pending_revenue), Ok(payment_methods), Ok(daily_revenue), Ok(status_counts)) => {
             let payment_breakdown: Vec<serde_json::Value> = payment_methods.iter().map(|row| {
                 json!({
-                    "method": row.get::<Option<String>, _>("payment_method"),
-                    "count": row.get::<i64, _>("count"),
-                    "total": row.get::<Option<f64>, _>("total").unwrap_or(0.0)
+                    "method": row.get::<Option<String>, &str>("payment_method"),
+                    "count": row.get::<i64, &str>("count"),
+                    "total": row.get::<Option<f64>, &str>("total").unwrap_or(0.0)
                 })
             }).collect();
 
             let daily_breakdown: Vec<serde_json::Value> = daily_revenue.iter().map(|row| {
                 json!({
-                    "date": row.get::<NaiveDate, _>("date"),
-                    "count": row.get::<i64, _>("count"),
-                    "total": row.get::<Option<f64>, _>("total").unwrap_or(0.0)
+                    "date": row.get::<NaiveDate, &str>("date"),
+                    "count": row.get::<i64, &str>("count"),
+                    "total": row.get::<Option<f64>, &str>("total").unwrap_or(0.0)
                 })
             }).collect();
 
             let status_breakdown: Vec<serde_json::Value> = status_counts.iter().map(|row| {
                 json!({
-                    "status": row.get::<String, _>("payment_status"),
-                    "count": row.get::<i64, _>("count"),
-                    "total": row.get::<Option<f64>, _>("total").unwrap_or(0.0)
+                    "status": row.get::<String, &str>("payment_status"),
+                    "count": row.get::<i64, &str>("count"),
+                    "total": row.get::<Option<f64>, &str>("total").unwrap_or(0.0)
                 })
             }).collect();
 
@@ -4727,7 +4781,9 @@ pub async fn create_sha_claim(
         })))
     };
 
-    let year = claim_data.get("year").and_then(|v| v.as_i64()).unwrap_or(chrono::Utc::now().year() as i64);
+    let current_date = chrono::Utc::now().date_naive();
+    let current_year_str = current_date.format("%Y").to_string();
+    let year = claim_data.get("year").and_then(|v| v.as_i64()).unwrap_or(current_year_str.parse::<i64>().unwrap_or(2024));
     
     let submission_date_str = match claim_data.get("submissionDate").and_then(|v| v.as_str()) {
         Some(sd) if !sd.is_empty() => sd,
@@ -4826,15 +4882,15 @@ pub async fn create_sha_claim(
             Ok(HttpResponse::Created().json(json!({
                 "success": true,
                 "data": {
-                    "id": row.get::<Uuid, _>("id"),
-                    "claim_number": row.get::<String, _>("claim_number"),
-                    "claim_date": row.get::<NaiveDate, _>("claim_date"),
-                    "service_date": row.get::<NaiveDate, _>("service_date"),
-                    "total_amount": row.get::<f64, _>("total_amount"),
-                    "status": row.get::<String, _>("status"),
-                    "submission_date": row.get::<Option<NaiveDate>, _>("submission_date"),
-                    "notes": row.get::<Option<String>, _>("notes"),
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at")
+                    "id": row.get::<Uuid, &str>("id"),
+                    "claim_number": row.get::<String, &str>("claim_number"),
+                    "claim_date": row.get::<NaiveDate, &str>("claim_date"),
+                    "service_date": row.get::<NaiveDate, &str>("service_date"),
+                    "total_amount": row.get::<f64, &str>("total_amount"),
+                    "status": row.get::<String, &str>("status"),
+                    "submission_date": row.get::<Option<NaiveDate>, &str>("submission_date"),
+                    "notes": row.get::<Option<String>, &str>("notes"),
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at")
                 },
                 "message": "SHA claim created successfully"
             })))
@@ -4941,33 +4997,33 @@ pub async fn get_sha_claims_report(
         (Ok(summary_rows), Ok(claims_rows)) => {
             let status_summary: Vec<serde_json::Value> = summary_rows.iter().map(|row| {
                 json!({
-                    "status": row.get::<String, _>("status"),
-                    "count": row.get::<i64, _>("count"),
-                    "total_amount": row.get::<Option<f64>, _>("total_amount").unwrap_or(0.0),
-                    "approved_amount": row.get::<Option<f64>, _>("approved_amount").unwrap_or(0.0)
+                    "status": row.get::<String, &str>("status"),
+                    "count": row.get::<i64, &str>("count"),
+                    "total_amount": row.get::<Option<f64>, &str>("total_amount").unwrap_or(0.0),
+                    "approved_amount": row.get::<Option<f64>, &str>("approved_amount").unwrap_or(0.0)
                 })
             }).collect();
 
             let claims: Vec<serde_json::Value> = claims_rows.iter().map(|row| {
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "claim_number": row.get::<String, _>("claim_number"),
-                    "invoice_id": row.get::<Uuid, _>("invoice_id"),
-                    "patient_id": row.get::<Uuid, _>("patient_id"),
-                    "patient_name": row.get::<String, _>("patient_name"),
-                    "patient_sha_number": row.get::<String, _>("patient_sha_number"),
-                    "claim_date": row.get::<NaiveDate, _>("claim_date"),
-                    "service_date": row.get::<NaiveDate, _>("service_date"),
-                    "total_amount": row.get::<f64, _>("total_amount"),
-                    "approved_amount": row.get::<Option<f64>, _>("approved_amount"),
-                    "status": row.get::<String, _>("status"),
-                    "submission_date": row.get::<Option<NaiveDate>, _>("submission_date"),
-                    "approval_date": row.get::<Option<NaiveDate>, _>("approval_date"),
-                    "payment_date": row.get::<Option<NaiveDate>, _>("payment_date"),
-                    "rejection_reason": row.get::<Option<String>, _>("rejection_reason"),
-                    "notes": row.get::<Option<String>, _>("notes"),
-                    "created_at": row.get::<chrono::DateTime<Utc>, _>("created_at"),
-                    "updated_at": row.get::<chrono::DateTime<Utc>, _>("updated_at")
+                    "id": row.get::<Uuid, &str>("id"),
+                    "claim_number": row.get::<String, &str>("claim_number"),
+                    "invoice_id": row.get::<Uuid, &str>("invoice_id"),
+                    "patient_id": row.get::<Uuid, &str>("patient_id"),
+                    "patient_name": row.get::<String, &str>("patient_name"),
+                    "patient_sha_number": row.get::<String, &str>("patient_sha_number"),
+                    "claim_date": row.get::<NaiveDate, &str>("claim_date"),
+                    "service_date": row.get::<NaiveDate, &str>("service_date"),
+                    "total_amount": row.get::<f64, &str>("total_amount"),
+                    "approved_amount": row.get::<Option<f64>, &str>("approved_amount"),
+                    "status": row.get::<String, &str>("status"),
+                    "submission_date": row.get::<Option<NaiveDate>, &str>("submission_date"),
+                    "approval_date": row.get::<Option<NaiveDate>, &str>("approval_date"),
+                    "payment_date": row.get::<Option<NaiveDate>, &str>("payment_date"),
+                    "rejection_reason": row.get::<Option<String>, &str>("rejection_reason"),
+                    "notes": row.get::<Option<String>, &str>("notes"),
+                    "created_at": row.get::<chrono::DateTime<Utc>, &str>("created_at"),
+                    "updated_at": row.get::<chrono::DateTime<Utc>, &str>("updated_at")
                 })
             }).collect();
 
@@ -5082,18 +5138,18 @@ pub async fn get_audit_report(
         Ok(rows) => {
             let logs: Vec<serde_json::Value> = rows.iter().map(|row| {
                 json!({
-                    "id": row.get::<Uuid, _>("id"),
-                    "user_id": row.get::<Option<Uuid>, _>("user_id"),
-                    "session_id": row.get::<Option<String>, _>("session_id"),
-                    "action": row.get::<serde_json::Value, _>("action"),
-                    "resource": row.get::<serde_json::Value, _>("resource"),
-                    "resource_id": row.get::<Option<String>, _>("resource_id"),
-                    "result": row.get::<serde_json::Value, _>("result"),
+                    "id": row.get::<Uuid, &str>("id"),
+                    "user_id": row.get::<Option<Uuid>, &str>("user_id"),
+                    "session_id": row.get::<Option<String>, &str>("session_id"),
+                    "action": row.get::<serde_json::Value, &str>("action"),
+                    "resource": row.get::<serde_json::Value, &str>("resource"),
+                    "resource_id": row.get::<Option<String>, &str>("resource_id"),
+                    "result": row.get::<serde_json::Value, &str>("result"),
                     "details": row.get::<Option<serde_json::Value>, _>("details"),
-                    "ip_address": row.get::<Option<String>, _>("ip_address"),
-                    "user_agent": row.get::<Option<String>, _>("user_agent"),
-                    "request_id": row.get::<Option<String>, _>("request_id"),
-                    "timestamp": row.get::<chrono::DateTime<Utc>, _>("timestamp")
+                    "ip_address": row.get::<Option<String>, &str>("ip_address"),
+                    "user_agent": row.get::<Option<String>, &str>("user_agent"),
+                    "request_id": row.get::<Option<String>, &str>("request_id"),
+                    "timestamp": row.get::<chrono::DateTime<Utc>, &str>("timestamp")
                 })
             }).collect();
 
@@ -5204,8 +5260,9 @@ pub async fn get_dashboard_report(
     .await;
 
     // Get this month's revenue
-    let first_day_month = NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
-        .unwrap_or(today);
+    // Get first day of month using format parsing
+    let first_day_str = format!("{}-{:02}-01", today.format("%Y"), today.format("%m"));
+    let first_day_month = NaiveDate::parse_from_str(&first_day_str, "%Y-%m-%d").unwrap_or(today);
     let revenue_month_result = sqlx::query_scalar::<_, Option<f64>>(
         "SELECT SUM(total_amount) FROM invoices WHERE date >= $1 AND date <= $2 AND payment_status = 'paid'"
     )
@@ -5353,7 +5410,7 @@ pub async fn initiate_stk_push(
         })?;
 
     // Store transaction in database
-    let mpesa_transaction = mpesa::create_mpesa_transaction(
+    let mpesa_transaction = create_mpesa_transaction(
         &state.db_pool,
         req.invoice_id,
         stk_response.merchant_request_id.clone(),
@@ -5465,7 +5522,7 @@ pub async fn mpesa_callback(
     let status = if result_code == 0 { "Completed" } else { "Failed" };
 
     // Update transaction in database
-    let _ = mpesa::update_mpesa_transaction(
+    let _ = update_mpesa_transaction(
         &state.db_pool,
         checkout_request_id.clone(),
         status.to_string(),
@@ -5478,7 +5535,7 @@ pub async fn mpesa_callback(
     // If payment successful, update invoice
     if result_code == 0 {
         // Find invoice by transaction
-        let transaction_result = mpesa::get_mpesa_transaction_by_checkout_id(
+        let transaction_result = get_mpesa_transaction_by_checkout_id(
             &state.db_pool,
             checkout_request_id.clone()
         ).await;
@@ -5508,7 +5565,7 @@ pub async fn get_mpesa_transaction_status(
 ) -> Result<HttpResponse> {
     let checkout_request_id = path.into_inner();
     
-    let transaction = mpesa::get_mpesa_transaction_by_checkout_id(
+    let transaction = get_mpesa_transaction_by_checkout_id(
         &state.db_pool,
         checkout_request_id.clone()
     ).await
@@ -5556,7 +5613,7 @@ pub async fn get_invoice_mpesa_transactions(
 ) -> Result<HttpResponse> {
     let invoice_id = path.into_inner();
     
-    let transactions = mpesa::get_mpesa_transactions_by_invoice(
+    let transactions = get_mpesa_transactions_by_invoice(
         &state.db_pool,
         invoice_id
     ).await

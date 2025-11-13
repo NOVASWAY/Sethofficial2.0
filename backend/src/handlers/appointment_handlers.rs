@@ -65,11 +65,11 @@ pub async fn get_appointments(
     );
 
     let appointments_result = sqlx::query(&appointments_query)
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await;
 
     let count_result = sqlx::query_scalar::<_, i64>(&count_query)
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await;
 
     match (appointments_result, count_result) {
@@ -161,7 +161,7 @@ pub async fn create_appointment(
     .bind(&appointment_data.appointment_date)
     .bind(&appointment_data.appointment_time)
     .bind(30) // Default duration of 30 minutes
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     match conflict_check {
@@ -204,7 +204,7 @@ pub async fn create_appointment(
     .bind(&appointment_data.notes)
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -317,7 +317,7 @@ pub async fn update_appointment(
     params.push(Box::new(appointment_id));
 
     let result = sqlx::query(&update_query)
-        .execute(&data.database.pool)
+        .execute(&data.db_pool)
         .await;
 
     match result {
@@ -365,7 +365,7 @@ pub async fn cancel_appointment(
     )
     .bind(now)
     .bind(appointment_id)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -418,7 +418,7 @@ pub async fn get_queue(
     );
 
     let result = sqlx::query(&queue_query)
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await;
 
     match result {
@@ -483,7 +483,7 @@ pub async fn checkin_patient(
         "SELECT status FROM appointments WHERE id = $1"
     )
     .bind(appointment_id)
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await;
 
     match appointment_check {
@@ -521,7 +521,7 @@ pub async fn checkin_patient(
     )
     .bind(now)
     .bind(appointment_id)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -569,7 +569,7 @@ pub async fn call_next_patient(
     );
 
     let next_patient_result = sqlx::query(&next_patient_query)
-        .fetch_optional(&data.database.pool)
+        .fetch_optional(&data.db_pool)
         .await;
 
     match next_patient_result {
@@ -587,7 +587,7 @@ pub async fn call_next_patient(
             )
             .bind(Utc::now())
             .bind(appointment_id)
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
             match update_result {

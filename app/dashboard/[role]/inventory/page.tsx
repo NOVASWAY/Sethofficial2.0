@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,7 +62,7 @@ interface MedicineAPIResponse {
   [key: string]: unknown
 }
 
-export default function InventoryPage() {
+export default function InventoryPage(): JSX.Element {
   const params = useParams()
   const role = params.role as string
   const { toast } = useToast()

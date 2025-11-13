@@ -57,18 +57,111 @@ export default function SetupPage() {
     return null
   }
 
-  const handleSetup = async () => {
-    const validationError = validateForm()
-    if (validationError) {
-      setError(validationError)
-      return
-    }
+  const [validationStep, setValidationStep] = useState<'form' | 'database' | 'config' | 'complete'>('form')
+  const [validationResults, setValidationResults] = useState<{
+    database: boolean
+    migrations: boolean
+    config: boolean
+  }>({
+    database: false,
+    migrations: false,
+    config: false
+  })
 
+  const validateDatabase = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/auth/setup/validate-database', {
+        method: 'GET',
+      })
+      const data = await response.json()
+      return data.success === true
+    } catch {
+      return false
+    }
+  }
+
+  const validateMigrations = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/auth/setup/validate-migrations', {
+        method: 'GET',
+      })
+      const data = await response.json()
+      return data.success === true
+    } catch {
+      return false
+    }
+  }
+
+  const validateConfig = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/auth/setup/validate-config', {
+        method: 'GET',
+      })
+      const data = await response.json()
+      return data.success === true
+    } catch {
+      return false
+    }
+  }
+
+  const handleValidation = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const response = await fetch('http://localhost:8081/api/v1/auth/setup', {
+      // Validate database connection
+      const dbValid = await validateDatabase()
+      setValidationResults(prev => ({ ...prev, database: dbValid }))
+      
+      if (!dbValid) {
+        setError('Database connection failed. Please check your database configuration.')
+        setIsLoading(false)
+        return
+      }
+
+      setValidationStep('database')
+      
+      // Validate migrations
+      const migrationsValid = await validateMigrations()
+      setValidationResults(prev => ({ ...prev, migrations: migrationsValid }))
+      
+      if (!migrationsValid) {
+        setError('Database migrations not applied. Please run migrations first.')
+        setIsLoading(false)
+        return
+      }
+
+      setValidationStep('config')
+      
+      // Validate configuration
+      const configValid = await validateConfig()
+      setValidationResults(prev => ({ ...prev, config: configValid }))
+      
+      if (!configValid) {
+        setError('Configuration validation failed. Please check your environment variables.')
+        setIsLoading(false)
+        return
+      }
+
+      // All validations passed, proceed with setup
+      await handleSetup()
+    } catch (error) {
+      console.error('Validation error:', error)
+      setError(error instanceof Error ? error.message : 'Validation failed. Please try again.')
+      setIsLoading(false)
+    }
+  }
+
+  const handleSetup = async () => {
+    const validationError = validateForm()
+    if (validationError) {
+      setError(validationError)
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const response = await fetch('http://localhost:8080/api/auth/setup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,10 +183,11 @@ export default function SetupPage() {
       }
 
       setSuccess(true)
+      setValidationStep('complete')
       
       // Redirect to login after 3 seconds
       setTimeout(() => {
-        router.push('/login')
+        router.push('/')
       }, 3000)
 
     } catch (error) {

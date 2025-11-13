@@ -71,13 +71,13 @@ pub async fn get_invoices(
 
     let total_count: i64 = if params.is_empty() {
         sqlx::query_scalar(&count_query)
-            .fetch_one(&data.database.pool)
+            .fetch_one(&data.db_pool)
             .await
             .unwrap_or(0)
     } else {
         // For simplicity, we'll use a basic count for now
         sqlx::query_scalar("SELECT COUNT(*) FROM invoices")
-            .fetch_one(&data.database.pool)
+            .fetch_one(&data.db_pool)
             .await
             .unwrap_or(0)
     };
@@ -106,7 +106,7 @@ pub async fn get_invoices(
     )
     .bind(limit)
     .bind(offset)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let invoices = match invoices_result {
@@ -121,7 +121,7 @@ pub async fn get_invoices(
                     "SELECT first_name, last_name, phone FROM patients WHERE id = $1"
                 )
                 .bind(patient_id)
-                .fetch_optional(&data.database.pool)
+                .fetch_optional(&data.db_pool)
                 .await;
                 
                 let (patient_name, patient_phone) = match patient_result {
@@ -252,7 +252,7 @@ pub async fn create_invoice(
     .bind(Uuid::parse_str(&claims.sub).unwrap())
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -294,7 +294,7 @@ pub async fn get_invoice(
         "SELECT id, patient_id, invoice_number, date, items, subtotal, tax_amount, total_amount, payment_status, payment_method, consultation_id, created_by, created_at, updated_at FROM invoices WHERE id = $1"
     )
     .bind(invoice_id)
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await;
 
     match result {
@@ -306,7 +306,7 @@ pub async fn get_invoice(
                 "SELECT first_name, last_name, phone FROM patients WHERE id = $1"
             )
             .bind(patient_id)
-            .fetch_optional(&data.database.pool)
+            .fetch_optional(&data.db_pool)
             .await;
             
             let (patient_name, patient_phone) = match patient_result {
@@ -411,7 +411,7 @@ pub async fn process_payment(
         "SELECT total_amount, payment_status FROM invoices WHERE id = $1"
     )
     .bind(invoice_id)
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await;
 
     match invoice_result {
@@ -433,7 +433,7 @@ pub async fn process_payment(
             .bind(payment_method)
             .bind(now)
             .bind(invoice_id)
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
             match update_result {
@@ -458,7 +458,7 @@ pub async fn process_payment(
                     .bind(now.date_naive())
                     .bind(now)
                     .bind(now)
-                    .execute(&data.database.pool)
+                    .execute(&data.db_pool)
                     .await;
 
                     Ok(HttpResponse::Ok().json(ApiResponse {
@@ -520,7 +520,7 @@ pub async fn print_invoice(
         "SELECT id, patient_id, invoice_number, date, items, subtotal, tax_amount, total_amount, payment_status, payment_method FROM invoices WHERE id = $1"
     )
     .bind(invoice_id)
-    .fetch_optional(&data.database.pool)
+    .fetch_optional(&data.db_pool)
     .await;
 
     match result {
@@ -532,7 +532,7 @@ pub async fn print_invoice(
                 "SELECT first_name, last_name, phone, email, address FROM patients WHERE id = $1"
             )
             .bind(patient_id)
-            .fetch_optional(&data.database.pool)
+            .fetch_optional(&data.db_pool)
             .await;
             
             let patient_info = match patient_result {
@@ -624,7 +624,7 @@ pub async fn get_patient_invoices(
         "SELECT id, invoice_number, date, total_amount, payment_status, payment_method, created_at FROM invoices WHERE patient_id = $1 ORDER BY created_at DESC"
     )
     .bind(patient_id)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     match result {

@@ -53,11 +53,11 @@ pub async fn get_prescriptions(
     );
 
     let prescriptions_result = sqlx::query(&prescriptions_query)
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await;
 
     let count_result = sqlx::query_scalar::<_, i64>(&count_query)
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await;
 
     match (prescriptions_result, count_result) {
@@ -120,7 +120,7 @@ pub async fn dispense_prescription(
     let now = Utc::now();
 
     // Start a transaction
-    let mut tx = data.database.pool.begin().await
+    let mut tx = data.db_pool.begin().await
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Failed to start transaction: {}", e)))?;
 
     // Get the prescription with medicines
@@ -337,11 +337,11 @@ pub async fn get_medicines(
     );
 
     let medicines_result = sqlx::query(&medicines_query)
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await;
 
     let count_result = sqlx::query_scalar::<_, i64>(&count_query)
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await;
 
     match (medicines_result, count_result) {
@@ -434,7 +434,7 @@ pub async fn add_medicine(
     .bind(medicine_data.unit_price)
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -545,7 +545,7 @@ pub async fn update_medicine(
     params.push(Box::new(medicine_id));
 
     let result = sqlx::query(&update_query)
-        .execute(&data.database.pool)
+        .execute(&data.db_pool)
         .await;
 
     match result {
@@ -618,7 +618,7 @@ pub async fn get_stock(
     );
 
     let result = sqlx::query(&stock_query)
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await;
 
     match result {
@@ -684,7 +684,7 @@ pub async fn receive_stock(
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Start a transaction
-    let mut tx = data.database.pool.begin().await
+    let mut tx = data.db_pool.begin().await
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Failed to start transaction: {}", e)))?;
 
     // Update the medicine stock

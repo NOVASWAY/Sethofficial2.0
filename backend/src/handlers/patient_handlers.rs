@@ -51,7 +51,7 @@ pub async fn get_patients(
 
     let patients: Vec<Patient> = query_builder
         .build_query_as::<Patient>()
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await
         .map_err(|e| {
             eprintln!("Error fetching patients: {}", e);
@@ -60,7 +60,7 @@ pub async fn get_patients(
 
     let total: i64 = count_builder
         .build_query_scalar()
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
@@ -138,7 +138,7 @@ pub async fn create_patient(
     .bind(&patient_data.insurance_number)
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -158,7 +158,7 @@ pub async fn create_patient(
                 "last_name": patient_data.last_name
             }))
             .bind(now)
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
             Ok(HttpResponse::Created().json(ApiResponse {
@@ -192,7 +192,7 @@ pub async fn get_patient(
         "SELECT * FROM patients WHERE id = $1"
     )
     .bind(patient_id)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     match patient_result {
@@ -244,7 +244,7 @@ pub async fn update_patient(
         "SELECT * FROM patients WHERE id = $1"
     )
     .bind(patient_id)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     if current_patient.is_err() {
@@ -357,7 +357,7 @@ pub async fn update_patient(
 
     let result = query_builder
         .build()
-        .execute(&data.database.pool)
+        .execute(&data.db_pool)
         .await;
 
     match result {
@@ -382,7 +382,7 @@ pub async fn update_patient(
                 "last_name": update_data.last_name.unwrap_or(current.last_name)
             }))
             .bind(now)
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
               Ok(HttpResponse::Ok().json(ApiResponse::<()> {
@@ -418,7 +418,7 @@ pub async fn delete_patient(
         "SELECT COUNT(*) FROM consultations WHERE patient_id = $1"
     )
     .bind(patient_id)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await
     .unwrap_or(0);
 
@@ -433,7 +433,7 @@ pub async fn delete_patient(
 
     let result = sqlx::query("DELETE FROM patients WHERE id = $1")
         .bind(patient_id)
-        .execute(&data.database.pool)
+        .execute(&data.db_pool)
         .await;
 
     match result {
@@ -448,7 +448,7 @@ pub async fn delete_patient(
             .bind("patient")
             .bind(patient_id)
             .bind(Utc::now())
-            .execute(&data.database.pool)
+            .execute(&data.db_pool)
             .await;
 
               Ok(HttpResponse::Ok().json(ApiResponse::<()> {
@@ -527,7 +527,7 @@ pub async fn import_patients(
         .bind(&patient_import.location)
         .bind(now)
         .bind(now)
-        .execute(&data.database.pool)
+        .execute(&data.db_pool)
         .await;
 
         match result {
@@ -572,7 +572,7 @@ pub async fn search_patients(
         "#
     )
     .bind(format!("%{}%", search_term))
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 

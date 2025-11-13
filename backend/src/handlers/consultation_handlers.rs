@@ -34,13 +34,13 @@ pub async fn get_consultations(
 
     let consultations: Vec<Consultation> = query_builder
         .build_query_as()
-        .fetch_all(&data.database.pool)
+        .fetch_all(&data.db_pool)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
     let total: i64 = count_builder
         .build_query_scalar()
-        .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
@@ -94,7 +94,7 @@ pub async fn create_consultation(
     .bind("completed")
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -129,7 +129,7 @@ pub async fn get_consultation(
         "SELECT * FROM consultations WHERE id = $1"
     )
     .bind(consultation_id)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     match consultation_result {
@@ -182,7 +182,7 @@ pub async fn update_consultation(
     .bind(&update_data.notes)
     .bind(now)
     .bind(consultation_id)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {
@@ -237,7 +237,7 @@ pub async fn add_prescription(
     .bind("active")
     .bind(now)
     .bind(now)
-    .execute(&data.database.pool)
+    .execute(&data.db_pool)
     .await;
 
     match result {

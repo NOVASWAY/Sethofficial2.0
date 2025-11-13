@@ -8,6 +8,7 @@ use crate::models::{LoginRequest, LoginResponse, User, ApiResponse};
 use crate::AppState;
 use crate::middleware::auth::Claims;
 use crate::auth::AuthService;
+use crate::mfa::MfaService;
 
 pub async fn login(
     req: web::Json<LoginRequest>,
@@ -39,7 +40,7 @@ async fn login_internal(
         "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE username = $1 AND is_active = true"
     )
     .bind(&login_req.username)
-    .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
     .await;
 
     let user = match user_result {
@@ -71,6 +72,50 @@ async fn login_internal(
             data: None,
             message: None,
             error: Some("Invalid credentials".to_string()),
+        }));
+    }
+
+    // Check if MFA is enabled for this user
+    let mfa_enabled: Option<bool> = sqlx::query_scalar(
+        "SELECT mfa_enabled FROM users WHERE id = $1"
+    )
+    .bind(user.id)
+        .fetch_optional(&data.db_pool)
+    .await
+    .unwrap_or(None);
+
+    // If MFA is enabled, create MFA session instead of generating token
+    if mfa_enabled.unwrap_or(false) {
+        let mfa_service = MfaService::new(data.db_pool.clone());
+        
+        // Get IP address and user agent from request (if available)
+        // For now, we'll use None as we don't have direct access to HttpRequest here
+        let mfa_session_token = mfa_service.create_mfa_session(
+            user.id,
+            None, // IP address
+            None, // User agent
+        ).await.map_err(|e| format!("Failed to create MFA session: {}", e))?;
+
+        // Return MFA required response
+        return Ok(HttpResponse::Ok().json(ApiResponse {
+            success: true,
+            data: Some(json!({
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "role": user.role,
+                    "name": user.name,
+                    "department": user.department,
+                    "permissions": user.permissions,
+                    "is_active": user.is_active,
+                    "created_at": user.created_at,
+                    "updated_at": user.updated_at
+                },
+                "mfa_required": true,
+                "mfa_session_token": mfa_session_token
+            })),
+            message: Some("MFA verification required".to_string()),
+            error: None,
         }));
     }
 
@@ -171,7 +216,7 @@ pub async fn refresh(
         "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1 AND is_active = true"
     )
     .bind(Uuid::parse_str(&claims.claims.sub).unwrap())
-    .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
     .await;
 
     let user = match user_result {
@@ -250,7 +295,7 @@ pub async fn get_current_user(
         "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1 AND is_active = true"
     )
     .bind(Uuid::parse_str(&claims.sub).unwrap())
-    .fetch_one(&data.database.pool)
+        .fetch_one(&data.db_pool)
     .await;
 
     let user = match user_result {

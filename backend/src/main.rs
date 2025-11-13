@@ -16,6 +16,16 @@ mod services;
 mod websocket;
 mod cache;
 mod redis_client;
+mod mfa;
+mod errors;
+mod error;
+mod handlers;
+mod audit;
+mod backup;
+mod encryption;
+mod monitoring;
+mod metrics;
+mod validation;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -220,6 +230,26 @@ async fn main() -> std::io::Result<()> {
                     .route("/me", web::get().to(simple_handlers::get_me))
                     .route("/profile", web::get().to(simple_handlers::get_profile))
             )
+            
+            // MFA routes (protected)
+            .service(
+                web::scope("/api/mfa")
+                    .wrap(security_middleware.clone())
+                    .route("/status", web::get().to(handlers::mfa_handlers::get_mfa_status))
+                    .route("/setup/totp", web::post().to(handlers::mfa_handlers::setup_totp))
+                    .route("/verify", web::post().to(handlers::mfa_handlers::verify_mfa))
+                    .route("/disable", web::delete().to(handlers::mfa_handlers::disable_mfa))
+            )
+            .route("/api/mfa/session/{token}", web::get().to(handlers::mfa_handlers::get_mfa_session))
+            
+            // Password reset routes (public)
+            .route("/api/auth/password-reset/request", web::post().to(handlers::password_reset_handlers::request_password_reset))
+            .route("/api/auth/password-reset/verify/{token}", web::get().to(handlers::password_reset_handlers::verify_reset_token))
+            .route("/api/auth/password-reset", web::post().to(handlers::password_reset_handlers::reset_password))
+            
+            // Email verification routes (public)
+            .route("/api/auth/verify-email/{token}", web::get().to(handlers::email_verification_handlers::verify_email))
+            .route("/api/auth/resend-verification", web::post().to(handlers::email_verification_handlers::resend_verification))
             
             // ===========================================
             // PROTECTED ROUTES (JWT + Rate Limiting Required)

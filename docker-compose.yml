@@ -16,6 +16,9 @@ services:
       - "5432:5432"
     networks:
       - clinic-network
+    mem_limit: 2g
+    mem_reservation: 512m
+    cpus: '2.0'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clinic_user -d clinic_management"]
       interval: 10s
@@ -32,13 +35,16 @@ services:
     image: redis:7-alpine
     container_name: clinic-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password} --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
     networks:
       - clinic-network
+    mem_limit: 768m
+    mem_reservation: 256m
+    cpus: '1.0'
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
@@ -55,6 +61,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+      network: host
+      args:
+        DATABASE_URL: postgresql://clinic_user:${POSTGRES_PASSWORD:-clinic_password}@localhost:5432/clinic_management
     container_name: clinic-backend
     restart: unless-stopped
     environment:
@@ -83,6 +92,9 @@ services:
       - "8080:8080"
     networks:
       - clinic-network
+    mem_limit: 2g
+    mem_reservation: 512m
+    cpus: '2.0'
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,10 +120,12 @@ services:
     container_name: clinic-frontend
     restart: unless-stopped
     ports:
-      - "80:3000"
-      - "443:443"
+      - "3000:3000"
     networks:
       - clinic-network
+    mem_limit: 1.5g
+    mem_reservation: 256m
+    cpus: '1.5'
     depends_on:
       backend:
         condition: service_healthy
@@ -139,6 +153,9 @@ services:
       - "443:443"
     networks:
       - clinic-network
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: '0.5'
     depends_on:
       - frontend
       - backend
@@ -164,6 +181,7 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
+      - '--storage.tsdb.retention.size=5GB'
       - '--web.enable-lifecycle'
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -172,6 +190,9 @@ services:
       - "9090:9090"
     networks:
       - clinic-network
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: '1.0'
     profiles:
       - monitoring
 
@@ -187,9 +208,12 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     ports:
-      - "3000:3000"
+      - "3001:3000"
     networks:
       - clinic-network
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: '0.5'
     depends_on:
       - prometheus
     profiles:

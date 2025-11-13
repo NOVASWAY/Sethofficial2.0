@@ -22,7 +22,7 @@ pub async fn get_financial_report(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let total_revenue = total_revenue_result.unwrap_or(0.0);
@@ -37,7 +37,7 @@ pub async fn get_financial_report(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let monthly_revenue = monthly_revenue_result.unwrap_or_default()
@@ -52,7 +52,7 @@ pub async fn get_financial_report(
     let outstanding_result = sqlx::query_scalar::<_, f64>(
         "SELECT COALESCE(SUM(final_amount), 0) FROM invoices WHERE status IN ('pending', 'overdue')"
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let outstanding_payments = outstanding_result.unwrap_or(0.0);
@@ -96,7 +96,7 @@ pub async fn get_patient_report(
     let total_patients_result = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM patients"
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let total_patients = total_patients_result.unwrap_or(0);
@@ -107,7 +107,7 @@ pub async fn get_patient_report(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let new_patients = new_patients_result.unwrap_or(0);
@@ -116,7 +116,7 @@ pub async fn get_patient_report(
     let gender_distribution_result = sqlx::query_as::<_, (String, i64)>(
         "SELECT gender, COUNT(*) as count FROM patients GROUP BY gender"
     )
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let gender_distribution = gender_distribution_result.unwrap_or_default()
@@ -149,7 +149,7 @@ pub async fn get_patient_report(
             END
          ORDER BY age_group"
     )
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let age_distribution = age_distribution_result.unwrap_or_default()
@@ -166,7 +166,7 @@ pub async fn get_patient_report(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let patient_visits = patient_visits_result.unwrap_or(0);
@@ -201,7 +201,7 @@ pub async fn get_inventory_report(
     let total_items_result = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE is_active = true"
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let total_items = total_items_result.unwrap_or(0);
@@ -210,7 +210,7 @@ pub async fn get_inventory_report(
     let low_stock_result = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE stock_quantity <= minimum_stock AND is_active = true"
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let low_stock_items = low_stock_result.unwrap_or(0);
@@ -219,7 +219,7 @@ pub async fn get_inventory_report(
     let expiring_result = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND is_active = true"
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let expiring_items = expiring_result.unwrap_or(0);
@@ -228,7 +228,7 @@ pub async fn get_inventory_report(
     let total_value_result = sqlx::query_scalar::<_, f64>(
         "SELECT COALESCE(SUM(stock_quantity * unit_price), 0) FROM medicines WHERE is_active = true"
     )
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await;
 
     let total_value = total_value_result.unwrap_or(0.0);
@@ -241,7 +241,7 @@ pub async fn get_inventory_report(
          ORDER BY stock_quantity ASC 
          LIMIT 10"
     )
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let low_stock_details = low_stock_details_result.unwrap_or_default()
@@ -263,7 +263,7 @@ pub async fn get_inventory_report(
          ORDER BY expiry_date ASC 
          LIMIT 10"
     )
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let expiring_details = expiring_details_result.unwrap_or_default()
@@ -325,7 +325,7 @@ pub async fn get_audit_logs(
     .bind(date_from)
     .bind(date_to)
     .bind(limit)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let consultations = consultations_result.unwrap_or_default()
@@ -356,7 +356,7 @@ pub async fn get_audit_logs(
     .bind(date_from)
     .bind(date_to)
     .bind(limit)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let patients = patients_result.unwrap_or_default()
@@ -389,7 +389,7 @@ pub async fn get_audit_logs(
     .bind(date_from)
     .bind(date_to)
     .bind(limit)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let invoices = invoices_result.unwrap_or_default()
@@ -457,7 +457,7 @@ pub async fn get_consultation_analytics(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let total_consultations = sqlx::query_scalar::<_, i64>(
@@ -465,7 +465,7 @@ pub async fn get_consultation_analytics(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_one(&data.database.pool)
+    .fetch_one(&data.db_pool)
     .await
     .unwrap_or(0);
 
@@ -497,7 +497,7 @@ pub async fn get_consultation_analytics(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let staff_performance = staff_performance_result.unwrap_or_default()
@@ -520,7 +520,7 @@ pub async fn get_consultation_analytics(
     )
     .bind(date_from)
     .bind(date_to)
-    .fetch_all(&data.database.pool)
+    .fetch_all(&data.db_pool)
     .await;
 
     let daily_visits = daily_visits_result.unwrap_or_default()

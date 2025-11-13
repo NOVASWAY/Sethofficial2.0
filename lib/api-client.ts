@@ -79,7 +79,18 @@ export const authAPI = {
    * POST /auth/login
    */
   login: async (username: string, password: string) => {
-    const response = await apiCall<{ success: boolean; data: { token: string; user: any; refresh_token: string }; message: string; error: any }>('/auth/login', {
+    const response = await apiCall<{ 
+      success: boolean; 
+      data: { 
+        token?: string; 
+        user: any; 
+        refresh_token?: string;
+        mfa_required?: boolean;
+        mfa_session_token?: string;
+      }; 
+      message: string; 
+      error: any 
+    }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
@@ -112,6 +123,131 @@ export const authAPI = {
    */
   getCurrentUser: async () => {
     return apiCall<any>('/auth/me')
+  },
+
+  /**
+   * Request password reset
+   * POST /auth/password-reset/request
+   */
+  requestPasswordReset: async (email: string) => {
+    return apiCall<{ success: boolean; message: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+
+  /**
+   * Verify password reset token
+   * GET /auth/password-reset/verify/{token}
+   */
+  verifyPasswordResetToken: async (token: string) => {
+    return apiCall<{ valid: boolean; reason?: string }>(`/auth/password-reset/verify/${token}`)
+  },
+
+  /**
+   * Reset password with token
+   * POST /auth/password-reset
+   */
+  resetPassword: async (token: string, newPassword: string) => {
+    return apiCall('/auth/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword }),
+    })
+  },
+
+  /**
+   * Verify email address
+   * GET /auth/verify-email/{token}
+   */
+  verifyEmail: async (token: string) => {
+    return apiCall(`/auth/verify-email/${token}`)
+  },
+
+  /**
+   * Resend email verification
+   * POST /auth/resend-verification
+   */
+  resendVerification: async (email: string) => {
+    return apiCall('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+}
+
+// ========================================
+// MFA/2FA APIs
+// ========================================
+
+export const mfaAPI = {
+  /**
+   * Get user's MFA status
+   * GET /mfa/status
+   */
+  getStatus: async () => {
+    return apiCall<{
+      mfa_enabled: boolean;
+      mfa_method: string | null;
+      totp_secret_configured: boolean;
+      phone_number: string | null;
+      email_verified: boolean;
+      recovery_codes_count: number;
+    }>('/mfa/status')
+  },
+
+  /**
+   * Setup TOTP for user
+   * POST /mfa/setup/totp
+   */
+  setupTotp: async () => {
+    return apiCall<{
+      secret: string;
+      qr_code_url: string;
+      backup_codes: string[];
+    }>('/mfa/setup/totp', {
+      method: 'POST',
+    })
+  },
+
+  /**
+   * Verify MFA code and complete login
+   * POST /mfa/verify
+   */
+  verify: async (sessionToken: string, code: string, method: string = 'totp') => {
+    return apiCall<{
+      user: any;
+      token: string;
+      refresh_token: string;
+    }>('/mfa/verify', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_token: sessionToken,
+        code,
+        method,
+      }),
+    })
+  },
+
+  /**
+   * Disable MFA for user
+   * DELETE /mfa/disable
+   */
+  disable: async () => {
+    return apiCall('/mfa/disable', {
+      method: 'DELETE',
+    })
+  },
+
+  /**
+   * Get MFA session status
+   * GET /mfa/session/{token}
+   */
+  getSession: async (sessionToken: string) => {
+    return apiCall<{
+      session_token: string;
+      mfa_verified: boolean;
+      expires_at: string;
+    }>(`/mfa/session/${sessionToken}`)
   },
 }
 

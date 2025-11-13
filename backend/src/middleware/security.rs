@@ -7,7 +7,7 @@ use std::{
     future::{ready, Ready},
     rc::Rc,
 };
-use governor::{Quota, RateLimiter};
+use governor::{Quota, RateLimiter, state::keyed::DashMapStateStore, clock::DefaultClock};
 use nonzero_ext::nonzero;
 use std::num::NonZeroU32;
 
@@ -21,9 +21,10 @@ const REQUESTS_PER_MINUTE_STRICT: u32 = 30; // For auth endpoints
 /// - JWT authentication
 /// - Rate limiting
 /// - RBAC (can be added via wrapper)
+#[derive(Clone)]
 pub struct SecurityMiddleware {
     auth_service: Rc<AuthService>,
-    rate_limiter: Option<Rc<RateLimiter<String>>>,
+    rate_limiter: Option<Rc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
 }
 
 impl SecurityMiddleware {
@@ -74,7 +75,7 @@ where
 pub struct SecurityMiddlewareService<S> {
     service: Rc<S>,
     auth_service: Rc<AuthService>,
-    rate_limiter: Option<Rc<RateLimiter<String>>>,
+    rate_limiter: Option<Rc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
 }
 
 impl<S, B> Service<ServiceRequest> for SecurityMiddlewareService<S>
