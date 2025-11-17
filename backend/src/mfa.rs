@@ -126,8 +126,8 @@ impl MfaService {
                 (mfa_secret IS NOT NULL) as totp_secret_configured,
                 phone_number,
                 COALESCE(email_verified, false) as email_verified,
-                (SELECT COUNT(*) FROM mfa_recovery_codes 
-                 WHERE user_id = $1 AND used = false AND expires_at > NOW())::bigint as recovery_codes_count
+                COALESCE((SELECT COUNT(*) FROM mfa_recovery_codes 
+                 WHERE user_id = $1 AND used = false AND expires_at > NOW()), 0)::bigint as recovery_codes_count
             FROM users
             WHERE id = $1
             "#,
@@ -152,7 +152,7 @@ impl MfaService {
             totp_secret_configured: user_row.totp_secret_configured,
             phone_number: user_row.phone_number,
             email_verified: user_row.email_verified,
-            recovery_codes_count: user_row.recovery_codes_count.unwrap_or(0) as i64,
+            recovery_codes_count: user_row.recovery_codes_count,
         })
     }
 
@@ -205,7 +205,7 @@ impl MfaService {
         // Get user's TOTP secret
         let user = sqlx::query!(
             r#"
-            SELECT mfa_secret, mfa_enabled
+            SELECT mfa_secret, COALESCE(mfa_enabled, false) as mfa_enabled
             FROM users
             WHERE id = $1
             "#,
@@ -230,15 +230,20 @@ impl MfaService {
         };
 
         // Verify TOTP code (allow time window of ±1 period)
-        // totp_lite expects the secret as a string, not bytes
+        // totp_lite expects the secret as bytes, so decode from base32
+        let secret_bytes = match base32::decode(base32::Alphabet::RFC4648 { padding: false }, &secret) {
+            Some(bytes) => bytes,
+            None => return Ok(false),
+        };
+        
         let now = Utc::now().timestamp();
         let valid = (-1..=1).any(|offset| {
             let timestamp = now + (offset * 30);
             // Convert timestamp to step (30 second intervals)
             let step = timestamp / 30;
-            // totp-lite 2.0 API: totp_custom(secret, period, digits, timestamp_offset)
+            // totp-lite 2.0 API: totp_custom(digits, period, secret_bytes, timestamp_offset)
             // timestamp_offset of 0 means use current time
-            let expected_code = totp_custom(&secret, 30, 6, 0);
+            let expected_code = totp_custom(6, 30, &secret_bytes, 0);
             format!("{:06}", expected_code) == code
         });
 
@@ -333,16 +338,16 @@ impl MfaService {
         let session_token = Uuid::new_v4().to_string();
 
         // Insert session (expires in 10 minutes)
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO mfa_sessions (user_id, session_token, expires_at, ip_address, user_agent)
             VALUES ($1, $2, NOW() + INTERVAL '10 minutes', $3::inet, $4)
-            "#,
-            user_id,
-            session_token,
-            ip_address,
-            user_agent
+            "#
         )
+        .bind(user_id)
+        .bind(&session_token)
+        .bind(ip_address)
+        .bind(user_agent)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -364,7 +369,7 @@ impl MfaService {
             MfaSession,
             r#"
             SELECT id, user_id, session_token, mfa_verified, created_at, expires_at,
-                   ip_address::text as ip_address, user_agent
+                   ip_address::text as ip_address, user_agent, verified_at
             FROM mfa_sessions
             WHERE session_token = $1 AND expires_at > NOW()
             "#,
@@ -399,18 +404,18 @@ impl MfaService {
         };
 
         // Log attempt
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO mfa_verification_attempts (user_id, session_token, attempt_type, success, ip_address, user_agent)
             VALUES ($1, $2, $3, $4, $5::inet, $6)
-            "#,
-            session.user_id,
-            session_token,
-            method,
-            verified,
-            ip_address,
-            user_agent
+            "#
         )
+        .bind(session.user_id)
+        .bind(session_token)
+        .bind(method)
+        .bind(verified)
+        .bind(ip_address)
+        .bind(user_agent)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -454,7 +459,7 @@ impl MfaService {
             MfaSession,
             r#"
             SELECT id, user_id, session_token, mfa_verified, created_at, expires_at,
-                   ip_address::text as ip_address, user_agent
+                   ip_address::text as ip_address, user_agent, verified_at
             FROM mfa_sessions
             WHERE session_token = $1
             "#,

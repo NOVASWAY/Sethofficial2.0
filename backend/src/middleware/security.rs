@@ -130,27 +130,30 @@ where
                         Ok(claims) => {
                             // Add claims to request extensions for use in handlers
                             req.extensions_mut().insert(claims);
+                            // Call the service
                             service.call(req).await
                         }
                         Err(e) => {
                             // Token is invalid or expired
+                            let (req, _) = req.into_parts();
                             let response = HttpResponse::Unauthorized()
                                 .json(serde_json::json!({
                                     "success": false,
                                     "error": format!("Invalid or expired token: {}", e)
                                 }));
-                            Ok(ServiceResponse::new(req.into_parts().0, response))
+                            Ok(ServiceResponse::new(req, response).map_into_boxed_body())
                         }
                     }
                 }
                 None => {
                     // No token provided
+                    let (req, _) = req.into_parts();
                     let response = HttpResponse::Unauthorized()
                         .json(serde_json::json!({
                             "success": false,
                             "error": "Authorization token required. Please include 'Authorization: Bearer <token>' header."
                         }));
-                    Ok(ServiceResponse::new(req.into_parts().0, response))
+                    Ok(ServiceResponse::new(req, response).map_into_boxed_body())
                 }
             }
         })

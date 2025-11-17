@@ -221,7 +221,7 @@ impl Default for EmailConfig {
 }
 
 impl EmailConfig {
-    fn default_templates() -> HashMap<String, EmailTemplate> {
+    pub fn default_templates() -> HashMap<String, EmailTemplate> {
         let mut templates = HashMap::new();
 
         // Appointment reminder template

@@ -146,24 +146,24 @@ impl AuditLogger {
     }
     
     pub async fn log(&self, audit_log: AuditLog) -> Result<(), sqlx::Error> {
-        sqlx::query!(
+        sqlx::query(
             "INSERT INTO audit_logs (
                 id, user_id, session_id, action, resource, resource_id, 
                 result, details, ip_address, user_agent, request_id, timestamp
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-            audit_log.id,
-            audit_log.user_id,
-            audit_log.session_id,
-            serde_json::to_value(&audit_log.action).map_err(|e| sqlx::Error::Decode(format!("JSON encode error: {}", e).into()))?,
-            serde_json::to_value(&audit_log.resource).map_err(|e| sqlx::Error::Decode(format!("JSON encode error: {}", e).into()))?,
-            audit_log.resource_id,
-            serde_json::to_value(&audit_log.result).map_err(|e| sqlx::Error::Decode(format!("JSON encode error: {}", e).into()))?,
-            audit_log.details,
-            audit_log.ip_address,
-            audit_log.user_agent,
-            audit_log.request_id,
-            audit_log.timestamp
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::inet, $10, $11, $12)"
         )
+        .bind(audit_log.id)
+        .bind(audit_log.user_id)
+        .bind(audit_log.session_id)
+        .bind(serde_json::to_value(&audit_log.action).map_err(|e| sqlx::Error::Decode(format!("JSON encode error: {}", e).into()))?)
+        .bind(serde_json::to_value(&audit_log.resource).map_err(|e| sqlx::Error::Decode(format!("JSON encode error: {}", e).into()))?)
+        .bind(audit_log.resource_id)
+        .bind(serde_json::to_value(&audit_log.result).map_err(|e| sqlx::Error::Decode(format!("JSON encode error: {}", e).into()))?)
+        .bind(audit_log.details)
+        .bind(audit_log.ip_address.as_deref())
+        .bind(audit_log.user_agent)
+        .bind(audit_log.request_id)
+        .bind(audit_log.timestamp)
         .execute(&self.pool)
         .await?;
         

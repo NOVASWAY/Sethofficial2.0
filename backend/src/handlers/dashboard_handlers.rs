@@ -498,25 +498,26 @@ async fn calculate_user_metrics(
             }
             _ => {
                 // For non-admin users, calculate department-specific metrics
-                let total_revenue = sqlx::query_scalar!(
-                    "SELECT COALESCE(SUM(i.total_amount), 0) FROM invoices i 
-                     JOIN consultations c ON i.consultation_id = c.id 
-                     WHERE c.doctor_id = $1 AND i.created_at >= $2",
-                    user_id,
-                    start_of_month
-                )
-                .fetch_one(pool)
-                .await?
-                .unwrap_or(0.0);
+    let total_revenue_result = sqlx::query_scalar::<_, Option<BigDecimal>>(
+        "SELECT COALESCE(SUM(i.total_amount), 0) FROM invoices i 
+         JOIN consultations c ON i.consultation_id = c.id 
+         WHERE c.doctor_id = $1 AND i.created_at >= $2"
+    )
+    .bind(user_id)
+    .bind(start_of_month)
+    .fetch_one(pool)
+    .await?
+    .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
+    .unwrap_or(0.0);
 
-                let monthly_revenue = total_revenue;
+    let monthly_revenue = total_revenue_result;
                 let revenue_change = 0.0; // Simplified for non-admin users
                 let active_users = 1; // Current user
                 let system_health = 100.0; // Mock
                 let critical_alerts = 0; // Simplified
                 let pending_tasks = pending_prescriptions;
 
-                (total_revenue, monthly_revenue, revenue_change, active_users, system_health, critical_alerts, pending_tasks)
+                (total_revenue_result, monthly_revenue, revenue_change, active_users, system_health, critical_alerts, pending_tasks)
             }
         };
 
@@ -552,8 +553,7 @@ async fn calculate_role_metrics(
     )
     .bind(start_of_month)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let today_consultations = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM consultations c 
@@ -587,19 +587,20 @@ async fn calculate_role_metrics(
     .await?
     .unwrap_or(0);
 
-    let total_revenue = sqlx::query_scalar!(
+    let total_revenue_result = sqlx::query_scalar::<_, Option<BigDecimal>>(
         "SELECT COALESCE(SUM(i.total_amount), 0) FROM invoices i 
          JOIN consultations c ON i.consultation_id = c.id 
          JOIN users u ON c.doctor_id = u.id 
-         WHERE u.role = $1 AND i.created_at >= $2",
-        role,
-        start_of_month
+         WHERE u.role = $1 AND i.created_at >= $2"
     )
+    .bind(role)
+    .bind(start_of_month)
     .fetch_one(pool)
     .await?
+    .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
     .unwrap_or(0.0);
 
-    let monthly_revenue = total_revenue;
+    let monthly_revenue = total_revenue_result;
     let revenue_change = 0.0; // Simplified
     let active_users = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM users WHERE role = $1 AND is_active = true",
@@ -651,8 +652,7 @@ async fn calculate_department_metrics(
     )
     .bind(start_of_month)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let today_consultations = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM consultations c 
@@ -686,19 +686,20 @@ async fn calculate_department_metrics(
     .await?
     .unwrap_or(0);
 
-    let total_revenue = sqlx::query_scalar!(
+    let total_revenue_result = sqlx::query_scalar::<_, Option<BigDecimal>>(
         "SELECT COALESCE(SUM(i.total_amount), 0) FROM invoices i 
          JOIN consultations c ON i.consultation_id = c.id 
          JOIN users u ON c.doctor_id = u.id 
-         WHERE u.department = $1 AND i.created_at >= $2",
-        department,
-        start_of_month
+         WHERE u.department = $1 AND i.created_at >= $2"
     )
+    .bind(department)
+    .bind(start_of_month)
     .fetch_one(pool)
     .await?
+    .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
     .unwrap_or(0.0);
 
-    let monthly_revenue = total_revenue;
+    let monthly_revenue = total_revenue_result;
     let revenue_change = 0.0; // Simplified
     let active_users = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM users WHERE department = $1 AND is_active = true",

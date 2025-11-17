@@ -579,7 +579,7 @@ async fn check_patient_duplicates(
             record_data: serde_json::json!({
                 "first_name": record.first_name,
                 "last_name": record.last_name,
-                "phone_number": record.phone_number,
+                "phone_number": record.phone,
                 "date_of_birth": record.date_of_birth
             }),
         });

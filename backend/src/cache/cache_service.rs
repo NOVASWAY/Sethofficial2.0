@@ -207,13 +207,15 @@ where
 
     async fn evict_entries(&self, cache: &mut HashMap<String, CacheEntry<T>>, metrics: &mut CacheMetrics) {
         // Simple LRU eviction - remove oldest accessed entries
-        let entries: Vec<_> = cache.iter().collect();
-        let mut entries: Vec<_> = entries;
-        entries.sort_by_key(|(_, entry)| entry.last_accessed);
+        // Collect keys first to avoid borrow checker issues
+        let mut entries: Vec<(String, u64)> = cache.iter()
+            .map(|(k, v)| (k.clone(), v.last_accessed))
+            .collect();
+        entries.sort_by_key(|(_, last_accessed)| *last_accessed);
         
         let to_remove = entries.len() / 4; // Remove 25% of entries
         for (key, _) in entries.iter().take(to_remove) {
-            cache.remove(*key);
+            cache.remove(key);
             metrics.evictions += 1;
         }
     }

@@ -7,18 +7,18 @@ use chrono::{DateTime, Utc};
 use crate::models::ApiResponse;
 use crate::auth::verify_jwt_token;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UserPreferences {
     pub id: Uuid,
     pub user_id: Uuid,
     pub layout_config: serde_json::Value,
-    pub custom_metrics: Vec<String>,
-    pub favorite_modules: Vec<String>,
-    pub refresh_interval: i32,
-    pub auto_refresh: bool,
-    pub theme: String,
-    pub language: String,
-    pub timezone: String,
+    pub custom_metrics: Option<Vec<String>>,
+    pub favorite_modules: Option<Vec<String>>,
+    pub refresh_interval: Option<i32>,
+    pub auto_refresh: Option<bool>,
+    pub theme: Option<String>,
+    pub language: Option<String>,
+    pub timezone: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -104,15 +104,14 @@ pub async fn get_user_preferences(
     }
 
     // Get user preferences from database
-    let preferences = match sqlx::query_as!(
-        UserPreferences,
+    let preferences = match sqlx::query_as::<_, UserPreferences>(
         "SELECT id, user_id, layout_config, custom_metrics, favorite_modules, 
                 refresh_interval, auto_refresh, theme, language, timezone, 
                 created_at, updated_at 
          FROM user_dashboard_preferences 
-         WHERE user_id = $1",
-        user_id
+         WHERE user_id = $1"
     )
+    .bind(user_id)
     .fetch_optional(&**pool)
     .await
     {
@@ -240,8 +239,7 @@ pub async fn update_user_preferences(
     }
 
     // Update user preferences
-    let updated_preferences = match sqlx::query_as!(
-        UserPreferences,
+    let updated_preferences = match sqlx::query_as::<_, UserPreferences>(
         "UPDATE user_dashboard_preferences 
          SET layout_config = COALESCE($2, layout_config),
              custom_metrics = COALESCE($3, custom_metrics),
@@ -255,17 +253,17 @@ pub async fn update_user_preferences(
          WHERE user_id = $1
          RETURNING id, user_id, layout_config, custom_metrics, favorite_modules, 
                    refresh_interval, auto_refresh, theme, language, timezone, 
-                   created_at, updated_at",
-        user_id,
-        update_data.layout_config,
-        update_data.custom_metrics.as_deref(),
-        update_data.favorite_modules.as_deref(),
-        update_data.refresh_interval,
-        update_data.auto_refresh,
-        update_data.theme.as_deref(),
-        update_data.language.as_deref(),
-        update_data.timezone.as_deref()
+                   created_at, updated_at"
     )
+    .bind(user_id)
+    .bind(update_data.layout_config)
+    .bind(update_data.custom_metrics.as_deref())
+    .bind(update_data.favorite_modules.as_deref())
+    .bind(update_data.refresh_interval)
+    .bind(update_data.auto_refresh)
+    .bind(update_data.theme.as_deref())
+    .bind(update_data.language.as_deref())
+    .bind(update_data.timezone.as_deref())
     .fetch_optional(&**pool)
     .await
     {
@@ -541,25 +539,24 @@ async fn create_default_preferences(
 ) -> Result<UserPreferences, sqlx::Error> {
     let template = get_role_template(role);
 
-    let preferences = sqlx::query_as!(
-        UserPreferences,
+    let preferences = sqlx::query_as::<_, UserPreferences>(
         "INSERT INTO user_dashboard_preferences 
          (user_id, layout_config, custom_metrics, favorite_modules, 
           refresh_interval, auto_refresh, theme, language, timezone)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id, user_id, layout_config, custom_metrics, favorite_modules, 
                    refresh_interval, auto_refresh, theme, language, timezone, 
-                   created_at, updated_at",
-        user_id,
-        template.default_layout_config,
-        template.default_custom_metrics.as_slice(),
-        template.default_favorite_modules.as_slice(),
-        template.default_refresh_interval,
-        template.default_auto_refresh,
-        template.default_theme,
-        template.default_language,
-        template.default_timezone
+                   created_at, updated_at"
     )
+    .bind(user_id)
+    .bind(template.default_layout_config)
+    .bind(&template.default_custom_metrics)
+    .bind(&template.default_favorite_modules)
+    .bind(template.default_refresh_interval)
+    .bind(template.default_auto_refresh)
+    .bind(template.default_theme)
+    .bind(template.default_language)
+    .bind(template.default_timezone)
     .fetch_one(pool)
     .await?;
 

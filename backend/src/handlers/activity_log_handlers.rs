@@ -143,7 +143,7 @@ pub async fn log_user_activity(
     let activity = match sqlx::query_as::<_, UserActivity>(
         "INSERT INTO user_activity_logs 
          (user_id, action, module, entity_type, entity_id, details, ip_address, user_agent, session_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8, $9)
          RETURNING id, user_id, action, module, entity_type, entity_id, details, 
                    ip_address, user_agent, session_id, created_at"
     )
@@ -255,46 +255,32 @@ pub async fn get_user_activity(
         "SELECT id, user_id, action, module, entity_type, entity_id, details, 
                 ip_address, user_agent, session_id, created_at 
          FROM user_activity_logs 
-         WHERE user_id = $1"
+         WHERE user_id = "
     );
-
-    let mut param_count = 1;
-    let mut params: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send + Sync>> = vec![Box::new(user_id)];
+    query_builder.push_bind(user_id);
 
     if let Some(action) = action_filter {
-        param_count += 1;
-        query_builder.push(" AND action = $");
-        query_builder.push(param_count);
-        params.push(Box::new(action.clone()));
+        query_builder.push(" AND action = ");
+        query_builder.push_bind(action);
     }
 
     if let Some(module) = module_filter {
-        param_count += 1;
-        query_builder.push(" AND module = $");
-        query_builder.push(param_count);
-        params.push(Box::new(module.clone()));
+        query_builder.push(" AND module = ");
+        query_builder.push_bind(module);
     }
 
     if let Some(entity_type) = entity_type_filter {
-        param_count += 1;
-        query_builder.push(" AND entity_type = $");
-        query_builder.push(param_count);
-        params.push(Box::new(entity_type.clone()));
+        query_builder.push(" AND entity_type = ");
+        query_builder.push_bind(entity_type);
     }
 
-    query_builder.push(" ORDER BY created_at DESC LIMIT $");
-    param_count += 1;
-    query_builder.push(param_count);
-    params.push(Box::new(limit));
-
-    query_builder.push(" OFFSET $");
-    param_count += 1;
-    query_builder.push(param_count);
-    params.push(Box::new(offset));
+    query_builder.push(" ORDER BY created_at DESC LIMIT ");
+    query_builder.push_bind(limit);
+    query_builder.push(" OFFSET ");
+    query_builder.push_bind(offset);
 
     // Execute query
-    let mut query = query_builder.build_query_as::<UserActivity>();
-    query.bind(user_id);
+    let query = query_builder.build_query_as::<UserActivity>();
     let activities = match query.fetch_all(&**pool)
         .await
     {

@@ -253,7 +253,7 @@ impl Default for SMSConfig {
 }
 
 impl SMSConfig {
-    fn default_templates() -> HashMap<String, String> {
+    pub fn default_templates() -> HashMap<String, String> {
         let mut templates = HashMap::new();
 
         // Appointment reminder template

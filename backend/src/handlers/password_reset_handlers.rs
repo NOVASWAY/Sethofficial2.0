@@ -65,17 +65,17 @@ pub async fn request_password_reset(
         .map(|s| s.to_string());
 
     // Store token in database
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO password_reset_tokens (user_id, token, expires_at, ip_address, user_agent)
         VALUES ($1, $2, $3, $4::inet, $5)
-        "#,
-        user.id,
-        token,
-        expires_at,
-        ip_address.as_deref(),
-        user_agent
+        "#
     )
+    .bind(user.id)
+    .bind(token)
+    .bind(expires_at)
+    .bind(ip_address.as_deref())
+    .bind(user_agent)
     .execute(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;

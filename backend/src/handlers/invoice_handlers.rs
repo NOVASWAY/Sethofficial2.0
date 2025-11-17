@@ -70,13 +70,13 @@ pub async fn get_invoices(
     );
 
     let total_count: i64 = if params.is_empty() {
-        sqlx::query_scalar(&count_query)
+        sqlx::query_scalar::<_, i64>(&count_query)
             .fetch_one(&data.db_pool)
             .await
             .unwrap_or(0)
     } else {
         // For simplicity, we'll use a basic count for now
-        sqlx::query_scalar("SELECT COUNT(*) FROM invoices")
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM invoices")
             .fetch_one(&data.db_pool)
             .await
             .unwrap_or(0)

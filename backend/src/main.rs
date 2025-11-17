@@ -131,7 +131,7 @@ async fn main() -> std::io::Result<()> {
     eprintln!("🔐 AuthService initialized");
 
     // Initialize WebSocket Manager
-    let websocket_manager = actix::Actor::start(websocket::WebSocketManager::new);
+    let websocket_addr = websocket::WebSocketManager::new().start();
     eprintln!("🌐 WebSocket Manager initialized");
 
     // Initialize Redis client (optional - gracefully handles if Redis is unavailable)
@@ -154,7 +154,7 @@ async fn main() -> std::io::Result<()> {
         db_pool,
         auth_service,
         redis_client,
-        websocket_manager: websocket_manager.clone(),
+        websocket_manager: websocket_addr.clone(),
     };
 
     // Configure CORS
