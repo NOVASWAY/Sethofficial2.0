@@ -105,23 +105,29 @@ export default function InventoryPage(): JSX.Element {
   const inventoryCacheKey = useMemo(() => getCacheKey('inventory', { role }), [role])
   
   // Memoized transform function
-  const transformMedicine = useCallback((med: MedicineAPIResponse): InventoryItem => ({
-    id: med.id,
-    name: med.name,
-    genericName: med.generic_name,
-    category: med.category || med.dosage_form || 'other',
-    currentStock: med.current_stock || med.currentStock || 0,
-    minStock: med.minimum_stock || med.minStock || 0,
-    maxStock: med.maximum_stock || med.minimum_stock * 10 || 0,
-    unitPrice: med.unit_price || med.unitPrice || 0,
-    supplier: med.manufacturer || med.supplier || "Unknown",
-    expiryDate: med.expiry_date || med.expiryDate || "",
-    status: med.current_stock === 0 ? "out-of-stock" : 
-            med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
-    strength: med.strength,
-    dosageForm: med.dosage_form,
-    batchNumber: med.batch_number
-  }), [])
+  const transformMedicine = useCallback((med: MedicineAPIResponse): InventoryItem => {
+    const currentStock = med.current_stock ?? med.currentStock ?? 0
+    const minStock = med.minimum_stock ?? med.minStock ?? 0
+    const maxStock = med.maximum_stock ?? (minStock * 10)
+    
+    return {
+      id: med.id,
+      name: med.name,
+      genericName: med.generic_name,
+      category: med.category || med.dosage_form || 'other',
+      currentStock,
+      minStock,
+      maxStock,
+      unitPrice: med.unit_price || med.unitPrice || 0,
+      supplier: med.manufacturer || med.supplier || "Unknown",
+      expiryDate: med.expiry_date || med.expiryDate || "",
+      status: currentStock === 0 ? "out-of-stock" : 
+              currentStock <= minStock ? "low-stock" : "in-stock",
+      strength: med.strength,
+      dosageForm: med.dosage_form,
+      batchNumber: med.batch_number
+    }
+  }, [])
 
   // Fetch medicines from API with caching
   useEffect(() => {
@@ -148,7 +154,7 @@ export default function InventoryPage(): JSX.Element {
         toast({
           title: "Error",
           description: "Failed to load inventory. Using cached data.",
-          variant: "destructive"
+          variant: "error"
         })
         // Fallback to context medicines
         setInventoryItems(medicines.map(med => ({
@@ -173,17 +179,21 @@ export default function InventoryPage(): JSX.Element {
 
   // Memoize inventory calculations and filtering
   const inventory = useMemo(() => {
-    const baseInventory = inventoryItems.length > 0 ? inventoryItems : medicines.map(med => ({
+    const baseInventory: InventoryItem[] = inventoryItems.length > 0 ? inventoryItems : medicines.map(med => ({
       id: med.id,
       name: med.name,
+      genericName: med.genericName,
       category: med.category,
       currentStock: med.currentStock,
       minStock: med.minStock,
       maxStock: med.minStock * 10, // Estimate max as 10x min
       unitPrice: med.unitPrice,
-      supplier: "Supplier", // Not available in Medicine interface
+      supplier: med.manufacturer || "Supplier",
       expiryDate: "", // Would need to track batches
       status: med.currentStock === 0 ? "out-of-stock" : med.currentStock <= med.minStock ? "low-stock" : "in-stock",
+      strength: med.strength,
+      dosageForm: med.dosageForm,
+      batchNumber: undefined,
     }))
     
     // Apply debounced search filter
@@ -291,20 +301,7 @@ export default function InventoryPage(): JSX.Element {
       // Refresh inventory list
       const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
       if (result && Array.isArray(result.data)) {
-        const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
-          id: med.id,
-          name: med.name,
-          genericName: med.generic_name,
-          category: med.category || med.dosage_form || 'other',
-          currentStock: med.current_stock || 0,
-          minStock: med.minimum_stock || 0,
-          maxStock: med.minimum_stock * 10 || 0,
-          unitPrice: med.unit_price || 0,
-          supplier: med.manufacturer || "Unknown",
-          expiryDate: med.expiry_date || "",
-          status: med.current_stock === 0 ? "out-of-stock" : 
-                  med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
-        }))
+        const transformed = result.data.map(transformMedicine)
         setInventoryItems(transformed)
       }
 
@@ -355,20 +352,7 @@ export default function InventoryPage(): JSX.Element {
         // Refresh inventory list
         const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
         if (result && Array.isArray(result.data)) {
-          const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
-            id: med.id,
-            name: med.name,
-            genericName: med.generic_name,
-            category: med.category || med.dosage_form || 'other',
-            currentStock: med.current_stock || 0,
-            minStock: med.minimum_stock || 0,
-            maxStock: med.minimum_stock * 10 || 0,
-            unitPrice: med.unit_price || 0,
-            supplier: med.manufacturer || "Unknown",
-            expiryDate: med.expiry_date || "",
-            status: med.current_stock === 0 ? "out-of-stock" : 
-                    med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
-          }))
+          const transformed = result.data.map(transformMedicine)
           setInventoryItems(transformed)
         }
 
@@ -379,7 +363,7 @@ export default function InventoryPage(): JSX.Element {
       toast({
         title: "Error",
         description: "Failed to update item. Please try again.",
-        variant: "destructive",
+        variant: "error",
       })
     } finally {
       setIsLoading(false)
@@ -560,20 +544,7 @@ export default function InventoryPage(): JSX.Element {
                   setLoading(true)
                   const result = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
                   if (result && Array.isArray(result.data)) {
-                    const transformed = result.data.map((med: MedicineAPIResponse): InventoryItem => ({
-                      id: med.id,
-                      name: med.name,
-                      genericName: med.generic_name,
-                      category: med.category || med.dosage_form || 'other',
-                      currentStock: med.current_stock || 0,
-                      minStock: med.minimum_stock || 0,
-                      maxStock: med.minimum_stock * 10 || 0,
-                      unitPrice: med.unit_price || 0,
-                      supplier: med.manufacturer || "Unknown",
-                      expiryDate: med.expiry_date || "",
-                      status: med.current_stock === 0 ? "out-of-stock" : 
-                              med.current_stock <= med.minimum_stock ? "low-stock" : "in-stock",
-                    }))
+                    const transformed = result.data.map(transformMedicine)
                     setInventoryItems(transformed)
                     toast({
                       title: "Refreshed",
@@ -584,7 +555,7 @@ export default function InventoryPage(): JSX.Element {
                   toast({
                     title: "Error",
                     description: "Failed to refresh inventory.",
-                    variant: "destructive"
+                    variant: "error"
                   })
                 } finally {
                   setLoading(false)
@@ -619,41 +590,41 @@ export default function InventoryPage(): JSX.Element {
             ) : (
               <div className="grid gap-4">
                 {inventory.map((item) => (
-                <Card key={item.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-4">
-                          <span className="font-medium">{item.name}</span>
-                          <Badge variant="outline">{item.category}</Badge>
-                          <Badge className={getStatusColor(item.status)}>{item.status.replace("-", " ")}</Badge>
+                  <Card key={item.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-4">
+                            <span className="font-medium">{item.name}</span>
+                            <Badge variant="outline">{item.category}</Badge>
+                            <Badge className={getStatusColor(item.status)}>{item.status.replace("-", " ")}</Badge>
+                          </div>
+
+                          <div className="flex items-center space-x-6 text-sm text-muted-foreground">
+                            <div>Stock: {item.currentStock} units</div>
+                            <div>Min: {item.minStock}</div>
+                            <div>Max: {item.maxStock}</div>
+                            <div>Price: KSh {item.unitPrice}</div>
+                            <div>Expires: {item.expiryDate}</div>
+                          </div>
+
+                          <div className="text-sm text-muted-foreground">Supplier: {item.supplier}</div>
                         </div>
 
-                        <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-                          <div>Stock: {item.currentStock} units</div>
-                          <div>Min: {item.minStock}</div>
-                          <div>Max: {item.maxStock}</div>
-                          <div>Price: KSh {item.unitPrice}</div>
-                          <div>Expires: {item.expiryDate}</div>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => handleEditItem(item)}>
+                            <Edit2 className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleReorder(item)}>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Reorder
+                          </Button>
                         </div>
-
-                        <div className="text-sm text-muted-foreground">Supplier: {item.supplier}</div>
                       </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEditItem(item)}>
-                          <Edit2 className="w-4 h-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleReorder(item)}>
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Reorder
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )))}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
           </TabsContent>

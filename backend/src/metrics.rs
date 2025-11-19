@@ -307,8 +307,10 @@ impl MetricsService {
         let metric_families = self.registry.gather();
         let encoder = TextEncoder::new();
         let mut buffer = Vec::new();
-        encoder.encode(&metric_families, &mut buffer)?;
-        Ok(String::from_utf8(buffer)?)
+        encoder.encode(&metric_families, &mut buffer)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        String::from_utf8(buffer)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
     
     /// Get metrics summary

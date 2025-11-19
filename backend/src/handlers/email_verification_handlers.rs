@@ -36,7 +36,7 @@ pub async fn verify_email(
     let token_data = match token_data {
         Some(t) => t,
         None => {
-            return Ok(HttpResponse::BadRequest().json(ApiResponse {
+            return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
                 success: false,
                 data: None,
                 message: None,
@@ -47,7 +47,7 @@ pub async fn verify_email(
 
     // Check if token is used
     if token_data.used {
-        return Ok(HttpResponse::BadRequest().json(ApiResponse {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
             message: None,
@@ -57,7 +57,7 @@ pub async fn verify_email(
 
     // Check if token is expired
     if Utc::now() > token_data.expires_at {
-        return Ok(HttpResponse::BadRequest().json(ApiResponse {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
             message: None,
@@ -90,7 +90,7 @@ pub async fn verify_email(
     .await
     .map_err(|e| AppError::Database(e))?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse {
+    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
         success: true,
         data: None,
         message: Some("Email verified successfully".to_string()),
@@ -115,7 +115,7 @@ pub async fn resend_verification(
 
     // Always return success to prevent email enumeration
     if user.is_none() {
-        return Ok(HttpResponse::Ok().json(ApiResponse {
+        return Ok(HttpResponse::Ok().json(ApiResponse::<()> {
             success: true,
             data: None,
             message: Some("If an account with that email exists, a verification email has been sent.".to_string()),
@@ -127,7 +127,7 @@ pub async fn resend_verification(
 
     // Check if already verified
     if user.email_verified {
-        return Ok(HttpResponse::Ok().json(ApiResponse {
+        return Ok(HttpResponse::Ok().json(ApiResponse::<()> {
             success: true,
             data: None,
             message: Some("Email is already verified".to_string()),
@@ -212,7 +212,7 @@ pub async fn resend_verification(
         }
     }
 
-    Ok(HttpResponse::Ok().json(ApiResponse {
+    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
         success: true,
         data: None,
         message: Some("If an account with that email exists, a verification email has been sent.".to_string()),

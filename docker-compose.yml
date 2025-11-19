@@ -63,6 +63,8 @@ services:
       dockerfile: Dockerfile.backend
       network: host
       args:
+        # Use localhost for build since we're using host network mode
+        # The postgres service should be running on the host during build
         DATABASE_URL: postgresql://clinic_user:${POSTGRES_PASSWORD:-clinic_password}@localhost:5432/clinic_management
     container_name: clinic-backend
     restart: unless-stopped

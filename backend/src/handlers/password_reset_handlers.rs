@@ -40,7 +40,7 @@ pub async fn request_password_reset(
 
     // Always return success to prevent email enumeration
     if user.is_none() {
-        return Ok(HttpResponse::Ok().json(ApiResponse {
+        return Ok(HttpResponse::Ok().json(ApiResponse::<()> {
             success: true,
             data: None,
             message: Some("If an account with that email exists, a password reset link has been sent.".to_string()),
@@ -52,6 +52,7 @@ pub async fn request_password_reset(
     
     // Generate reset token
     let token = Uuid::new_v4().to_string();
+    let token_clone = token.clone();
     let expires_at = Utc::now() + Duration::hours(1);
 
     // Get IP address and user agent
@@ -72,7 +73,7 @@ pub async fn request_password_reset(
         "#
     )
     .bind(user.id)
-    .bind(token)
+    .bind(&token)
     .bind(expires_at)
     .bind(ip_address.as_deref())
     .bind(user_agent)
@@ -84,7 +85,7 @@ pub async fn request_password_reset(
     let reset_url = format!(
         "{}/reset-password?token={}",
         std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string()),
-        token
+        token_clone
     );
 
     let email_html = format!(
@@ -137,7 +138,7 @@ pub async fn request_password_reset(
         }
     }
 
-    Ok(HttpResponse::Ok().json(ApiResponse {
+    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
         success: true,
         data: None,
         message: Some("If an account with that email exists, a password reset link has been sent.".to_string()),
@@ -167,7 +168,7 @@ pub async fn reset_password(
     let token_data = match token_data {
         Some(t) => t,
         None => {
-            return Ok(HttpResponse::BadRequest().json(ApiResponse {
+            return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
                 success: false,
                 data: None,
                 message: None,
@@ -178,7 +179,7 @@ pub async fn reset_password(
 
     // Check if token is used
     if token_data.used {
-        return Ok(HttpResponse::BadRequest().json(ApiResponse {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
             message: None,
@@ -188,7 +189,7 @@ pub async fn reset_password(
 
     // Check if token is expired
     if Utc::now() > token_data.expires_at {
-        return Ok(HttpResponse::BadRequest().json(ApiResponse {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
             message: None,
@@ -229,7 +230,7 @@ pub async fn reset_password(
     .await
     .map_err(|e| AppError::Database(e))?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse {
+    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
         success: true,
         data: None,
         message: Some("Password reset successfully".to_string()),
@@ -256,7 +257,7 @@ pub async fn verify_reset_token(
     match token_data {
         Some(t) => {
             if t.used {
-                return Ok(HttpResponse::BadRequest().json(ApiResponse {
+                return Ok(HttpResponse::BadRequest().json(ApiResponse::<serde_json::Value> {
                     success: false,
                     data: Some(serde_json::json!({ "valid": false, "reason": "used" })),
                     message: None,
@@ -265,7 +266,7 @@ pub async fn verify_reset_token(
             }
 
             if Utc::now() > t.expires_at {
-                return Ok(HttpResponse::BadRequest().json(ApiResponse {
+                return Ok(HttpResponse::BadRequest().json(ApiResponse::<serde_json::Value> {
                     success: false,
                     data: Some(serde_json::json!({ "valid": false, "reason": "expired" })),
                     message: None,
@@ -273,14 +274,14 @@ pub async fn verify_reset_token(
                 }))
             }
 
-            Ok(HttpResponse::Ok().json(ApiResponse {
+            Ok(HttpResponse::Ok().json(ApiResponse::<serde_json::Value> {
                 success: true,
                 data: Some(serde_json::json!({ "valid": true })),
                 message: None,
                 error: None,
             }))
         }
-        None => Ok(HttpResponse::NotFound().json(ApiResponse {
+        None => Ok(HttpResponse::NotFound().json(ApiResponse::<serde_json::Value> {
             success: false,
             data: Some(serde_json::json!({ "valid": false, "reason": "not_found" })),
             message: None,

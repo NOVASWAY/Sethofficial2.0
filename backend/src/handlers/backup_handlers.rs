@@ -3,15 +3,20 @@ use uuid::Uuid;
 use crate::backup::{BackupRequest, BackupService, BackupConfig};
 use crate::error::{ApiError, ApiResponse};
 use crate::database::DatabasePool;
+use crate::middleware::auth::get_current_user;
 
 /// Create a new backup
 pub async fn create_backup(
     req: web::Json<BackupRequest>,
     data: web::Data<crate::AppState>,
-    _http_req: HttpRequest,
+    http_req: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    // TODO: Add authentication check
-    let user_id = None; // Extract from JWT token
+    // Authentication check
+    let claims = get_current_user(&http_req)
+        .ok_or_else(|| ApiError::unauthorized(Some("Authentication required".to_string())))?;
+    
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| ApiError::unauthorized(Some("Invalid user ID".to_string())))?;
 
     let backup_config = BackupConfig {
         enabled: true,
@@ -24,7 +29,7 @@ pub async fn create_backup(
     };
     let backup_service = BackupService::new(data.db_pool.clone(), backup_config);
     
-    match backup_service.create_backup(req.into_inner(), user_id).await {
+    match backup_service.create_backup(req.into_inner(), Some(user_id.to_string())).await {
         Ok(backup_job) => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,
@@ -219,17 +224,44 @@ pub async fn cleanup_backups(
 
 /// Get backup configuration
 pub async fn get_backup_config(
-    _data: web::Data<crate::AppState>,
+    data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, ApiError> {
-    let backup_config = BackupConfig {
-        enabled: true,
-        cron_expression: "0 2 * * *".to_string(),
-        retention_days: 30,
-        backup_path: "/backups".to_string(),
-        compression: true,
-        include_files: true,
-        max_backup_size_mb: 1024,
+    // Get configuration from database
+    let config_row = sqlx::query!(
+        r#"
+        SELECT enabled, schedule, retention_days, backup_path, compression, include_files, max_backup_size_mb
+        FROM backup_config
+        ORDER BY updated_at DESC
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(&data.db_pool)
+    .await
+    .map_err(|e| ApiError::internal_error(Some(format!("Failed to get backup config: {}", e))))?;
+
+    let backup_config = if let Some(row) = config_row {
+        BackupConfig {
+            enabled: row.enabled,
+            cron_expression: row.schedule,
+            retention_days: row.retention_days as u32,
+            backup_path: row.backup_path,
+            compression: row.compression,
+            include_files: row.include_files,
+            max_backup_size_mb: row.max_backup_size_mb as u64,
+        }
+    } else {
+        // Return default if no config exists
+        BackupConfig {
+            enabled: true,
+            cron_expression: "0 2 * * *".to_string(),
+            retention_days: 30,
+            backup_path: "./backups".to_string(),
+            compression: true,
+            include_files: true,
+            max_backup_size_mb: 1024,
+        }
     };
+
     Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
         data: Some(serde_json::json!(backup_config)),
@@ -243,9 +275,73 @@ pub async fn get_backup_config(
 pub async fn update_backup_config(
     req: web::Json<BackupConfig>,
     data: web::Data<crate::AppState>,
+    http_req: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    // TODO: Update backup configuration in database
-    // For now, just return success
+    // Authentication check - only admins should update backup config
+    let claims = get_current_user(&http_req)
+        .ok_or_else(|| ApiError::unauthorized(Some("Authentication required".to_string())))?;
+    
+    if claims.role != "admin" {
+        return Err(ApiError::forbidden(Some("Only administrators can update backup configuration".to_string())));
+    }
+
+    let config = req.into_inner();
+
+    // Check if config exists and get the ID
+    let existing_id: Option<Uuid> = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM backup_config ORDER BY updated_at DESC LIMIT 1"
+    )
+    .fetch_optional(&data.db_pool)
+    .await
+    .map_err(|e| ApiError::internal_error(Some(format!("Failed to check backup config: {}", e))))?;
+
+    if let Some(config_id) = existing_id {
+        // Update existing config
+        sqlx::query(
+            r#"
+            UPDATE backup_config
+            SET enabled = $1,
+                schedule = $2,
+                retention_days = $3,
+                backup_path = $4,
+                compression = $5,
+                include_files = $6,
+                max_backup_size_mb = $7,
+                updated_at = NOW()
+            WHERE id = $8
+            "#
+        )
+        .bind(config.enabled)
+        .bind(&config.cron_expression)
+        .bind(config.retention_days as i32)
+        .bind(&config.backup_path)
+        .bind(config.compression)
+        .bind(config.include_files)
+        .bind(config.max_backup_size_mb as i32)
+        .bind(config_id)
+        .execute(&data.db_pool)
+        .await
+        .map_err(|e| ApiError::internal_error(Some(format!("Failed to update backup config: {}", e))))?;
+    } else {
+        // Insert new config
+        sqlx::query(
+            r#"
+            INSERT INTO backup_config (enabled, schedule, retention_days, backup_path, compression, include_files, max_backup_size_mb)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "#
+        )
+        .bind(config.enabled)
+        .bind(&config.cron_expression)
+        .bind(config.retention_days as i32)
+        .bind(&config.backup_path)
+        .bind(config.compression)
+        .bind(config.include_files)
+        .bind(config.max_backup_size_mb as i32)
+        .execute(&data.db_pool)
+        .await
+        .map_err(|e| ApiError::internal_error(Some(format!("Failed to create backup config: {}", e))))?;
+    }
+
     Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
         data: Some(serde_json::json!({ "updated": true })),
@@ -414,10 +510,56 @@ pub async fn toggle_backup_schedule(
 pub async fn get_scheduler_status(
     data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, ApiError> {
-    // TODO: Get actual scheduler status
+    // Get backup configuration to check if scheduler is enabled
+    let config_enabled: Option<bool> = sqlx::query_scalar::<_, bool>(
+        "SELECT enabled FROM backup_config ORDER BY updated_at DESC LIMIT 1"
+    )
+    .fetch_optional(&data.db_pool)
+    .await
+    .map_err(|e| ApiError::internal_error(Some(format!("Failed to get backup config: {}", e))))?;
+
+    let enabled = config_enabled.unwrap_or(true);
+
+    // Get count of active schedules
+    let active_schedules: i64 = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM backup_schedules WHERE enabled = true"
+    )
+    .fetch_one(&data.db_pool)
+    .await
+    .map_err(|e| ApiError::internal_error(Some(format!("Failed to get schedules: {}", e))))?;
+
+    // Get last backup job to determine if scheduler is working
+    let last_backup: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar::<_, chrono::DateTime<chrono::Utc>>(
+        "SELECT MAX(started_at) FROM backup_jobs WHERE status = 'completed'"
+    )
+    .fetch_optional(&data.db_pool)
+    .await
+    .map_err(|e| ApiError::internal_error(Some(format!("Failed to get last backup: {}", e))))?;
+
+    // Determine status based on configuration and recent activity
+    let status = if !enabled {
+        "disabled"
+    } else if active_schedules == 0 {
+        "no_schedules"
+    } else if let Some(last) = last_backup {
+        let hours_since = (chrono::Utc::now() - last).num_hours();
+        if hours_since < 48 {
+            "running"
+        } else {
+            "inactive"
+        }
+    } else {
+        "pending"
+    };
+
     Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
-        data: Some(serde_json::json!({ "status": "running" })),
+        data: Some(serde_json::json!({
+            "status": status,
+            "enabled": enabled,
+            "active_schedules": active_schedules,
+            "last_backup": last_backup.map(|d| d.to_rfc3339()),
+        })),
         message: Some("Scheduler status retrieved successfully".to_string()),
         timestamp: chrono::Utc::now().to_rfc3339(),
         request_id: None,

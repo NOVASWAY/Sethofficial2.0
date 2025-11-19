@@ -193,7 +193,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - clinic_network
+      - clinic-network
 
   redis:
     image: redis:7-alpine
@@ -210,7 +210,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - clinic_network
+      - clinic-network
 
   backend:
     build:
@@ -229,7 +229,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - clinic_network
+      - clinic-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -251,7 +251,7 @@ services:
     depends_on:
       - backend
     networks:
-      - clinic_network
+      - clinic-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
@@ -267,7 +267,7 @@ volumes:
     driver: local
 
 networks:
-  clinic_network:
+  clinic-network:
     driver: bridge
 ```
 

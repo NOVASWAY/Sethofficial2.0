@@ -1,4 +1,5 @@
 use actix_web::{
+    body::{MessageBody, BoxBody},
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage, HttpResponse, Result,
 };
@@ -55,9 +56,9 @@ impl<S, B> Transform<S, ServiceRequest> for SecurityMiddleware
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Transform = SecurityMiddlewareService<S>;
     type InitError = ();
@@ -82,9 +83,9 @@ impl<S, B> Service<ServiceRequest> for SecurityMiddlewareService<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
@@ -115,7 +116,8 @@ where
                                 "error": "Rate limit exceeded. Please try again later.",
                                 "retry_after": 60
                             }));
-                        return Ok(ServiceResponse::new(req.into_parts().0, response));
+                        let (req, _) = req.into_parts();
+                        return Ok(ServiceResponse::new(req, response).map_into_boxed_body());
                     }
                 }
             }
@@ -130,8 +132,8 @@ where
                         Ok(claims) => {
                             // Add claims to request extensions for use in handlers
                             req.extensions_mut().insert(claims);
-                            // Call the service
-                            service.call(req).await
+                            // Call the service and map to BoxBody
+                            service.call(req).await.map(|res| res.map_into_boxed_body())
                         }
                         Err(e) => {
                             // Token is invalid or expired

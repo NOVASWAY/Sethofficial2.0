@@ -304,7 +304,7 @@ pub async fn get_profile(req: HttpRequest, state: web::Data<AppState>) -> Result
                     "data": {
                         "id": user.id,
                         "username": user.username,
-                        "email": format!("{}@example.com", user.username), // TODO: Add email field to User model
+                        "email": user.email,
                         "role": user.role,
                         "name": user.name,
                         "department": user.department,

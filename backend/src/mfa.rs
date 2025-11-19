@@ -147,12 +147,12 @@ impl MfaService {
         });
 
         Ok(UserMfaStatus {
-            mfa_enabled: user_row.mfa_enabled,
+            mfa_enabled: user_row.mfa_enabled.unwrap_or(false),
             mfa_method,
-            totp_secret_configured: user_row.totp_secret_configured,
+            totp_secret_configured: user_row.totp_secret_configured.unwrap_or(false),
             phone_number: user_row.phone_number,
-            email_verified: user_row.email_verified,
-            recovery_codes_count: user_row.recovery_codes_count,
+            email_verified: user_row.email_verified.unwrap_or(false),
+            recovery_codes_count: user_row.recovery_codes_count.unwrap_or(0),
         })
     }
 
@@ -243,11 +243,63 @@ impl MfaService {
             let step = timestamp / 30;
             // totp-lite 2.0 API: totp_custom(digits, period, secret_bytes, timestamp_offset)
             // timestamp_offset of 0 means use current time
-            let expected_code = totp_custom(6, 30, &secret_bytes, 0);
+            let expected_code = totp_custom::<sha2::Sha256>(6, 30, &secret_bytes, 0);
             format!("{:06}", expected_code) == code
         });
 
         Ok(valid)
+    }
+
+    /// Verify SMS code
+    pub async fn verify_sms(&self, user_id: Uuid, session_token: &str, code: &str) -> Result<bool, AppError> {
+        // Get user's phone number
+        let user = sqlx::query!(
+            r#"
+            SELECT phone_number, COALESCE(mfa_enabled, false) as mfa_enabled
+            FROM users
+            WHERE id = $1
+            "#,
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::Database(e))?;
+
+        let user = match user {
+            Some(u) => u,
+            None => return Ok(false),
+        };
+
+        if !user.mfa_enabled.unwrap_or(false) {
+            return Ok(false);
+        }
+
+        let phone_number = match user.phone_number {
+            Some(p) => p,
+            None => return Ok(false),
+        };
+
+        // Try to get SMS code from Redis if available
+        // In production, SMS codes should be stored in Redis with TTL
+        let redis_url = std::env::var("REDIS_URL").ok();
+        if let Some(redis_url) = redis_url {
+            // Try to connect to Redis and get the code using async client
+            if let Ok(redis_client) = crate::redis_client::RedisClient::new(&redis_url).await {
+                let redis_key = format!("mfa:sms:{}:{}", user_id, session_token);
+                if let Ok(Some(stored_code)) = redis_client.get(&redis_key).await {
+                    if stored_code == code {
+                        // Code matches, delete it and return true
+                        let _ = redis_client.del(&redis_key).await;
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+
+        // If Redis is not available or code not found, return false
+        // In a production system, SMS codes should always be stored in Redis
+        warn!("SMS verification attempted but code not found in Redis for user: {}", user_id);
+        Ok(false)
     }
 
     /// Generate recovery codes
@@ -397,8 +449,7 @@ impl MfaService {
                 self.verify_recovery_code(session.user_id, code).await?
             }
             "sms" => {
-                // TODO: Implement SMS verification
-                false
+                self.verify_sms(session.user_id, session_token, code).await?
             }
             _ => false,
         };

@@ -239,6 +239,17 @@ pub async fn update_user_preferences(
     }
 
     // Update user preferences
+    let update_data_inner = update_data.into_inner();
+    // Clone values needed later before binding
+    let layout_config_clone = update_data_inner.layout_config.clone();
+    let custom_metrics_clone = update_data_inner.custom_metrics.clone();
+    let favorite_modules_clone = update_data_inner.favorite_modules.clone();
+    let refresh_interval_clone = update_data_inner.refresh_interval;
+    let auto_refresh_clone = update_data_inner.auto_refresh;
+    let theme_clone = update_data_inner.theme.clone();
+    let language_clone = update_data_inner.language.clone();
+    let timezone_clone = update_data_inner.timezone.clone();
+    
     let updated_preferences = match sqlx::query_as::<_, UserPreferences>(
         "UPDATE user_dashboard_preferences 
          SET layout_config = COALESCE($2, layout_config),
@@ -256,14 +267,14 @@ pub async fn update_user_preferences(
                    created_at, updated_at"
     )
     .bind(user_id)
-    .bind(update_data.layout_config)
-    .bind(update_data.custom_metrics.as_deref())
-    .bind(update_data.favorite_modules.as_deref())
-    .bind(update_data.refresh_interval)
-    .bind(update_data.auto_refresh)
-    .bind(update_data.theme.as_deref())
-    .bind(update_data.language.as_deref())
-    .bind(update_data.timezone.as_deref())
+    .bind(update_data_inner.layout_config)
+    .bind(update_data_inner.custom_metrics.as_deref())
+    .bind(update_data_inner.favorite_modules.as_deref())
+    .bind(update_data_inner.refresh_interval)
+    .bind(update_data_inner.auto_refresh)
+    .bind(update_data_inner.theme.as_deref())
+    .bind(update_data_inner.language.as_deref())
+    .bind(update_data_inner.timezone.as_deref())
     .fetch_optional(&**pool)
     .await
     {
@@ -272,35 +283,34 @@ pub async fn update_user_preferences(
             // Create new preferences if none exist
             match create_default_preferences(&pool, &user_id, &claims.role).await {
                 Ok(mut prefs) => {
-                    // Update with provided data
-                    if let Some(layout_config) = &update_data.layout_config {
+                    // Update with provided data (using cloned values)
+                    if let Some(layout_config) = &layout_config_clone {
                         prefs.layout_config = layout_config.clone();
                     }
-                    if let Some(custom_metrics) = &update_data.custom_metrics {
-                        prefs.custom_metrics = custom_metrics.clone();
+                    if let Some(custom_metrics) = &custom_metrics_clone {
+                        prefs.custom_metrics = Some(custom_metrics.clone());
                     }
-                    if let Some(favorite_modules) = &update_data.favorite_modules {
-                        prefs.favorite_modules = favorite_modules.clone();
+                    if let Some(favorite_modules) = &favorite_modules_clone {
+                        prefs.favorite_modules = Some(favorite_modules.clone());
                     }
-                    if let Some(refresh_interval) = update_data.refresh_interval {
-                        prefs.refresh_interval = refresh_interval;
+                    if let Some(refresh_interval) = refresh_interval_clone {
+                        prefs.refresh_interval = Some(refresh_interval);
                     }
-                    if let Some(auto_refresh) = update_data.auto_refresh {
-                        prefs.auto_refresh = auto_refresh;
+                    if let Some(auto_refresh) = auto_refresh_clone {
+                        prefs.auto_refresh = Some(auto_refresh);
                     }
-                    if let Some(theme) = &update_data.theme {
-                        prefs.theme = theme.clone();
+                    if let Some(theme) = &theme_clone {
+                        prefs.theme = Some(theme.clone());
                     }
-                    if let Some(language) = &update_data.language {
-                        prefs.language = language.clone();
+                    if let Some(language) = &language_clone {
+                        prefs.language = Some(language.clone());
                     }
-                    if let Some(timezone) = &update_data.timezone {
-                        prefs.timezone = timezone.clone();
+                    if let Some(timezone) = &timezone_clone {
+                        prefs.timezone = Some(timezone.clone());
                     }
 
                     // Save updated preferences
-                    match sqlx::query_as!(
-                        UserPreferences,
+                    match sqlx::query_as::<_, UserPreferences>(
                         "UPDATE user_dashboard_preferences 
                          SET layout_config = $2, custom_metrics = $3, favorite_modules = $4,
                              refresh_interval = $5, auto_refresh = $6, theme = $7, 
@@ -308,17 +318,17 @@ pub async fn update_user_preferences(
                          WHERE user_id = $1
                          RETURNING id, user_id, layout_config, custom_metrics, favorite_modules, 
                                    refresh_interval, auto_refresh, theme, language, timezone, 
-                                   created_at, updated_at",
-                        user_id,
-                        prefs.layout_config,
-                        prefs.custom_metrics.as_slice(),
-                        prefs.favorite_modules.as_slice(),
-                        prefs.refresh_interval,
-                        prefs.auto_refresh,
-                        prefs.theme,
-                        prefs.language,
-                        prefs.timezone
+                                   created_at, updated_at"
                     )
+                    .bind(user_id)
+                    .bind(&prefs.layout_config)
+                    .bind(prefs.custom_metrics.as_ref().map(|v| v.as_slice()))
+                    .bind(prefs.favorite_modules.as_ref().map(|v| v.as_slice()))
+                    .bind(prefs.refresh_interval)
+                    .bind(prefs.auto_refresh)
+                    .bind(prefs.theme.as_deref())
+                    .bind(prefs.language.as_deref())
+                    .bind(prefs.timezone.as_deref())
                     .fetch_one(&**pool)
                     .await
                     {

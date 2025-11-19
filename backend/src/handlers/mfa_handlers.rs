@@ -43,7 +43,7 @@ pub async fn setup_totp(
     // Get user details
     let user = sqlx::query_as!(
         crate::models::User,
-        "SELECT id, username, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1",
+        "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1",
         user_id
     )
     .fetch_one(&data.db_pool)
@@ -54,7 +54,7 @@ pub async fn setup_totp(
     let setup_response = mfa_service.setup_totp(
         user_id,
         &user.username,
-        &format!("{}@example.com", user.username), // TODO: Get email from user table
+        &user.email,
     ).await?;
 
     Ok(HttpResponse::Ok().json(ApiResponse {
@@ -100,7 +100,7 @@ pub async fn verify_mfa(
     // Generate JWT token for the user
     let user = sqlx::query_as!(
         crate::models::User,
-        "SELECT id, username, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1",
+        "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1",
         user_id
     )
     .fetch_one(&data.db_pool)
@@ -147,7 +147,7 @@ pub async fn disable_mfa(
     let mfa_service = MfaService::new(data.db_pool.clone());
     mfa_service.disable_mfa(user_id).await?;
 
-    Ok(HttpResponse::Ok().json(ApiResponse {
+    Ok(HttpResponse::Ok().json(ApiResponse::<()> {
         error: None,
         success: true,
         data: None,

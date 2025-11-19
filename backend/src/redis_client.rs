@@ -20,9 +20,9 @@ impl RedisClient {
         let mut conn = self.connection_manager.clone();
         
         if let Some(ttl) = ttl {
-            conn.set_ex(key, value, ttl.as_secs() as u64).await?;
+            conn.set_ex::<_, _, ()>(key, value, ttl.as_secs() as u64).await?;
         } else {
-            conn.set(key, value).await?;
+            conn.set::<_, _, ()>(key, value).await?;
         }
         
         Ok(())
@@ -37,7 +37,7 @@ impl RedisClient {
 
     pub async fn del(&self, key: &str) -> RedisResult<()> {
         let mut conn = self.connection_manager.clone();
-        conn.del(key).await?;
+        conn.del::<_, ()>(key).await?;
         
         Ok(())
     }
@@ -51,7 +51,7 @@ impl RedisClient {
 
     pub async fn publish(&self, channel: &str, message: &str) -> RedisResult<()> {
         let mut conn = self.connection_manager.clone();
-        conn.publish(channel, message).await?;
+        conn.publish::<_, _, ()>(channel, message).await?;
         
         Ok(())
     }

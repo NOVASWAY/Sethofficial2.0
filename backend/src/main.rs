@@ -3,7 +3,9 @@ use std::env;
 use serde_json::json;
 use sqlx::PgPool;
 use actix_cors::Cors;
+use actix::{Actor, System};
 use middleware::SecurityMiddleware;
+use security::security_headers;
 
 mod database;
 mod auth;
@@ -76,9 +78,9 @@ async fn database_test(state: web::Data<AppState>) -> Result<HttpResponse> {
 async fn websocket_handler_wrapper(
     req: actix_web::HttpRequest,
     stream: web::Payload,
-    manager: web::Data<actix::Addr<websocket::WebSocketManager>>,
     state: web::Data<AppState>,
 ) -> actix_web::Result<HttpResponse> {
+    let manager = web::Data::new(state.websocket_manager.clone());
     websocket::websocket_handler(req, stream, manager, web::Data::new(state.auth_service.clone())).await
 }
 
@@ -130,10 +132,6 @@ async fn main() -> std::io::Result<()> {
     
     eprintln!("🔐 AuthService initialized");
 
-    // Initialize WebSocket Manager
-    let websocket_addr = websocket::WebSocketManager::new().start();
-    eprintln!("🌐 WebSocket Manager initialized");
-
     // Initialize Redis client (optional - gracefully handles if Redis is unavailable)
     let redis_client = {
         let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
@@ -150,13 +148,6 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
-    let app_state = AppState { 
-        db_pool,
-        auth_service,
-        redis_client,
-        websocket_manager: websocket_addr.clone(),
-    };
-
     // Configure CORS
     let cors_origins = env::var("CORS_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001".to_string());
@@ -164,9 +155,27 @@ async fn main() -> std::io::Result<()> {
     eprintln!("🌐 Starting HTTP server...");
     eprintln!("🔓 CORS enabled for: {}", cors_origins);
     
-    let app_state_clone = app_state.clone();
+    // Use OnceLock to store WebSocket manager (initialized once in HttpServer closure)
+    use std::sync::OnceLock;
+    static WEBSOCKET_MANAGER: OnceLock<actix::Addr<websocket::WebSocketManager>> = OnceLock::new();
+    
+    // Create app_state with components (websocket will be added in HttpServer closure)
+    let db_pool_clone = db_pool.clone();
+    let auth_service_clone = auth_service.clone();
+    let redis_client_clone = redis_client.clone();
+    
     HttpServer::new(move || {
-        let app_state = app_state_clone.clone();
+        // Initialize WebSocket Manager on first call (System is available here)
+        let websocket_addr = WEBSOCKET_MANAGER.get_or_init(|| {
+            websocket::WebSocketManager::new().start()
+        }).clone();
+        
+        let app_state = AppState {
+            db_pool: db_pool_clone.clone(),
+            auth_service: auth_service_clone.clone(),
+            redis_client: redis_client_clone.clone(),
+            websocket_manager: websocket_addr,
+        };
         // Build CORS configuration
         let mut cors = Cors::default()
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
@@ -190,6 +199,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             // Global middleware
             .wrap(Logger::default())
+            .wrap(security_headers()) // Security headers (X-Frame-Options, CSP, etc.)
             .wrap(cors)
             // Application state
             .app_data(web::Data::new(app_state.clone()))

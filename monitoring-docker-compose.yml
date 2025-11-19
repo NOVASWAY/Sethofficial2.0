@@ -17,7 +17,7 @@ services:
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
     networks:
-      - clinic_network
+      - clinic-network
 
   grafana:
     image: grafana/grafana:latest
@@ -31,7 +31,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     networks:
-      - clinic_network
+      - clinic-network
 
   node_exporter:
     image: prom/node-exporter:latest
@@ -48,12 +48,12 @@ services:
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
-      - clinic_network
+      - clinic-network
 
 volumes:
   prometheus_data:
   grafana_data:
 
 networks:
-  clinic_network:
+  clinic-network:
     external: true

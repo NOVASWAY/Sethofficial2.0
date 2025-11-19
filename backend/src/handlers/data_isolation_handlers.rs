@@ -35,7 +35,7 @@ pub struct IsolationRule {
     pub entity_type: String,
     pub filter_rules: serde_json::Value,
     pub permissions: serde_json::Value,
-    pub is_active: bool,
+    pub is_active: Option<bool>,
 }
 
 // Get filtered patients based on user permissions

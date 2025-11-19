@@ -600,6 +600,7 @@ async fn calculate_role_metrics(
     .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
     .unwrap_or(0.0);
 
+    let total_revenue = total_revenue_result;
     let monthly_revenue = total_revenue_result;
     let revenue_change = 0.0; // Simplified
     let active_users = sqlx::query_scalar!(
@@ -699,6 +700,7 @@ async fn calculate_department_metrics(
     .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
     .unwrap_or(0.0);
 
+    let total_revenue = total_revenue_result;
     let monthly_revenue = total_revenue_result;
     let revenue_change = 0.0; // Simplified
     let active_users = sqlx::query_scalar!(
