@@ -220,12 +220,37 @@ pub async fn update_user(
     data: web::Data<AppState>,
     http_req: HttpRequest,
 ) -> Result<HttpResponse> {
-    let _claims = get_current_user(&http_req)
+    let claims = get_current_user(&http_req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("User not authenticated"))?;
 
     let user_id = path.into_inner();
     let update_data = req.into_inner();
     let now = Utc::now();
+    
+    // Check if user is trying to update role or permissions - requires admin
+    let requires_admin = update_data.get("role").is_some() || 
+                        update_data.get("permissions").is_some() ||
+                        update_data.get("is_active").is_some();
+    
+    if requires_admin && claims.role != "admin" {
+        return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
+            success: false,
+            data: None,
+            message: None,
+            error: Some("Only administrators can update user roles, permissions, or status".to_string()),
+        }));
+    }
+    
+    // Users can update their own profile, but admins can update any user
+    let current_user_id = Uuid::parse_str(&claims.sub).ok();
+    if current_user_id != Some(user_id) && claims.role != "admin" {
+        return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
+            success: false,
+            data: None,
+            message: None,
+            error: Some("You can only update your own profile".to_string()),
+        }));
+    }
 
     // Build dynamic update query based on provided fields
     let mut set_clauses = Vec::new();
@@ -337,10 +362,46 @@ pub async fn delete_user(
     data: web::Data<AppState>,
     http_req: HttpRequest,
 ) -> Result<HttpResponse> {
-    let _claims = get_current_user(&http_req)
+    // Authentication and authorization check - only admins can delete users
+    let claims = get_current_user(&http_req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("User not authenticated"))?;
+    
+    if claims.role != "admin" {
+        return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
+            success: false,
+            data: None,
+            message: None,
+            error: Some("Only administrators can delete users".to_string()),
+        }));
+    }
 
     let user_id = path.into_inner();
+    
+    // Prevent deletion of the last admin user
+    let admin_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = true"
+    )
+    .fetch_one(&data.db_pool)
+    .await
+    .unwrap_or(0);
+    
+    // Check if the user being deleted is an admin
+    let user_role: Option<String> = sqlx::query_scalar(
+        "SELECT role FROM users WHERE id = $1 AND is_active = true"
+    )
+    .bind(user_id)
+    .fetch_optional(&data.db_pool)
+    .await
+    .unwrap_or(None);
+    
+    if user_role.as_deref() == Some("admin") && admin_count <= 1 {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
+            success: false,
+            data: None,
+            message: None,
+            error: Some("Cannot delete the last active admin user".to_string()),
+        }));
+    }
 
     // Soft delete - set is_active to false instead of actually deleting
     let result = sqlx::query(

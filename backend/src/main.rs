@@ -28,6 +28,8 @@ mod encryption;
 mod monitoring;
 mod metrics;
 mod validation;
+mod csrf;
+mod backup_scheduler;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -148,6 +150,76 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
+    // Initialize CSRF service
+    let enable_csrf = env::var("ENABLE_CSRF_PROTECTION")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(true);
+    let csrf_token_length = env::var("CSRF_TOKEN_LENGTH")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(32);
+    let csrf_expiration_minutes = env::var("CSRF_TOKEN_EXPIRATION_MINUTES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60);
+    
+    let csrf_service = csrf::CsrfService::new(
+        redis_client.clone(),
+        csrf_token_length,
+        csrf_expiration_minutes,
+    );
+    
+    if enable_csrf {
+        eprintln!("🛡️  CSRF protection enabled (token length: {}, expiration: {} minutes)", csrf_token_length, csrf_expiration_minutes);
+    } else {
+        eprintln!("⚠️  CSRF protection disabled");
+    }
+
+    // Initialize backup scheduler if enabled
+    let backup_enabled = env::var("BACKUP_ENABLED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(true);
+    
+    if backup_enabled {
+        // Create backup config from environment variables
+        let backup_config = backup::BackupConfig {
+            enabled: true,
+            cron_expression: env::var("BACKUP_CRON_EXPRESSION")
+                .unwrap_or_else(|_| "0 2 * * *".to_string()),
+            retention_days: env::var("BACKUP_RETENTION_DAYS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(30),
+            backup_path: env::var("BACKUP_PATH")
+                .unwrap_or_else(|_| "./backups".to_string()),
+            compression: env::var("BACKUP_COMPRESSION")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(true),
+            include_files: env::var("BACKUP_INCLUDE_FILES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(true),
+            max_backup_size_mb: env::var("BACKUP_MAX_SIZE_MB")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1024),
+        };
+        
+        match backup_scheduler::init_backup_scheduler(db_pool.clone(), backup_config.clone()).await {
+            Ok(_) => {
+                eprintln!("✅ Backup scheduler started");
+            }
+            Err(e) => {
+                eprintln!("⚠️  Failed to start backup scheduler: {}. Backups will need to be triggered manually.", e);
+            }
+        }
+    } else {
+        eprintln!("⚠️  Backup scheduler disabled");
+    }
+
     // Configure CORS
     let cors_origins = env::var("CORS_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001".to_string());
@@ -163,6 +235,8 @@ async fn main() -> std::io::Result<()> {
     let db_pool_clone = db_pool.clone();
     let auth_service_clone = auth_service.clone();
     let redis_client_clone = redis_client.clone();
+    let csrf_service_clone = csrf_service.clone();
+    let enable_csrf_clone = enable_csrf;
     
     HttpServer::new(move || {
         // Initialize WebSocket Manager on first call (System is available here)
@@ -196,14 +270,33 @@ async fn main() -> std::io::Result<()> {
         let security_middleware = SecurityMiddleware::new(app_state.auth_service.clone());
         let auth_middleware_strict = SecurityMiddleware::with_strict_rate_limit(app_state.auth_service.clone());
 
-        App::new()
+        // Build base app
+        let mut app = App::new()
             // Global middleware
             .wrap(Logger::default())
             .wrap(security_headers()) // Security headers (X-Frame-Options, CSP, etc.)
             .wrap(cors)
             // Application state
             .app_data(web::Data::new(app_state.clone()))
-            
+            .app_data(web::Data::new(csrf_service_clone.clone()));
+
+        // Add CSRF middleware conditionally (before routes)
+        if enable_csrf_clone {
+            app = app.wrap(actix_web::middleware::from_fn(
+                move |req: actix_web::dev::ServiceRequest, next: actix_web::middleware::Next<impl actix_web::body::MessageBody>| {
+                    let csrf_service = csrf_service_clone.clone();
+                    async move {
+                        middleware::security_middleware::csrf_protection_middleware(
+                            req,
+                            next,
+                            web::Data::new(csrf_service),
+                        ).await
+                    }
+                }
+            ));
+        }
+
+        app
             // ===========================================
             // PUBLIC ROUTES (No authentication required)
             // ===========================================
@@ -211,6 +304,9 @@ async fn main() -> std::io::Result<()> {
             .route("/health", web::get().to(health))
             .route("/status", web::get().to(status))
             .route("/api/test/database", web::get().to(database_test))
+            
+            // CSRF token generation endpoint (public, but recommended to be called after login)
+            .route("/api/csrf/token", web::get().to(handlers::csrf_handlers::generate_csrf_token))
             
             // ===========================================
             // AUTHENTICATION ROUTES (Public - no JWT required)

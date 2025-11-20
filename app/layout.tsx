@@ -19,12 +19,23 @@ export const metadata: Metadata = {
   generator: "v0.app",
   manifest: "/site.webmanifest",
   themeColor: "#FF6B35",
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
     apple: '/favicon.svg',
+  },
+  // Note: This is a web app, not an installable app
+  // appleWebApp settings are for browser display optimization only
+  formatDetection: {
+    telephone: false,
   },
 }
 

@@ -31,8 +31,10 @@ impl EmailConfig {
             api_key: std::env::var("SENDGRID_API_KEY")
                 .unwrap_or_else(|_| "".to_string()),
             from_email: std::env::var("FROM_EMAIL")
+                .or_else(|_| std::env::var("SMTP_FROM_EMAIL"))
                 .unwrap_or_else(|_| "noreply@sethmedicalclinic.com".to_string()),
             from_name: std::env::var("FROM_NAME")
+                .or_else(|_| std::env::var("SMTP_FROM_NAME"))
                 .unwrap_or_else(|_| "Seth Medical Clinic".to_string()),
             smtp_host: std::env::var("SMTP_HOST")
                 .unwrap_or_else(|_| "smtp.gmail.com".to_string()),

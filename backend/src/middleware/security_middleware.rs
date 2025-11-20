@@ -2,7 +2,7 @@ use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     Error, HttpRequest, HttpResponse, Result,
     middleware::Next,
-    web::Data,
+    web::{Data, self},
 };
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -203,6 +203,7 @@ pub async fn security_logging_middleware(
 pub async fn csrf_protection_middleware(
     req: ServiceRequest,
     next: Next<impl actix_web::body::MessageBody>,
+    csrf_service: web::Data<crate::csrf::CsrfService>,
 ) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
     // Skip CSRF check for GET, HEAD, OPTIONS requests
     if matches!(req.method(), &actix_web::http::Method::GET | &actix_web::http::Method::HEAD | &actix_web::http::Method::OPTIONS) {
@@ -211,7 +212,20 @@ pub async fn csrf_protection_middleware(
 
     // Skip CSRF check for certain paths
     let path = req.path();
-    let skip_paths = ["/health", "/api/v1/auth/login", "/api/v1/auth/register"];
+    let skip_paths = [
+        "/health", 
+        "/status",
+        "/api/test/database",
+        "/api/auth/login", 
+        "/api/auth/register",
+        "/api/auth/password-reset/request",
+        "/api/auth/password-reset/verify",
+        "/api/auth/password-reset",
+        "/api/auth/verify-email",
+        "/api/auth/resend-verification",
+        "/api/mpesa/callback",
+        "/api/csrf/token", // Allow token generation
+    ];
     
     if skip_paths.iter().any(|&skip_path| path.starts_with(skip_path)) {
         return next.call(req).await;
@@ -228,15 +242,45 @@ pub async fn csrf_protection_middleware(
             HttpResponse::Forbidden()
                 .json(serde_json::json!({
                     "success": false,
-                    "message": "CSRF token required",
+                    "message": "CSRF token required. Include 'X-CSRF-Token' header.",
                     "error": "CSRF_TOKEN_MISSING"
                 }))
         ));
     }
 
-    // In a real implementation, you would validate the CSRF token here
-    // For now, we'll just check that it exists
-    next.call(req).await
+    // Extract user ID and session ID from request
+    let (user_id, session_id) = crate::csrf::CsrfService::extract_context_from_request(req.request());
+    
+    // Validate the CSRF token
+    match csrf_service.validate_token(csrf_token.unwrap(), user_id, session_id).await {
+        Ok(true) => {
+            // Token is valid, proceed
+            next.call(req).await
+        }
+        Ok(false) => {
+            // Token is invalid or expired
+            Ok(req.into_response(
+                HttpResponse::Forbidden()
+                    .json(serde_json::json!({
+                        "success": false,
+                        "message": "CSRF token is invalid or expired",
+                        "error": "CSRF_TOKEN_INVALID"
+                    }))
+            ))
+        }
+        Err(e) => {
+            // Error during validation
+            log::error!("CSRF validation error: {}", e);
+            Ok(req.into_response(
+                HttpResponse::InternalServerError()
+                    .json(serde_json::json!({
+                        "success": false,
+                        "message": "Error validating CSRF token",
+                        "error": "CSRF_VALIDATION_ERROR"
+                    }))
+            ))
+        }
+    }
 }
 
 // Session validation middleware

@@ -92,8 +92,20 @@ pub async fn get_user_by_id(
 
 pub async fn create_user(
     user_data: web::Json<serde_json::Value>,
-    state: web::Data<AppState>
+    state: web::Data<AppState>,
+    req: HttpRequest,
 ) -> Result<HttpResponse> {
+    // Authentication and authorization check - only admins can create users
+    let claims = crate::middleware::security::get_claims_from_request(&req)
+        .ok_or_else(|| actix_web::error::ErrorUnauthorized("Authentication required"))?;
+    
+    if claims.role != "admin" {
+        return Ok(HttpResponse::Forbidden().json(json!({
+            "success": false,
+            "error": "Only administrators can create users"
+        })));
+    }
+
     // Basic validation
     let username = match user_data.get("username").and_then(|v| v.as_str()) {
         Some(u) => u,
@@ -5849,9 +5861,11 @@ fn get_email_service() -> Result<services::EmailService, String> {
         .map_err(|_| "SMTP_USERNAME not set".to_string())?;
     let smtp_password = std::env::var("SMTP_PASSWORD")
         .map_err(|_| "SMTP_PASSWORD not set".to_string())?;
-    let from_email = std::env::var("SMTP_FROM_EMAIL")
+    let from_email = std::env::var("FROM_EMAIL")
+        .or_else(|_| std::env::var("SMTP_FROM_EMAIL"))
         .unwrap_or_else(|_| "noreply@sethmedicalclinic.com".to_string());
-    let from_name = std::env::var("SMTP_FROM_NAME")
+    let from_name = std::env::var("FROM_NAME")
+        .or_else(|_| std::env::var("SMTP_FROM_NAME"))
         .unwrap_or_else(|_| "Seth Medical Clinic".to_string());
     
     let config = EmailConfig {
