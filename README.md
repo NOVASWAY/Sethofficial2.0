@@ -190,17 +190,14 @@ clinic-management/
 - **[Environment Variables](ENVIRONMENT_VARIABLES.md)**: Complete reference for all environment variables
 - **[Production Deployment Guide](PRODUCTION_DEPLOYMENT_GUIDE.md)**: Step-by-step production deployment instructions
 - **[Deployment Checklist](DEPLOYMENT_CHECKLIST.md)**: Pre-deployment verification checklist
-- **[Security Review](SECURITY_REVIEW.md)**: Current security posture and recommendations
 - **[Security Audit](SECURITY_AUDIT.md)**: Comprehensive security audit report
-- **[Progress Summary](PROGRESS_SUMMARY.md)**: Current development progress and accomplishments
+- **[Final Status](FINAL_STATUS.md)**: Current system status and completion summary
 
 ### Additional Documentation
-- **[API Documentation](API_DOCUMENTATION.md)**: Complete API reference with examples
-- **[User Guide](USER_GUIDE.md)**: Comprehensive user manual
-- **[Technical Documentation](TECHNICAL_DOCUMENTATION.md)**: System architecture and implementation details
+- **[API Documentation](docs/API_DOCUMENTATION.md)**: Complete API reference with examples
+- **[User Guide](docs/USER_GUIDE.md)**: Comprehensive user manual
+- **[Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)**: System architecture and implementation details
 - **[Testing Guide](TESTING_GUIDE.md)**: Testing strategies and procedures
-- **[Comprehensive TODO](COMPREHENSIVE_TODO.md)**: Complete task list and action items
-- **[Missing Components](MISSING_COMPONENTS.md)**: Analysis of missing system components
 
 ## 🧪 Testing
 
@@ -307,7 +304,6 @@ The system implements comprehensive security measures:
 ### Security Status
 - **Security Score**: 85/100 (Good)
 - **Security Audit**: See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for details
-- **Security Review**: See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for current status
 
 ## 📊 Monitoring
 

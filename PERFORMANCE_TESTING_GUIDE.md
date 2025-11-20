@@ -329,7 +329,7 @@ Create dashboards to visualize:
 
 ## 🔗 Related Documentation
 
-- [Performance Optimization Guide](PERFORMANCE_OPTIMIZATION_GUIDE.md)
+- [Configuration Guide](CONFIGURATION_GUIDE.md)
 - [Monitoring Setup](scripts/setup-monitoring.sh)
 - [Environment Variables](ENVIRONMENT_VARIABLES.md)
 

@@ -89,11 +89,12 @@ All scripts are executable and ready to use:
 2. **DEPLOYMENT_CHECKLIST.md** - Pre/post deployment checklist
 3. **CONFIGURATION_GUIDE.md** - Step-by-step configuration instructions
 4. **SECURITY_AUDIT.md** - Comprehensive security audit
-5. **SECURITY_REVIEW.md** - Security status review
-6. **PROGRESS_SUMMARY.md** - Development progress tracking
-7. **PERFORMANCE_TESTING_GUIDE.md** - Performance testing strategies
-8. **TESTING_GUIDE.md** - Complete testing procedures
-9. **README.md** - Updated with current status
+5. **PERFORMANCE_TESTING_GUIDE.md** - Performance testing strategies
+6. **TESTING_GUIDE.md** - Complete testing procedures
+7. **MOBILE_USAGE_GUIDE.md** - Mobile usage documentation
+8. **QUICK_START.md** - Quick start guide
+9. **COMPLETE_SYSTEM_OVERVIEW.md** - Complete system overview
+10. **README.md** - Updated with current status
 
 ---
 

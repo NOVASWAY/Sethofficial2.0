@@ -365,7 +365,7 @@ Before deploying to production, ensure:
 
 - [Environment Setup Guide](docs/ENVIRONMENT_SETUP.md)
 - [Production Deployment Guide](PRODUCTION_DEPLOYMENT_GUIDE.md)
-- [Security Review](SECURITY_REVIEW.md)
+- [Security Audit](SECURITY_AUDIT.md)
 
 ---
 
