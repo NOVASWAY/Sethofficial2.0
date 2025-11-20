@@ -325,6 +325,19 @@ The system implements comprehensive security measures:
 - **Log Aggregation**: Centralized log collection and analysis
 - **Audit Logging**: Security and compliance event logging
 
+## 🌐 Browser Access
+
+**This is a web application - no browser extension needed!**
+
+The Clinic Management System runs directly in your web browser. Simply:
+1. Open your browser (Chrome, Safari, Firefox, Edge, etc.)
+2. Navigate to your clinic URL
+3. Login and start using
+
+**No installation, no extension, just open and use!**
+
+---
+
 ## 📱 Mobile Support
 
 **Yes, the system works perfectly on mobile devices!**

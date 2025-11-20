@@ -218,9 +218,10 @@ The system automatically detects columns by searching for keywords:
    - Emergency contact fields are empty (not in CSV)
 
 3. **Backend Sync**:
-   - Currently saves to frontend context/localStorage
-   - Backend API endpoint exists but not connected yet
-   - TODO in code: Connect to backend bulk import API
+   - ✅ **FULLY CONNECTED** - Saves directly to PostgreSQL database
+   - ✅ Backend API endpoint: `POST /api/patients/import`
+   - ✅ Data persists in database immediately after import
+   - ✅ Imported patients are immediately searchable
 
 4. **No Duplicate Prevention**:
    - System doesn't check for existing patients

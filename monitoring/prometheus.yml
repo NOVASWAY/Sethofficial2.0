@@ -14,7 +14,7 @@ scrape_configs:
   # Clinic Management Backend
   - job_name: 'clinic-backend'
     static_configs:
-      - targets: ['backend:9090']
+      - targets: ['backend:8080']
     metrics_path: '/metrics'
     scrape_interval: 30s
     scrape_timeout: 10s

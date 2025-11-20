@@ -9,4 +9,7 @@ datasources:
     editable: true
     jsonData:
       timeInterval: "30s"
+      httpMethod: "POST"
+      queryTimeout: "60s"
+    secureJsonData: {}
 

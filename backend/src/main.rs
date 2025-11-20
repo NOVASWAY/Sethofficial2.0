@@ -76,6 +76,27 @@ async fn database_test(state: web::Data<AppState>) -> Result<HttpResponse> {
     }
 }
 
+// Metrics handler for Prometheus
+async fn metrics_handler() -> Result<HttpResponse> {
+    match metrics::MetricsService::new() {
+        Ok(metrics_service) => {
+            match metrics_service.get_metrics() {
+                Ok(metrics_text) => Ok(HttpResponse::Ok()
+                    .content_type("text/plain; version=0.0.4")
+                    .body(metrics_text)),
+                Err(e) => Ok(HttpResponse::InternalServerError()
+                    .json(json!({
+                        "error": format!("Failed to get metrics: {}", e)
+                    })))
+            }
+        }
+        Err(e) => Ok(HttpResponse::InternalServerError()
+            .json(json!({
+                "error": format!("Failed to initialize metrics service: {}", e)
+            })))
+    }
+}
+
 // WebSocket handler wrapper to include auth service
 async fn websocket_handler_wrapper(
     req: actix_web::HttpRequest,
@@ -304,6 +325,9 @@ async fn main() -> std::io::Result<()> {
             .route("/health", web::get().to(health))
             .route("/status", web::get().to(status))
             .route("/api/test/database", web::get().to(database_test))
+            
+            // Metrics endpoint (Prometheus)
+            .route("/metrics", web::get().to(metrics_handler))
             
             // CSRF token generation endpoint (public, but recommended to be called after login)
             .route("/api/csrf/token", web::get().to(handlers::csrf_handlers::generate_csrf_token))
