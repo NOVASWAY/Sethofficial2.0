@@ -230,6 +230,8 @@ export function EmailServiceProvider({ children }: { children: ReactNode }) {
 
   // Load configuration from localStorage
   React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       const savedConfig = localStorage.getItem(EMAIL_CONFIG_STORAGE_KEY)
       const savedTemplates = localStorage.getItem(EMAIL_TEMPLATES_STORAGE_KEY)
@@ -253,6 +255,8 @@ export function EmailServiceProvider({ children }: { children: ReactNode }) {
 
   // Save configuration to localStorage
   React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       localStorage.setItem(EMAIL_CONFIG_STORAGE_KEY, JSON.stringify(config))
     } catch (error) {
@@ -262,6 +266,8 @@ export function EmailServiceProvider({ children }: { children: ReactNode }) {
 
   // Save templates to localStorage
   React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       localStorage.setItem(EMAIL_TEMPLATES_STORAGE_KEY, JSON.stringify(templates))
     } catch (error) {
@@ -271,6 +277,8 @@ export function EmailServiceProvider({ children }: { children: ReactNode }) {
 
   // Save notifications to localStorage
   React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       localStorage.setItem(EMAIL_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications))
     } catch (error) {

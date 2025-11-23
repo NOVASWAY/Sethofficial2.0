@@ -121,11 +121,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Load from backend and localStorage on mount
   useEffect(() => {
     const loadSettings = async () => {
+      // Check if we're in browser environment
+      if (typeof window === 'undefined') {
+        setIsInitialized(true)
+        return
+      }
+      
       try {
         // Try to load from backend first
-        const response = await fetch('/api/v1/settings', {
+        const token = localStorage.getItem('auth_token')
+        const response = await fetch('http://localhost:8080/api/settings', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
           }
         })
         
@@ -299,6 +307,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }
 
   const exportBackup = (): string => {
+    if (typeof window === 'undefined') {
+      return JSON.stringify({ settings, userProfile, securitySettings, timestamp: new Date().toISOString(), version: '1.0.0' }, null, 2)
+    }
+    
     const backupData = {
       settings,
       userProfile,
@@ -322,6 +334,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }
 
   const importBackup = (jsonData: string): boolean => {
+    if (typeof window === 'undefined') return false
+    
     try {
       const backupData = JSON.parse(jsonData)
       

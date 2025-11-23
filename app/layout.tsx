@@ -58,7 +58,9 @@ export default function RootLayout({
                 </Providers>
               </AuthProvider>
             </ErrorBoundary>
-        <Analytics />
+        <ErrorBoundary>
+          <Analytics />
+        </ErrorBoundary>
       </body>
     </html>
   )

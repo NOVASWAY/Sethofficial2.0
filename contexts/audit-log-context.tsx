@@ -79,6 +79,11 @@ export function AuditLogProvider({ children }: { children: ReactNode }) {
 
   // Load from localStorage on mount
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      setIsInitialized(true)
+      return
+    }
+    
     try {
       const savedLogs = localStorage.getItem(AUDIT_LOGS_STORAGE_KEY)
       if (savedLogs) {
@@ -96,14 +101,14 @@ export function AuditLogProvider({ children }: { children: ReactNode }) {
 
   // Save logs to localStorage whenever they change (with size limit)
   useEffect(() => {
-    if (isInitialized) {
-      try {
-        // Keep only the most recent MAX_LOGS entries
-        const logsToSave = logs.slice(0, MAX_LOGS)
-        localStorage.setItem(AUDIT_LOGS_STORAGE_KEY, JSON.stringify(logsToSave))
-      } catch (error) {
-        console.error('Error saving audit logs to localStorage:', error)
-      }
+    if (typeof window === 'undefined' || !isInitialized) return
+    
+    try {
+      // Keep only the most recent MAX_LOGS entries
+      const logsToSave = logs.slice(0, MAX_LOGS)
+      localStorage.setItem(AUDIT_LOGS_STORAGE_KEY, JSON.stringify(logsToSave))
+    } catch (error) {
+      console.error('Error saving audit logs to localStorage:', error)
     }
   }, [logs, isInitialized])
 

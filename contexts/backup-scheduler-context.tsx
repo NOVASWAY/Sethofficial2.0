@@ -59,6 +59,8 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
 
   // Load schedule from localStorage on mount
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       const savedSchedule = localStorage.getItem(BACKUP_SCHEDULE_STORAGE_KEY)
       const savedHistory = localStorage.getItem(BACKUP_HISTORY_STORAGE_KEY)
@@ -77,6 +79,8 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
 
   // Save schedule to localStorage
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       localStorage.setItem(BACKUP_SCHEDULE_STORAGE_KEY, JSON.stringify(schedule))
     } catch (error) {
@@ -86,6 +90,8 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
 
   // Save backup history to localStorage
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       localStorage.setItem(BACKUP_HISTORY_STORAGE_KEY, JSON.stringify(backupHistory))
     } catch (error) {

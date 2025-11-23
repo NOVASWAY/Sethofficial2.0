@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, AuthState, LoginCredentials, authenticateUser, getStoredUser, storeAuthToken, removeAuthToken } from '@/lib/auth'
 
@@ -22,7 +22,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
   const router = useRouter()
 
-  const login = async (credentials: LoginCredentials) => {
+  // Define checkAuth first since it's used in useEffect - memoized to prevent recreation
+  const checkAuth = useCallback(() => {
+    try {
+      const user = getStoredUser()
+      setAuthState({
+        user,
+        isAuthenticated: !!user,
+        isLoading: false,
+        error: null
+      })
+    } catch (error) {
+      // Silently handle errors during auth check
+      console.error('Error checking auth:', error)
+      setAuthState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null
+      })
+    }
+  }, [])
+
+  const login = useCallback(async (credentials: LoginCredentials) => {
     setAuthState(prev => ({ ...prev, isLoading: true, error: null }))
     
     try {
@@ -60,9 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }))
       throw error
     }
-  }
+  }, [router])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     removeAuthToken()
     setAuthState({
       user: null,
@@ -71,28 +93,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error: null
     })
     router.push('/')
-  }
+  }, [router])
 
-  const checkAuth = () => {
-    const user = getStoredUser()
-    setAuthState({
-      user,
-      isAuthenticated: !!user,
-      isLoading: false,
-      error: null
-    })
-  }
-
+  // Initialize auth on mount
   useEffect(() => {
     checkAuth()
-  }, [])
+  }, [checkAuth])
 
-  const value: AuthContextType = {
+  // Create context value - memoized to prevent recreation
+  const value: AuthContextType = useMemo(() => ({
     ...authState,
     login,
     logout,
     checkAuth
-  }
+  }), [authState, login, logout, checkAuth])
 
   return (
     <AuthContext.Provider value={value}>
@@ -104,7 +118,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    // Return a safe default instead of throwing to prevent crashes
+    console.warn('useAuth called outside AuthProvider, using default values')
+    return {
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+      login: async () => {
+        throw new Error('AuthProvider not available')
+      },
+      logout: () => {},
+      checkAuth: () => {}
+    }
   }
   return context
 }

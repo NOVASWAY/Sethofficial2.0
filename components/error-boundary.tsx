@@ -130,18 +130,28 @@ export class ErrorBoundary extends Component<Props, State> {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+              {this.state.error && (
                 <div className="p-3 bg-muted rounded-md">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Error Details:</p>
                   <p className="text-sm text-destructive font-mono break-words">
-                    {this.state.error.message}
+                    {this.state.error.message || 'Unknown error occurred'}
                   </p>
+                  {this.state.error.stack && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-muted-foreground cursor-pointer">
+                        Error Stack
+                      </summary>
+                      <pre className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap max-h-40 overflow-auto">
+                        {this.state.error.stack}
+                      </pre>
+                    </details>
+                  )}
                   {this.state.errorInfo && (
                     <details className="mt-2">
                       <summary className="text-xs text-muted-foreground cursor-pointer">
                         Component Stack
                       </summary>
-                      <pre className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                      <pre className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap max-h-40 overflow-auto">
                         {this.state.errorInfo.componentStack}
                       </pre>
                     </details>

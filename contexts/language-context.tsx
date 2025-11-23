@@ -49,6 +49,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   // Load saved language preference
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       const savedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY) as Language
       if (savedLanguage && (savedLanguage === 'en' || savedLanguage === 'sw')) {
@@ -61,6 +63,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang)
+    if (typeof window === 'undefined') return
+    
     try {
       localStorage.setItem(LANGUAGE_STORAGE_KEY, lang)
     } catch (error) {

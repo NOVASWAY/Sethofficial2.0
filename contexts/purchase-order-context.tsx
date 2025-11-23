@@ -201,6 +201,11 @@ export function PurchaseOrderProvider({ children }: { children: ReactNode }) {
 
   // Load from localStorage on mount
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      setIsInitialized(true)
+      return
+    }
+    
     try {
       const savedOrders = localStorage.getItem(PURCHASE_ORDERS_STORAGE_KEY)
       const savedSuppliers = localStorage.getItem(SUPPLIERS_STORAGE_KEY)
@@ -227,23 +232,23 @@ export function PurchaseOrderProvider({ children }: { children: ReactNode }) {
 
   // Save purchase orders to localStorage
   useEffect(() => {
-    if (isInitialized) {
-      try {
-        localStorage.setItem(PURCHASE_ORDERS_STORAGE_KEY, JSON.stringify(purchaseOrders))
-      } catch (error) {
-        console.error('Error saving purchase orders to localStorage:', error)
-      }
+    if (typeof window === 'undefined' || !isInitialized) return
+    
+    try {
+      localStorage.setItem(PURCHASE_ORDERS_STORAGE_KEY, JSON.stringify(purchaseOrders))
+    } catch (error) {
+      console.error('Error saving purchase orders to localStorage:', error)
     }
   }, [purchaseOrders, isInitialized])
 
   // Save suppliers to localStorage
   useEffect(() => {
-    if (isInitialized) {
-      try {
-        localStorage.setItem(SUPPLIERS_STORAGE_KEY, JSON.stringify(suppliers))
-      } catch (error) {
-        console.error('Error saving suppliers to localStorage:', error)
-      }
+    if (typeof window === 'undefined' || !isInitialized) return
+    
+    try {
+      localStorage.setItem(SUPPLIERS_STORAGE_KEY, JSON.stringify(suppliers))
+    } catch (error) {
+      console.error('Error saving suppliers to localStorage:', error)
     }
   }, [suppliers, isInitialized])
 

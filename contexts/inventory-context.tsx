@@ -111,6 +111,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
 
+  // Define loadMedicines before useEffect to avoid hoisting issues
+  const loadMedicines = async () => {
+    try {
+      const medicinesData = await pharmacyAPI.getMedicines()
+      setMedicines(medicinesData.data || [])
+    } catch (error) {
+      console.error('Error loading medicines from API:', error)
+      throw error
+    }
+  }
+
   // Load from API on mount
   useEffect(() => {
     const loadData = async () => {
@@ -129,18 +140,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     loadData()
   }, [])
-
-  // Removed localStorage save effects - data is now persisted via API calls
-
-  const loadMedicines = async () => {
-    try {
-      const medicinesData = await pharmacyAPI.getMedicines()
-      setMedicines(medicinesData.data || [])
-    } catch (error) {
-      console.error('Error loading medicines from API:', error)
-      throw error
-    }
-  }
 
   const getMedicine = (id: string): Medicine | undefined => {
     return medicines.find(m => m.id === id)
