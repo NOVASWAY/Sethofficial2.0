@@ -3,17 +3,24 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, ReactNode } from 'react'
 
 // Lazy import to avoid module initialization issues
-let wsClient: any = null
+let wsClientModule: any = null
 const getWsClient = async () => {
-  if (!wsClient && typeof window !== 'undefined') {
+  if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
+    return null
+  }
+  
+  if (!wsClientModule) {
     try {
+      // Use dynamic import to avoid module initialization during SSR
       const apiModule = await import('@/lib/api')
-      wsClient = apiModule.wsClient
+      // Use the factory function
+      wsClientModule = apiModule.getWsClient()
     } catch (error) {
       console.error('Failed to load WebSocket client:', error)
+      return null
     }
   }
-  return wsClient
+  return wsClientModule
 }
 
 interface WebSocketContextType {
@@ -48,44 +55,64 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const disconnect = useCallback(() => {
-    if (wsClient) {
-      try {
-        wsClient.disconnect()
-      } catch (error) {
-        console.error('WebSocket disconnect error:', error)
+  const disconnect = useCallback(async () => {
+    try {
+      const client = await getWsClient()
+      if (client) {
+        try {
+          client.disconnect()
+        } catch (error) {
+          console.error('WebSocket disconnect error:', error)
+        }
       }
+    } catch (error) {
+      console.error('Error getting WebSocket client for disconnect:', error)
     }
     setIsConnected(false)
   }, [])
 
-  const send = useCallback((message: any) => {
-    if (wsClient) {
-      try {
-        wsClient.send(message)
-      } catch (error) {
-        console.error('WebSocket send error:', error)
+  const send = useCallback(async (message: any) => {
+    try {
+      const client = await getWsClient()
+      if (client) {
+        try {
+          client.send(message)
+        } catch (error) {
+          console.error('WebSocket send error:', error)
+        }
       }
+    } catch (error) {
+      console.error('Error getting WebSocket client for send:', error)
     }
   }, [])
 
-  const on = useCallback((event: string, callback: Function) => {
-    if (wsClient) {
-      try {
-        wsClient.on(event, callback)
-      } catch (error) {
-        console.error('WebSocket on error:', error)
+  const on = useCallback(async (event: string, callback: Function) => {
+    try {
+      const client = await getWsClient()
+      if (client) {
+        try {
+          client.on(event, callback)
+        } catch (error) {
+          console.error('WebSocket on error:', error)
+        }
       }
+    } catch (error) {
+      console.error('Error getting WebSocket client for on:', error)
     }
   }, [])
 
-  const off = useCallback((event: string, callback: Function) => {
-    if (wsClient) {
-      try {
-        wsClient.off(event, callback)
-      } catch (error) {
-        console.error('WebSocket off error:', error)
+  const off = useCallback(async (event: string, callback: Function) => {
+    try {
+      const client = await getWsClient()
+      if (client) {
+        try {
+          client.off(event, callback)
+        } catch (error) {
+          console.error('WebSocket off error:', error)
+        }
       }
+    } catch (error) {
+      console.error('Error getting WebSocket client for off:', error)
     }
   }, [])
 

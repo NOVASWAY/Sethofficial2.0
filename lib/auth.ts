@@ -1,5 +1,5 @@
 // Authentication utilities and types
-import { authAPI, apiClient } from './api-client'
+import { authAPI, apiClient, APIError } from './api-client'
 
 // Function to get users from user management system (localStorage)
 function getUsersFromUserManagement(): any[] {
@@ -72,20 +72,43 @@ export async function authenticateUser(credentials: LoginCredentials): Promise<{
       throw new Error('Account is deactivated. Please contact administrator.')
     }
     
+    // Validate token exists
+    if (!response.token) {
+      throw new Error('Authentication token not received. Please try again.')
+    }
+    
     // Store tokens securely
-    apiClient.setToken(response.token)
-    localStorage.setItem('auth_token', response.token)
-    localStorage.setItem('refresh_token', response.refresh_token)
-    localStorage.setItem('user_data', JSON.stringify(response.user))
+    if (typeof window !== 'undefined') {
+      try {
+        apiClient.setToken(response.token)
+        localStorage.setItem('auth_token', response.token)
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token)
+        }
+        localStorage.setItem('user_data', JSON.stringify(response.user))
+      } catch (storageError) {
+        console.error('Error storing authentication data:', storageError)
+        throw new Error('Failed to store authentication data. Please try again.')
+      }
+    }
     
     // Log successful login
     console.log(`User ${response.user.username} logged in successfully`)
     
     return { user: response.user, token: response.token }
-  } catch (error) {
-    // No fallback - all authentication must go through the API
+  } catch (error: any) {
+    // Handle APIError and other errors
+    if (error instanceof APIError) {
+      // Re-throw APIError with its message
+      throw error
+    }
+    if (error instanceof Error) {
+      // Re-throw other Error instances
+      throw error
+    }
+    // Handle unknown error types
     console.error('Authentication failed:', error)
-    throw error
+    throw new Error(error?.message || 'Login failed. Please check your credentials and try again.')
   }
 }
 

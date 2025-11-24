@@ -121,8 +121,22 @@ class APIClient {
   }
 }
 
-// Create API client instance
-export const apiClient = new APIClient(API_BASE_URL);
+// Create API client instance lazily to avoid SSR issues
+let _apiClientInstance: APIClient | null = null;
+
+export function getApiClient(): APIClient {
+  if (!_apiClientInstance) {
+    _apiClientInstance = new APIClient(API_BASE_URL);
+  }
+  return _apiClientInstance;
+}
+
+// Export apiClient as a getter for backward compatibility
+export const apiClient = new Proxy({} as APIClient, {
+  get(_target, prop) {
+    return getApiClient()[prop as keyof APIClient];
+  }
+});
 
 // WebSocket client
 export class WebSocketClient {
@@ -218,8 +232,32 @@ export class WebSocketClient {
   }
 }
 
-// Create WebSocket client instance
-export const wsClient = new WebSocketClient(WS_URL);
+// Export a factory function instead of an instance to avoid module-level initialization
+// This prevents SSR issues during production builds
+let wsClientInstance: WebSocketClient | null = null;
+
+export function getWsClient(): WebSocketClient {
+  // Only create instance in browser environment
+  if (typeof window !== 'undefined' && typeof WebSocket !== 'undefined') {
+    if (!wsClientInstance) {
+      wsClientInstance = new WebSocketClient(WS_URL);
+    }
+    return wsClientInstance;
+  }
+  // Return a mock client for SSR
+  return {
+    connect: async () => {},
+    disconnect: () => {},
+    send: () => {},
+    on: () => {},
+    off: () => {},
+  } as any;
+}
+
+// DO NOT export wsClient directly - it causes SSR initialization issues
+// Use getWsClient() function instead, which is safe for SSR
+// This export is removed to prevent "Cannot access before initialization" errors
+// If you need wsClient, use: const client = getWsClient();
 
 // API Types
 export interface ApiResponse<T> {

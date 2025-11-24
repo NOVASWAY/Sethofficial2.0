@@ -18,7 +18,16 @@ import { LanguageProvider } from "@/contexts/language-context"
 import { BackupSchedulerProvider } from "@/contexts/backup-scheduler-context"
 import { EmailServiceProvider } from "@/contexts/email-service-context"
 import { SMSServiceProvider } from "@/contexts/sms-service-context"
-import { WebSocketProvider } from "@/contexts/websocket-context"
+
+// Lazy load WebSocketProvider to avoid module initialization issues during SSR
+import dynamic from 'next/dynamic'
+const WebSocketProvider = dynamic(
+  () => import('@/contexts/websocket-context').then(mod => ({ default: mod.WebSocketProvider })),
+  { 
+    ssr: false,
+    loading: () => null // Don't show loading state, just render children
+  }
+)
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -31,15 +40,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <LanguageProvider>
         <SettingsProvider>
-          <InventoryProvider>
+           <InventoryProvider>
             <InventoryProviderEnhanced>
-              <PatientProvider>
+               <PatientProvider>
                 <PatientProviderEnhanced>
-                  <WorkflowProvider>
+                   <WorkflowProvider>
                     <WorkflowProviderEnhanced>
-                      <AppointmentProvider>
+                       <AppointmentProvider>
                         <InvoiceProvider>
-                          <UserManagementProvider>
+                           <UserManagementProvider>
                             <AuditLogProvider>
                               <PurchaseOrderProvider>
                                     <BackupSchedulerProvider>
@@ -53,15 +62,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
                                     </BackupSchedulerProvider>
                               </PurchaseOrderProvider>
                             </AuditLogProvider>
-                          </UserManagementProvider>
+                           </UserManagementProvider>
                         </InvoiceProvider>
-                      </AppointmentProvider>
+                       </AppointmentProvider>
                     </WorkflowProviderEnhanced>
-                  </WorkflowProvider>
+                   </WorkflowProvider>
                 </PatientProviderEnhanced>
-              </PatientProvider>
+               </PatientProvider>
             </InventoryProviderEnhanced>
-          </InventoryProvider>
+           </InventoryProvider>
         </SettingsProvider>
       </LanguageProvider>
     </ThemeProvider>

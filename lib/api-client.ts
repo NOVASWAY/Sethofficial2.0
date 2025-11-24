@@ -1,15 +1,21 @@
 // Comprehensive API Client for Clinic Management System
 // This file provides a centralized location for all backend API calls
 
-import { getStoredUser } from './auth'
-
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
 
 // Get authorization header
 function getAuthorizationHeader(): Record<string, string> {
-  const token = localStorage.getItem('auth_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  if (typeof window === 'undefined') {
+    return {}
+  }
+  try {
+    const token = localStorage.getItem('auth_token')
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch (error) {
+    console.error('Error getting auth token:', error)
+    return {}
+  }
 }
 
 // Error handling
@@ -45,8 +51,10 @@ async function apiCall<T>(
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      // Extract error message from ApiResponse structure or fallback
+      const errorMessage = error.error || error.message || `HTTP ${response.status}: ${response.statusText}`
       throw new APIError(
-        error.message || `HTTP ${response.status}: ${response.statusText}`,
+        errorMessage,
         response.status,
         error.code
       )
@@ -88,12 +96,22 @@ export const authAPI = {
         mfa_required?: boolean;
         mfa_session_token?: string;
       }; 
-      message: string; 
-      error: any 
+      message?: string; 
+      error?: string 
     }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
+    
+    // Check if response has success: false (shouldn't happen if response.ok, but just in case)
+    if (!response.success || !response.data) {
+      throw new APIError(
+        response.error || 'Login failed',
+        401,
+        'LOGIN_FAILED'
+      )
+    }
+    
     return response.data
   },
 
