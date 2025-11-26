@@ -45,6 +45,7 @@ interface AppointmentContextType {
   addToQueue: (queueItem: Omit<QueueItem, 'id' | 'queueNumber' | 'checkInTime' | 'status'>) => void
   callNextPatient: (clinicianId: string) => QueueItem | null
   updateQueueStatus: (queueId: string, status: QueueItem['status']) => void
+  updateQueueNotes: (queueId: string, notes: string) => void
   removeFromQueue: (queueId: string) => void
   getAppointmentsByDate: (date: string) => Appointment[]
   getTodayQueue: () => QueueItem[]
@@ -193,6 +194,14 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const updateQueueNotes = (queueId: string, notes: string) => {
+    setQueue(prev =>
+      prev.map(q =>
+        q.id === queueId ? { ...q, notes } : q
+      )
+    )
+  }
+
   const removeFromQueue = (queueId: string) => {
     setQueue(prev => prev.filter(q => q.id !== queueId))
   }
@@ -216,6 +225,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     addToQueue,
     callNextPatient,
     updateQueueStatus,
+    updateQueueNotes,
     removeFromQueue,
     getAppointmentsByDate,
     getTodayQueue,

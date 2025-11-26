@@ -216,12 +216,22 @@ pub async fn create_invoice(
         let total = item.quantity as f64 * item.unit_price;
         subtotal += total;
         
-        items_json.push(json!({
+        let mut item_json = json!({
             "description": item.description,
             "quantity": item.quantity,
             "unit_price": item.unit_price,
             "total": total
-        }));
+        });
+        
+        // Add diagnosis if provided
+        if let Some(ref code) = item.diagnosis_code {
+            item_json["diagnosis_code"] = json!(code);
+        }
+        if let Some(ref desc) = item.diagnosis_description {
+            item_json["diagnosis_description"] = json!(desc);
+        }
+        
+        items_json.push(item_json);
     }
 
     // Calculate tax (16% VAT in Kenya)

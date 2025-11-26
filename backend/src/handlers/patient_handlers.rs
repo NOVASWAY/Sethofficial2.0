@@ -112,12 +112,12 @@ pub async fn create_patient(
     let result = sqlx::query(
         r#"
         INSERT INTO patients (
-            id, patient_number, first_name, last_name, date_of_birth, gender,
+            id, patient_number, first_name, last_name, age, date_of_birth, gender,
             phone, location, emergency_contact, emergency_phone,
             blood_type, allergies, medical_history, insurance_type, insurance_number,
             created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
         )
         "#
     )
@@ -125,6 +125,7 @@ pub async fn create_patient(
     .bind(&patient_number)
     .bind(&patient_data.first_name)
     .bind(&patient_data.last_name)
+    .bind(&patient_data.age)
     .bind(&patient_data.date_of_birth)
     .bind(&patient_data.gender)
     .bind(&patient_data.phone)
@@ -272,6 +273,12 @@ pub async fn update_patient(
         if !first { query_builder.push(", "); }
         query_builder.push("last_name = ");
         query_builder.push_bind(last_name);
+        first = false;
+    }
+    if let Some(ref age) = update_data.age {
+        if !first { query_builder.push(", "); }
+        query_builder.push("age = ");
+        query_builder.push_bind(age);
         first = false;
     }
     if let Some(ref date_of_birth) = update_data.date_of_birth {

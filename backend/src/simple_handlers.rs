@@ -601,21 +601,28 @@ pub async fn create_patient(
         })))
     };
 
-    let date_of_birth_str = match patient_data.get("date_of_birth").and_then(|v| v.as_str()) {
-        Some(dob) => dob,
-        _ => return Ok(HttpResponse::BadRequest().json(json!({
-            "success": false,
-            "error": "date_of_birth is required (format: YYYY-MM-DD)"
-        })))
+    // Get age (primary field) or date_of_birth (for backward compatibility)
+    let age = patient_data.get("age")
+        .and_then(|v| v.as_i64())
+        .or_else(|| patient_data.get("age").and_then(|v| v.as_str()).and_then(|s| s.parse::<i64>().ok()))
+        .map(|a| a as i32);
+    
+    // If age is not provided, try to get date_of_birth for backward compatibility
+    let date_of_birth = if age.is_none() {
+        patient_data.get("date_of_birth")
+            .and_then(|v| v.as_str())
+            .and_then(|dob_str| NaiveDate::parse_from_str(dob_str, "%Y-%m-%d").ok())
+    } else {
+        None
     };
 
-    let date_of_birth = match NaiveDate::parse_from_str(date_of_birth_str, "%Y-%m-%d") {
-        Ok(date) => date,
-        Err(_) => return Ok(HttpResponse::BadRequest().json(json!({
+    // Require either age or date_of_birth
+    if age.is_none() && date_of_birth.is_none() {
+        return Ok(HttpResponse::BadRequest().json(json!({
             "success": false,
-            "error": "Invalid date_of_birth format. Use YYYY-MM-DD"
+            "error": "age is required (or date_of_birth for backward compatibility)"
         })))
-    };
+    }
 
     let gender = match patient_data.get("gender").and_then(|v| v.as_str()) {
         Some(g) if !g.is_empty() => g,
@@ -655,11 +662,11 @@ pub async fn create_patient(
     match sqlx::query_as::<_, Patient>(
         r#"
         INSERT INTO patients (
-            id, patient_number, first_name, last_name, date_of_birth, gender, phone,
+            id, patient_number, first_name, last_name, age, date_of_birth, gender, phone,
             location, emergency_contact, emergency_phone, blood_type, medical_history,
             allergies, insurance_type, insurance_number, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
         "#
     )
@@ -667,7 +674,8 @@ pub async fn create_patient(
     .bind(&patient_number)
     .bind(first_name)
     .bind(last_name)
-    .bind(date_of_birth)
+    .bind(age)
+    .bind(date_of_birth.map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc()))
     .bind(gender)
     .bind(phone)
     .bind(location)
@@ -902,9 +910,22 @@ pub async fn import_patients(
             continue;
         }
         
-        // Default date_of_birth if missing
-        if processed_patient.get("date_of_birth").and_then(|v| v.as_str()).is_none() {
-            processed_patient["date_of_birth"] = json!("1990-01-01");
+        // Default age if missing - convert date_of_birth to age if date_of_birth is provided
+        if processed_patient.get("age").is_none() {
+            // Check if date_of_birth is provided (for backward compatibility)
+            if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
+                // Calculate age from date_of_birth
+                if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
+                    let age = chrono::Utc::now().year() - dob.year();
+                    processed_patient["age"] = json!(age);
+                } else {
+                    // Invalid date, use default age
+                    processed_patient["age"] = json!(0);
+                }
+            } else {
+                // No age or date_of_birth provided, use default
+                processed_patient["age"] = json!(0);
+            }
         }
         
         // Default gender if missing
@@ -2515,12 +2536,22 @@ pub async fn create_invoice(
         let total = quantity as f64 * unit_price;
         subtotal += total;
 
-        items_json.push(json!({
+        let mut item_json = json!({
             "description": description,
             "quantity": quantity,
             "unit_price": unit_price,
             "total": total
-        }));
+        });
+        
+        // Add diagnosis if provided
+        if let Some(diagnosis_code) = item.get("diagnosis_code").and_then(|v| v.as_str()) {
+            item_json["diagnosis_code"] = json!(diagnosis_code);
+        }
+        if let Some(diagnosis_description) = item.get("diagnosis_description").and_then(|v| v.as_str()) {
+            item_json["diagnosis_description"] = json!(diagnosis_description);
+        }
+        
+        items_json.push(item_json);
     }
 
     // Calculate tax (16% VAT in Kenya)

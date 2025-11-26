@@ -138,9 +138,22 @@ pub async fn batch_import_patients(
                 continue;
             }
 
-            // Set defaults
-            if processed_patient.get("date_of_birth").and_then(|v| v.as_str()).is_none() {
-                processed_patient["date_of_birth"] = json!("1990-01-01");
+            // Set defaults - ensure age is provided
+            if processed_patient.get("age").is_none() {
+                // Check if date_of_birth is provided (for backward compatibility)
+                if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
+                    // Calculate age from date_of_birth
+                    if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
+                        let age = chrono::Utc::now().year() - dob.year();
+                        processed_patient["age"] = json!(age);
+                    } else {
+                        // Invalid date, use default age
+                        processed_patient["age"] = json!(0);
+                    }
+                } else {
+                    // No age or date_of_birth provided, use default
+                    processed_patient["age"] = json!(0);
+                }
             }
 
             if !processed_patient.get("gender").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false) {
@@ -517,10 +530,23 @@ pub async fn resume_import(
                 continue;
             }
 
-            // Set defaults
+            // Set defaults - ensure age is provided
             let mut processed_patient = patient_data.clone();
-            if processed_patient.get("date_of_birth").and_then(|v| v.as_str()).is_none() {
-                processed_patient["date_of_birth"] = json!("1990-01-01");
+            if processed_patient.get("age").is_none() {
+                // Check if date_of_birth is provided (for backward compatibility)
+                if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
+                    // Calculate age from date_of_birth
+                    if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
+                        let age = chrono::Utc::now().year() - dob.year();
+                        processed_patient["age"] = json!(age);
+                    } else {
+                        // Invalid date, use default age
+                        processed_patient["age"] = json!(0);
+                    }
+                } else {
+                    // No age or date_of_birth provided, use default
+                    processed_patient["age"] = json!(0);
+                }
             }
             if !processed_patient.get("gender").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false) {
                 processed_patient["gender"] = json!("Unknown");

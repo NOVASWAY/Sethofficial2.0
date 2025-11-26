@@ -26,6 +26,7 @@ pub mod csrf_handlers;
 pub mod batch_import_handlers;
 pub mod lab_order_handlers;
 pub mod lab_result_handlers;
+pub mod service_handlers;
 
 // Re-export handlers for easier imports
 pub use auth_handlers::*;
@@ -52,3 +53,4 @@ pub use validation_handlers::*;
 pub use csrf_handlers::*;
 pub use lab_order_handlers::*;
 pub use lab_result_handlers::*;
+pub use service_handlers::*;

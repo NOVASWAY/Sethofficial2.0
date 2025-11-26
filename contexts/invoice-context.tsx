@@ -10,6 +10,8 @@ export interface InvoiceItem {
   unitPrice: number
   totalPrice: number
   category: 'service' | 'medication' | 'lab-test' | 'procedure'
+  diagnosis_code?: string
+  diagnosis_description?: string
 }
 
 export interface Invoice {

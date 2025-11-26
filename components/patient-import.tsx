@@ -316,13 +316,63 @@ export function PatientImport() {
     return { errors, warnings, validationIssues }
   }
 
+  // Proper CSV parser that handles quoted fields, commas in values, and trailing quotes
+  const parseCSVLine = (line: string): string[] => {
+    const values: string[] = []
+    let current = ''
+    let inQuotes = false
+    let i = 0
+
+    while (i < line.length) {
+      const char = line[i]
+      const nextChar = i + 1 < line.length ? line[i + 1] : null
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          // Escaped quote inside quoted field
+          current += '"'
+          i += 2
+          continue
+        } else if (inQuotes && (nextChar === ',' || nextChar === null || nextChar === '\r' || nextChar === '\n')) {
+          // End of quoted field
+          inQuotes = false
+          i++
+          continue
+        } else if (!inQuotes) {
+          // Start of quoted field
+          inQuotes = true
+          i++
+          continue
+        }
+      }
+
+      if (char === ',' && !inQuotes) {
+        // End of field
+        values.push(current.trim().replace(/^["']|["']$/g, '')) // Remove surrounding quotes
+        current = ''
+        i++
+        continue
+      }
+
+      current += char
+      i++
+    }
+
+    // Add the last field
+    values.push(current.trim().replace(/^["']|["']$/g, '')) // Remove surrounding quotes
+
+    return values
+  }
+
   const parseCSV = (text: string, mappings?: FieldMapping[]): ImportedPatient[] => {
-    const lines = text.split('\n').filter(line => line.trim())
+    // Normalize line endings and split
+    const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const lines = normalizedText.split('\n').filter(line => line.trim())
     if (lines.length === 0) return []
 
-    // Get headers
-    const headers = lines[0].split(',').map(h => h.trim())
-    const headersLower = headers.map(h => h.toLowerCase())
+    // Get headers using proper CSV parsing
+    const headers = parseCSVLine(lines[0])
+    const headersLower = headers.map(h => h.toLowerCase().trim())
     
     // Use custom mappings if provided, otherwise auto-detect
     let nameIdx = -1
@@ -370,11 +420,36 @@ export function PatientImport() {
     const patients: ImportedPatient[] = []
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim())
+      // Use proper CSV parsing instead of simple split
+      const values = parseCSVLine(lines[i])
       
-      if (values.length < 2) continue // Skip empty or invalid lines
+      if (values.length < 1) continue // Skip empty lines
 
-      const opNumber = opIdx >= 0 ? values[opIdx] : ''
+      // Ensure we have enough values (pad with empty strings if missing)
+      while (values.length < headers.length) {
+        values.push('')
+      }
+
+      // Clean up values: remove trailing quotes and trim
+      const cleanedValues = values.map(v => {
+        let cleaned = v.trim()
+        
+        // Remove surrounding quotes if present (handles both double and single quotes)
+        while ((cleaned.startsWith('"') && cleaned.endsWith('"')) || 
+               (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+          cleaned = cleaned.slice(1, -1).trim()
+        }
+        
+        // Remove any trailing single quotes that might be left (handles cases like "value'")
+        cleaned = cleaned.replace(/^["']+|["']+$/g, '').trim()
+        
+        // Handle escaped quotes inside the value
+        cleaned = cleaned.replace(/""/g, '"').replace(/''/g, "'")
+        
+        return cleaned
+      })
+
+      const opNumber = opIdx >= 0 && opIdx < cleanedValues.length ? cleanedValues[opIdx] : ''
       const { number: parsedOP, year: parsedYear } = parseOPNumber(opNumber)
 
       // Handle full name splitting if mapped
@@ -387,20 +462,20 @@ export function PatientImport() {
         )
         if (nameMapping) {
           const nameIndex = headers.findIndex(h => h === nameMapping.csvColumn)
-          if (nameIndex >= 0) {
-            name = values[nameIndex] || ''
+          if (nameIndex >= 0 && nameIndex < cleanedValues.length) {
+            name = cleanedValues[nameIndex] || ''
           }
         }
       } else {
-        name = nameIdx >= 0 ? values[nameIdx] : ''
+        name = nameIdx >= 0 && nameIdx < cleanedValues.length ? cleanedValues[nameIdx] : ''
       }
 
       const patient: ImportedPatient = {
         name: name,
-        age: ageIdx >= 0 ? values[ageIdx] : '',
-        location: locationIdx >= 0 ? values[locationIdx] : '',
+        age: ageIdx >= 0 && ageIdx < cleanedValues.length ? cleanedValues[ageIdx] : '',
+        location: locationIdx >= 0 && locationIdx < cleanedValues.length ? cleanedValues[locationIdx] : '',
         opNumber: opNumber,
-        phoneNumber: phoneIdx >= 0 ? values[phoneIdx] : '',
+        phoneNumber: phoneIdx >= 0 && phoneIdx < cleanedValues.length ? cleanedValues[phoneIdx] : '',
         yearFromOP: parsedYear ? `${parsedYear}` : undefined,
         parsedYear: parsedYear || undefined,
       }
@@ -541,10 +616,11 @@ export function PatientImport() {
       const text = await selectedFile.text()
       setRawCsvText(text)
       
-      // Extract headers
-      const lines = text.split('\n').filter(line => line.trim())
+      // Extract headers using proper CSV parsing
+      const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      const lines = normalizedText.split('\n').filter(line => line.trim())
       if (lines.length > 0) {
-        const headers = lines[0].split(',').map(h => h.trim())
+        const headers = parseCSVLine(lines[0])
         setCsvHeaders(headers)
         
         // Show mapping interface if headers are detected

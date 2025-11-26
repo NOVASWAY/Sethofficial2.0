@@ -494,6 +494,12 @@ async fn main() -> std::io::Result<()> {
                     .route("/lab/results/order/{order_id}", web::get().to(handlers::lab_result_handlers::get_order_lab_results))
                     .route("/lab/results/{id}/verify", web::post().to(handlers::lab_result_handlers::verify_lab_result))
                     .route("/lab/results/{id}/review", web::post().to(handlers::lab_result_handlers::review_lab_result))
+                    
+                    // SERVICE CATALOG ROUTES
+                    .route("/services", web::get().to(handlers::service_handlers::get_services))
+                    .route("/admin/services", web::get().to(handlers::service_handlers::get_services_for_admin))
+                    .route("/admin/services", web::post().to(handlers::service_handlers::create_service))
+                    .route("/admin/services/{id}/prices", web::put().to(handlers::service_handlers::update_service_prices))
             )
             
             // ===========================================

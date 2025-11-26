@@ -65,7 +65,8 @@ pub struct Patient {
     pub patient_number: String, // OP/Client number
     pub first_name: String,
     pub last_name: String,
-    pub date_of_birth: DateTime<Utc>, // Used to calculate age
+    pub age: Option<i32>, // Age in years (primary field)
+    pub date_of_birth: Option<DateTime<Utc>>, // Optional, for backward compatibility
     pub gender: String,
     pub phone: String,
     pub location: Option<String>, // Address/Location
@@ -84,7 +85,8 @@ pub struct Patient {
 pub struct CreatePatient {
     pub first_name: String,
     pub last_name: String,
-    pub date_of_birth: DateTime<Utc>,
+    pub age: Option<i32>, // Age in years (primary field)
+    pub date_of_birth: Option<DateTime<Utc>>, // Optional, for backward compatibility
     pub gender: String,
     pub phone: String,
     pub location: Option<String>, // Address/Location
@@ -101,7 +103,8 @@ pub struct CreatePatient {
 pub struct UpdatePatient {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
-    pub date_of_birth: Option<NaiveDate>,
+    pub age: Option<i32>, // Age in years (primary field)
+    pub date_of_birth: Option<NaiveDate>, // Optional, for backward compatibility
     pub gender: Option<String>,
     pub phone: Option<String>,
     pub location: Option<String>, // Address/Location
@@ -348,6 +351,8 @@ pub struct CreateInvoiceItem {
     pub description: String,
     pub quantity: i32,
     pub unit_price: f64,
+    pub diagnosis_code: Option<String>,
+    pub diagnosis_description: Option<String>,
 }
 
 // Invoice Item models

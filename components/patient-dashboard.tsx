@@ -204,7 +204,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
                 {patient.first_name} {patient.last_name}
               </h1>
               <p className="text-muted-foreground">
-                {patient.patient_number} • {calculateAge(patient.date_of_birth)} years • {patient.gender}
+                {patient.patient_number} • {(patient as any).age || (patient.date_of_birth ? calculateAge(patient.date_of_birth) : 'N/A')} years • {patient.gender}
               </p>
             </div>
           </div>

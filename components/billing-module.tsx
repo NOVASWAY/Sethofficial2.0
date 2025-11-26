@@ -13,16 +13,17 @@ import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
   Receipt, CreditCard, Smartphone, Shield, DollarSign, 
-  FileText, Printer, Send, CheckCircle2, AlertCircle, Calculator, Plus, Trash2
+  FileText, Printer, Send, CheckCircle2, AlertCircle, Calculator, Plus, Trash2, Sparkles
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { defaultServices, type Service } from './service-catalog'
 import { useWorkflow } from '@/contexts/workflow-context'
 import { useInvoices } from '@/contexts/invoice-context'
 import { useMpesa } from '@/hooks/use-mpesa'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { PrintableInvoice } from '@/components/printable-invoice'
 import { invoiceAPI } from '@/lib/api-client'
+import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
 
 interface InvoiceItem {
   id: string
@@ -34,6 +35,8 @@ interface InvoiceItem {
   sha_covered: boolean
   sha_amount: number
   patient_amount: number
+  diagnosis_code?: string  // ICD-11 code
+  diagnosis_description?: string  // Diagnosis name
 }
 
 interface PaymentAllocation {
@@ -72,6 +75,11 @@ export function BillingModule() {
   const [items, setItems] = useState<InvoiceItem[]>([])
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
   const [serviceQuantity, setServiceQuantity] = useState<string>('1')
+  const [serviceDiagnosis, setServiceDiagnosis] = useState<{
+    code: string
+    description: string
+  } | null>(null)
+  const [showDiagnosisInput, setShowDiagnosisInput] = useState(false)
 
   // Auto-populate from consultation
   useEffect(() => {
@@ -101,6 +109,8 @@ export function BillingModule() {
         sha_covered: pendingConsultation.insurance_type === 'sha' || pendingConsultation.insurance_type === 'mixed',
         sha_amount: pendingConsultation.insurance_type === 'sha' || pendingConsultation.insurance_type === 'mixed' ? service.unit_price * 0.8 : 0,
         patient_amount: pendingConsultation.insurance_type === 'sha' || pendingConsultation.insurance_type === 'mixed' ? service.unit_price * 0.2 : service.unit_price,
+        diagnosis_code: pendingConsultation.icd_code || undefined,
+        diagnosis_description: pendingConsultation.diagnosis || undefined,
       }))
 
       setItems(serviceItems)
@@ -134,8 +144,19 @@ export function BillingModule() {
     const service = defaultServices.find(s => s.id === selectedServiceId)
     if (!service) return
 
-    const quantity = parseInt(serviceQuantity) || 1
+    // Check if diagnosis is required (for SHA payments)
     const isSHA = paymentType === 'sha' || paymentType === 'mixed'
+    if (isSHA && !serviceDiagnosis) {
+      toast({
+        variant: 'error',
+        title: 'Diagnosis Required',
+        description: 'Diagnosis is required for SHA claims. Please enter a diagnosis.',
+      })
+      setShowDiagnosisInput(true)
+      return
+    }
+
+    const quantity = parseInt(serviceQuantity) || 1
     const unitPrice = isSHA && service.shaPrice ? service.shaPrice : service.price
     const totalPrice = unitPrice * quantity
 
@@ -149,16 +170,37 @@ export function BillingModule() {
       sha_covered: isSHA,
       sha_amount: isSHA && service.shaPrice ? service.shaPrice * quantity : 0,
       patient_amount: isSHA && service.shaPrice ? (service.price - service.shaPrice) * quantity : totalPrice,
+      diagnosis_code: serviceDiagnosis?.code,
+      diagnosis_description: serviceDiagnosis?.description,
     }
 
     setItems([...items, newItem])
     setSelectedServiceId('')
     setServiceQuantity('1')
+    setServiceDiagnosis(null)
+    setShowDiagnosisInput(false)
 
     toast({
       title: 'Service Added',
-      description: `${service.name} added to invoice`,
+      description: `${service.name} added to invoice${serviceDiagnosis ? ` with diagnosis: ${serviceDiagnosis.description}` : ''}`,
     })
+  }
+
+  // Filter ICD-11 diagnoses for search
+  const [diagnosisSearchTerm, setDiagnosisSearchTerm] = useState('')
+  const filteredDiagnoses = icd11Diagnoses.filter(diagnosis =>
+    diagnosis.name.toLowerCase().includes(diagnosisSearchTerm.toLowerCase()) ||
+    diagnosis.code.toLowerCase().includes(diagnosisSearchTerm.toLowerCase()) ||
+    diagnosis.keywords.some(kw => kw.toLowerCase().includes(diagnosisSearchTerm.toLowerCase()))
+  ).slice(0, 10) // Limit to 10 results
+
+  const handleDiagnosisSelect = (diagnosis: ICD11Diagnosis) => {
+    setServiceDiagnosis({
+      code: diagnosis.code,
+      description: diagnosis.name,
+    })
+    setDiagnosisSearchTerm('')
+    setShowDiagnosisInput(false)
   }
 
   // Remove item from invoice
@@ -304,6 +346,8 @@ export function BillingModule() {
           unitPrice: item.unit_price,
           totalPrice: item.total_price,
           category: item.type,
+          diagnosis_code: item.diagnosis_code,
+          diagnosis_description: item.diagnosis_description,
         })),
         subtotal: totals.subtotal,
         tax: totals.tax,
@@ -490,29 +534,50 @@ export function BillingModule() {
             <CardContent>
               {/* Add Service from Catalog */}
               <div className="space-y-3 p-4 border rounded-lg bg-muted/50 mb-4">
-                <Label className="font-semibold">Add Service from Catalog</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold">Add Service from Catalog</Label>
+                  <Badge variant="outline" className="text-xs">
+                    <Calculator className="h-3 w-3 mr-1" />
+                    Prices Auto-Set
+                  </Badge>
+                </div>
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-7">
                     <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a service..." />
+                        <SelectValue placeholder="Select a service (e.g., HIV Test, Consultation)..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {defaultServices
-                          .filter(s => s.isActive)
-                          .map((service) => {
-                            const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice 
-                              ? service.shaPrice 
-                              : service.price
-                            return (
-                              <SelectItem key={service.id} value={service.id}>
-                                <div className="flex justify-between items-center w-full">
-                                  <span>{service.name}</span>
-                                  <span className="ml-4 text-muted-foreground">KSh {price.toLocaleString()}</span>
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
+                        {/* Group services by category for easier finding */}
+                        {['laboratory', 'consultation', 'procedure', 'imaging', 'other'].map(category => {
+                          const categoryServices = defaultServices
+                            .filter(s => s.isActive && s.category === category)
+                          if (categoryServices.length === 0) return null
+                          
+                          return (
+                            <div key={category}>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
+                                {category === 'laboratory' ? 'Lab Tests' : 
+                                 category === 'consultation' ? 'Consultations' :
+                                 category === 'procedure' ? 'Procedures' :
+                                 category === 'imaging' ? 'Imaging' : 'Other'}
+                              </div>
+                              {categoryServices.map((service) => {
+                                const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice 
+                                  ? service.shaPrice 
+                                  : service.price
+                                return (
+                                  <SelectItem key={service.id} value={service.id}>
+                                    <div className="flex justify-between items-center w-full">
+                                      <span>{service.name}</span>
+                                      <span className="ml-4 font-semibold text-primary">KSh {price.toLocaleString()}</span>
+                                    </div>
+                                  </SelectItem>
+                                )
+                              })}
+                            </div>
+                          )
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -526,16 +591,16 @@ export function BillingModule() {
                     />
                   </div>
                   <div className="col-span-3">
-                    <Button onClick={handleAddService} className="w-full">
+                    <Button onClick={handleAddService} className="w-full" disabled={!selectedServiceId}>
                       <Plus className="h-4 w-4 mr-2" />
                       Add
                     </Button>
                   </div>
                 </div>
                 {selectedServiceId && (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <Calculator className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-sm">
                       {(() => {
                         const service = defaultServices.find(s => s.id === selectedServiceId)
                         if (!service) return null
@@ -543,10 +608,97 @@ export function BillingModule() {
                         const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice 
                           ? service.shaPrice 
                           : service.price
-                        return `Adding: ${service.name} × ${qty} = KSh ${(price * qty).toLocaleString()}`
+                        const total = price * qty
+                        return (
+                          <div className="space-y-1">
+                            <div className="font-semibold text-blue-900">
+                              {service.name} × {qty}
+                            </div>
+                            <div className="text-xs text-blue-700">
+                              Unit Price: <span className="font-semibold">KSh {price.toLocaleString()}</span>
+                              {paymentType === 'sha' || paymentType === 'mixed' ? ' (SHA Rate)' : ' (Cash Rate)'}
+                            </div>
+                            <div className="text-sm font-bold text-blue-900">
+                              Total: KSh {total.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-blue-600 mt-1">
+                              ✓ Price automatically set from service catalog
+                            </div>
+                          </div>
+                        )
                       })()}
                     </AlertDescription>
                   </Alert>
+
+                  {/* Diagnosis Input - Required for SHA, Optional for Cash */}
+                  {(paymentType === 'sha' || paymentType === 'mixed' || showDiagnosisInput) && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Stethoscope className="h-4 w-4 text-amber-600" />
+                        <Label className="text-sm font-semibold text-amber-900">
+                          Diagnosis {(paymentType === 'sha' || paymentType === 'mixed') ? '(Required for SHA)' : '(Optional)'}
+                        </Label>
+                      </div>
+                      
+                      {serviceDiagnosis ? (
+                        <div className="p-2 bg-white rounded border border-amber-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-sm">{serviceDiagnosis.description}</div>
+                              <div className="text-xs text-muted-foreground">ICD-11: {serviceDiagnosis.code}</div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setServiceDiagnosis(null)
+                                setShowDiagnosisInput(true)
+                              }}
+                              className="h-6 text-xs"
+                            >
+                              Change
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Input
+                            placeholder="Search diagnosis (e.g., HIV, Malaria, Diabetes)..."
+                            value={diagnosisSearchTerm}
+                            onChange={(e) => setDiagnosisSearchTerm(e.target.value)}
+                            onFocus={() => setShowDiagnosisInput(true)}
+                            className="text-sm"
+                          />
+                          {showDiagnosisInput && diagnosisSearchTerm && (
+                            <div className="max-h-40 overflow-y-auto border rounded bg-white">
+                              {filteredDiagnoses.length > 0 ? (
+                                filteredDiagnoses.map((diagnosis) => (
+                                  <div
+                                    key={diagnosis.code}
+                                    onClick={() => handleDiagnosisSelect(diagnosis)}
+                                    className="p-2 hover:bg-muted cursor-pointer border-b last:border-b-0"
+                                  >
+                                    <div className="font-medium text-sm">{diagnosis.name}</div>
+                                    <div className="text-xs text-muted-foreground">ICD-11: {diagnosis.code}</div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-2 text-sm text-muted-foreground text-center">
+                                  No diagnoses found
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {(paymentType === 'sha' || paymentType === 'mixed') && !serviceDiagnosis && (
+                            <p className="text-xs text-amber-700">
+                              ⚠️ Diagnosis is required for SHA claims. Please select a diagnosis before adding the service.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 )}
               </div>
 
@@ -574,6 +726,12 @@ export function BillingModule() {
                         <p className="text-sm text-muted-foreground">
                           Qty: {item.quantity} × KSh {item.unit_price.toFixed(2)}
                         </p>
+                        {item.diagnosis_code && item.diagnosis_description && (
+                          <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                            <Stethoscope className="h-3 w-3" />
+                            <span>{item.diagnosis_description} ({item.diagnosis_code})</span>
+                          </div>
+                        )}
                         {item.sha_covered && (
                           <div className="text-xs text-muted-foreground mt-1">
                             SHA: KSh {item.sha_amount.toFixed(2)} | Patient: KSh {item.patient_amount.toFixed(2)}
@@ -597,6 +755,33 @@ export function BillingModule() {
               </div>
 
               <Separator className="my-4" />
+              
+              {/* Auto-Calculated Totals Preview */}
+              {items.length > 0 && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-semibold text-green-900">Auto-Calculated Totals</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Subtotal:</span>
+                      <span className="ml-2 font-semibold">KSh {totals.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Tax (16% VAT):</span>
+                      <span className="ml-2 font-semibold">KSh {totals.tax.toFixed(2)}</span>
+                    </div>
+                    <div className="col-span-2 pt-2 border-t border-green-200">
+                      <span className="text-muted-foreground">Total Amount:</span>
+                      <span className="ml-2 text-lg font-bold text-green-900">KSh {totals.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-green-700 mt-2">
+                    ✓ Totals automatically update when services are added or removed
+                  </div>
+                </div>
+              )}
 
               {/* Totals */}
               <div className="space-y-2">

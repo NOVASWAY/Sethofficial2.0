@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Edit2, Search, DollarSign, Activity, Beaker, Stethoscope, Pill, FileText } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { serviceCatalogAPI } from '@/lib/api-client'
 
 export interface Service {
   id: string
@@ -140,7 +141,7 @@ export const defaultServices: Service[] = [
     code: 'LAB-006',
     name: 'HIV Test',
     category: 'laboratory',
-    description: 'HIV rapid test',
+    description: 'HIV rapid test (Rapid diagnostic test)',
     price: 500,
     shaPrice: 0, // Often free or subsidized
     isActive: true,
@@ -297,6 +298,7 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingServices, setIsLoadingServices] = useState(false)
 
   const [formData, setFormData] = useState({
     code: '',
@@ -370,33 +372,54 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
     setIsLoading(true)
 
     try {
-      const newService: Service = {
-        id: crypto.randomUUID(),
-        code: formData.code,
+      if (!canManageServices) {
+        toast({
+          title: 'Permission Denied',
+          description: 'Only admins can add services',
+          variant: 'error',
+        })
+        setIsLoading(false)
+        return
+      }
+
+      // Call API to create service
+      const response = await serviceCatalogAPI.create({
+        service_id: formData.code,
         name: formData.name,
         category: formData.category,
         description: formData.description,
-        price: parseFloat(formData.price),
-        shaPrice: formData.shaPrice ? parseFloat(formData.shaPrice) : undefined,
-        isActive: true,
-        requiresDoctor: formData.requiresDoctor,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      setServices([...services, newService])
-      setFilteredServices([...filteredServices, newService])
-
-      toast({
-        title: 'Service Added',
-        description: `${newService.name} has been added to the catalog`,
+        cash_price: parseFloat(formData.price),
+        sha_price: formData.shaPrice ? parseFloat(formData.shaPrice) : undefined,
+        requires_prescription: formData.requiresDoctor,
       })
 
-      setIsAddDialogOpen(false)
-    } catch (error) {
+      if (response.success && response.data) {
+        // Reload services from API
+        await loadServicesFromAPI()
+
+        toast({
+          title: 'Service Added',
+          description: `${formData.name} has been added to the catalog`,
+        })
+
+        setIsAddDialogOpen(false)
+        setFormData({
+          code: '',
+          name: '',
+          category: 'consultation',
+          description: '',
+          price: '',
+          shaPrice: '',
+          requiresDoctor: false,
+        })
+      } else {
+        throw new Error(response.error || 'Failed to create service')
+      }
+    } catch (error: any) {
+      console.error('Error adding service:', error)
       toast({
         title: 'Error',
-        description: 'Failed to add service',
+        description: error.message || 'Failed to add service',
         variant: 'error',
       })
     } finally {
@@ -409,39 +432,90 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
     setIsLoading(true)
 
     try {
-      if (!selectedService) return
-
-      const updatedService: Service = {
-        ...selectedService,
-        code: formData.code,
-        name: formData.name,
-        category: formData.category,
-        description: formData.description,
-        price: parseFloat(formData.price),
-        shaPrice: formData.shaPrice ? parseFloat(formData.shaPrice) : undefined,
-        requiresDoctor: formData.requiresDoctor,
-        updatedAt: new Date().toISOString(),
+      if (!selectedService || !canManageServices) {
+        toast({
+          title: 'Permission Denied',
+          description: 'Only admins can update services',
+          variant: 'error',
+        })
+        setIsLoading(false)
+        return
       }
 
-      setServices(services.map(s => s.id === selectedService.id ? updatedService : s))
-      setFilteredServices(filteredServices.map(s => s.id === selectedService.id ? updatedService : s))
+      // Call API to update service prices
+      const response = await serviceCatalogAPI.updatePrices(
+        selectedService.id,
+        parseFloat(formData.price),
+        undefined, // nhif_price - can be added later
+        formData.shaPrice ? parseFloat(formData.shaPrice) : undefined
+      )
 
-      toast({
-        title: 'Service Updated',
-        description: `${updatedService.name} has been updated`,
-      })
+      if (response.success) {
+        // Reload services from API
+        await loadServicesFromAPI()
 
-      setIsEditDialogOpen(false)
-    } catch (error) {
+        toast({
+          title: 'Service Updated',
+          description: `${formData.name} has been updated`,
+        })
+
+        setIsEditDialogOpen(false)
+      } else {
+        throw new Error(response.error || 'Failed to update service')
+      }
+    } catch (error: any) {
+      console.error('Error updating service:', error)
       toast({
         title: 'Error',
-        description: 'Failed to update service',
+        description: error.message || 'Failed to update service',
         variant: 'error',
       })
     } finally {
       setIsLoading(false)
     }
   }
+
+  // Load services from API
+  const loadServicesFromAPI = async () => {
+    if (!canManageServices) return
+
+    try {
+      setIsLoadingServices(true)
+      const response = await serviceCatalogAPI.getAllForAdmin()
+      
+      if (response && response.services) {
+        // Transform API response to match Service interface
+        const transformedServices: Service[] = response.services.map((s: any) => ({
+          id: s.id,
+          code: s.service_code,
+          name: s.service_name,
+          category: s.category,
+          description: s.description || '',
+          price: s.cash_price || s.unit_price || 0,
+          shaPrice: s.sha_price || undefined,
+          isActive: s.is_active,
+          requiresDoctor: s.requires_prescription || false,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+        }))
+        
+        setServices(transformedServices)
+        setFilteredServices(transformedServices)
+      }
+    } catch (error) {
+      console.error('Error loading services:', error)
+      // Fall back to default services on error
+    } finally {
+      setIsLoadingServices(false)
+    }
+  }
+
+  // Load services on mount if admin
+  useEffect(() => {
+    if (canManageServices) {
+      loadServicesFromAPI()
+    }
+  }, [canManageServices])
 
   const getCategoryIcon = (category: Service['category']) => {
     switch (category) {

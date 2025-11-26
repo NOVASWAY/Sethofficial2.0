@@ -533,7 +533,7 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    dateOfBirth: "",
+    age: "", // Using age instead of dateOfBirth for simplicity
     gender: "",
     phone: "",
     location: "",
@@ -570,10 +570,11 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
       
       // Create patient via API
       try {
+        // Send age directly, no conversion needed
         const patientData = {
           first_name: formData.firstName,
           last_name: formData.lastName,
-          date_of_birth: formData.dateOfBirth,
+          age: formData.age ? Number(formData.age) : undefined,
           gender: formData.gender,
           phone_number: formData.phone,
           address: formData.location,
@@ -645,14 +646,18 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="dateOfBirth">Date of Birth</Label>
+              <Label htmlFor="age">Age (years)</Label>
               <Input
-                id="dateOfBirth"
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
+                id="age"
+                type="number"
+                min="0"
+                max="150"
+                placeholder="Enter age"
+                value={formData.age}
+                onChange={(e) => setFormData((prev) => ({ ...prev, age: e.target.value }))}
                 required
               />
+              <p className="text-xs text-muted-foreground">Date of birth will be calculated automatically</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="gender">Gender</Label>
@@ -899,10 +904,29 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
 
 function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const { toast } = useToast()
+  
+  // Use age from patient if available, otherwise calculate from dateOfBirth
+  const getAge = (patient: Patient): string => {
+    if ((patient as any).age !== undefined) {
+      return (patient as any).age.toString()
+    }
+    if (patient.dateOfBirth) {
+      const birthDate = new Date(patient.dateOfBirth)
+      const today = new Date()
+      let age = today.getFullYear() - birthDate.getFullYear()
+      const monthDiff = today.getMonth() - birthDate.getMonth()
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--
+      }
+      return age.toString()
+    }
+    return ''
+  }
+  
   const [formData, setFormData] = useState({
     firstName: patient.firstName,
     lastName: patient.lastName,
-    dateOfBirth: patient.dateOfBirth,
+    age: getAge(patient), // Use age directly or calculated from dateOfBirth
     gender: patient.gender,
     phone: patient.phone,
     location: patient.location,
@@ -930,11 +954,12 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
         return
       }
 
+      // Send age directly, no conversion needed
       // Update patient via API
       const patientData = {
         first_name: formData.firstName,
         last_name: formData.lastName,
-        date_of_birth: formData.dateOfBirth,
+        age: formData.age ? Number(formData.age) : undefined,
         gender: formData.gender,
         phone_number: formData.phone,
         address: formData.location,
@@ -952,7 +977,7 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
           ...originalPatient,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          dateOfBirth: formData.dateOfBirth,
+          dateOfBirth: patient.dateOfBirth, // Keep existing dateOfBirth for display
           gender: formData.gender as 'Male' | 'Female' | 'Other',
           phone: formData.phone,
           location: formData.location,
@@ -1047,14 +1072,18 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="dateOfBirth">Date of Birth</Label>
+              <Label htmlFor="age">Age (years)</Label>
               <Input
-                id="dateOfBirth"
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
+                id="age"
+                type="number"
+                min="0"
+                max="150"
+                placeholder="Enter age"
+                value={formData.age}
+                onChange={(e) => setFormData((prev) => ({ ...prev, age: e.target.value }))}
                 required
               />
+              <p className="text-xs text-muted-foreground">Date of birth will be calculated automatically</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="gender">Gender</Label>

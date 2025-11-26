@@ -10,16 +10,19 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { 
   Users, UserPlus, ArrowRight, Clock, AlertCircle,
-  CheckCircle2, XCircle, Phone
+  CheckCircle2, XCircle, Phone, FileText, Edit, X
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAppointments, type QueueItem } from '@/contexts/appointment-context'
+import { Textarea } from '@/components/ui/textarea'
 
 export function QueueManagement() {
   const { toast } = useToast()
-  const { queue, addToQueue, callNextPatient, updateQueueStatus, removeFromQueue, appointments } = useAppointments()
+  const { queue, addToQueue, callNextPatient, updateQueueStatus, updateQueueNotes, removeFromQueue, appointments } = useAppointments()
   
   const [isCheckInOpen, setIsCheckInOpen] = useState(false)
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
+  const [notesEditValue, setNotesEditValue] = useState('')
   const [checkInData, setCheckInData] = useState({
     patientName: '',
     patientNumber: '',
@@ -105,6 +108,30 @@ export function QueueManagement() {
       title: 'Consultation Completed',
       description: `Completed consultation with ${patient?.patientName}`,
     })
+  }
+
+  const handleEditNotes = (queueId: string) => {
+    const queueItem = queue.find(q => q.id === queueId)
+    setNotesEditValue(queueItem?.notes || '')
+    setEditingNotesId(queueId)
+  }
+
+  const handleSaveNotes = (queueId: string) => {
+    // Update queue item with new notes
+    updateQueueNotes(queueId, notesEditValue)
+    
+    toast({
+      title: 'Notes Updated',
+      description: 'Queue notes have been updated',
+    })
+    
+    setEditingNotesId(null)
+    setNotesEditValue('')
+  }
+
+  const handleCancelEditNotes = () => {
+    setEditingNotesId(null)
+    setNotesEditValue('')
   }
 
   const getPriorityBadge = (priority: QueueItem['priority']) => {
@@ -223,20 +250,88 @@ export function QueueManagement() {
             ) : (
               <div className="space-y-3">
                 {waitingQueue.map(patient => (
-                  <div key={patient.id} className="p-4 border rounded-lg">
+                  <div key={patient.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1">
                         <div className="text-2xl font-bold text-muted-foreground">
                           #{patient.queueNumber}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="font-semibold">{patient.patientName}</p>
                           <p className="text-sm text-muted-foreground">{patient.patientNumber}</p>
                         </div>
                       </div>
                       {getPriorityBadge(patient.priority)}
                     </div>
-                    <div className="flex items-center justify-between mt-3">
+                    
+                    {/* Notes Section */}
+                    {editingNotesId === patient.id ? (
+                      <div className="mt-3 space-y-2">
+                        <Label htmlFor={`notes-${patient.id}`} className="text-xs font-medium">
+                          Queue Notes
+                        </Label>
+                        <Textarea
+                          id={`notes-${patient.id}`}
+                          value={notesEditValue}
+                          onChange={(e) => setNotesEditValue(e.target.value)}
+                          placeholder="Add detailed notes about this patient..."
+                          className="min-h-20 text-sm"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleCancelEditNotes}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleSaveNotes(patient.id)}
+                          >
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3">
+                        {patient.notes ? (
+                          <div className="bg-muted/50 rounded-md p-2 text-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <FileText className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-xs font-medium text-muted-foreground">Notes:</span>
+                                </div>
+                                <p className="text-sm whitespace-pre-wrap">{patient.notes}</p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleEditNotes(patient.id)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => handleEditNotes(patient.id)}
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            Add Notes
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t">
                       <div className="text-xs text-muted-foreground">
                         {patient.visitType === 'appointment' ? 'Appointment' : 'Walk-in'} • 
                         Checked in: {new Date(patient.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -268,18 +363,86 @@ export function QueueManagement() {
                 {inConsultationQueue.map(patient => (
                   <div key={patient.id} className="p-4 border rounded-lg bg-purple-50">
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1">
                         <div className="text-2xl font-bold text-purple-600">
                           #{patient.queueNumber}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="font-semibold">{patient.patientName}</p>
                           <p className="text-sm text-muted-foreground">{patient.patientNumber}</p>
                         </div>
                       </div>
                       {getStatusBadge(patient.status)}
                     </div>
-                    <div className="flex items-center justify-between mt-3">
+                    
+                    {/* Notes Section */}
+                    {editingNotesId === patient.id ? (
+                      <div className="mt-3 space-y-2">
+                        <Label htmlFor={`notes-${patient.id}`} className="text-xs font-medium">
+                          Queue Notes
+                        </Label>
+                        <Textarea
+                          id={`notes-${patient.id}`}
+                          value={notesEditValue}
+                          onChange={(e) => setNotesEditValue(e.target.value)}
+                          placeholder="Add detailed notes about this patient..."
+                          className="min-h-20 text-sm"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleCancelEditNotes}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleSaveNotes(patient.id)}
+                          >
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3">
+                        {patient.notes ? (
+                          <div className="bg-white/80 rounded-md p-2 text-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <FileText className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-xs font-medium text-muted-foreground">Notes:</span>
+                                </div>
+                                <p className="text-sm whitespace-pre-wrap">{patient.notes}</p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleEditNotes(patient.id)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => handleEditNotes(patient.id)}
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            Add Notes
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-purple-200">
                       <div className="text-xs text-muted-foreground">
                         {patient.clinicianAssigned || 'Unassigned'}
                       </div>
@@ -309,17 +472,85 @@ export function QueueManagement() {
             {calledQueue.map(patient => (
               <div key={patient.id} className="p-4 border border-green-300 rounded-lg bg-white">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1">
                     <div className="text-3xl font-bold text-green-600">
                       #{patient.queueNumber}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <p className="text-lg font-semibold">{patient.patientName}</p>
                       <p className="text-sm text-muted-foreground">{patient.patientNumber}</p>
                     </div>
                   </div>
                   {getPriorityBadge(patient.priority)}
                 </div>
+                
+                {/* Notes Section */}
+                {editingNotesId === patient.id ? (
+                  <div className="mt-3 space-y-2">
+                    <Label htmlFor={`notes-${patient.id}`} className="text-xs font-medium">
+                      Queue Notes
+                    </Label>
+                    <Textarea
+                      id={`notes-${patient.id}`}
+                      value={notesEditValue}
+                      onChange={(e) => setNotesEditValue(e.target.value)}
+                      placeholder="Add detailed notes about this patient..."
+                      className="min-h-20 text-sm"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleCancelEditNotes}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={() => handleSaveNotes(patient.id)}
+                      >
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    {patient.notes ? (
+                      <div className="bg-green-50 rounded-md p-2 text-sm border border-green-200">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <FileText className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs font-medium text-muted-foreground">Notes:</span>
+                            </div>
+                            <p className="text-sm whitespace-pre-wrap">{patient.notes}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() => handleEditNotes(patient.id)}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => handleEditNotes(patient.id)}
+                      >
+                        <FileText className="h-3 w-3 mr-1" />
+                        Add Notes
+                      </Button>
+                    )}
+                  </div>
+                )}
+                
                 <div className="flex justify-end mt-3">
                   <Button onClick={() => handleStartConsultation(patient.id)}>
                     <Users className="h-4 w-4 mr-2" />
@@ -391,6 +622,20 @@ export function QueueManagement() {
                   <SelectItem value="emergency">Emergency</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Queue Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={checkInData.notes}
+                onChange={(e) => setCheckInData({ ...checkInData, notes: e.target.value })}
+                placeholder="Add detailed notes about this patient visit, symptoms, special instructions, etc..."
+                className="min-h-24"
+              />
+              <p className="text-xs text-muted-foreground">
+                These notes will be visible to all staff members handling this patient
+              </p>
             </div>
 
             <div className="flex justify-end gap-3">

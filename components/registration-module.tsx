@@ -123,7 +123,7 @@ export function RegistrationModule() {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
-    date_of_birth: '',
+    age: '', // Using age instead of date_of_birth for simplicity
     gender: '',
     phone: '',
     address: '',
@@ -158,11 +158,17 @@ export function RegistrationModule() {
             const match = results[0]
             setReturningPatient(match)
             // Pre-fill form with existing data
+            // Use age from patient if available, otherwise calculate from date_of_birth
+            const age = (match as any).age 
+              ? (match as any).age.toString() 
+              : match.date_of_birth 
+                ? calculateAge(match.date_of_birth).toString()
+                : ''
             setFormData(prev => ({
               ...prev,
               first_name: match.first_name,
               last_name: match.last_name,
-              date_of_birth: match.date_of_birth,
+              age: age, // Use age directly or calculated from date_of_birth
               gender: match.gender,
               address: match.address || prev.address,
               emergency_contact: match.emergency_contact || prev.emergency_contact,
@@ -302,7 +308,7 @@ export function RegistrationModule() {
         }
       } else {
         // Full mode: standard validation (emergency contact is optional)
-        if (!formData.first_name || !formData.last_name || !formData.date_of_birth || 
+        if (!formData.first_name || !formData.last_name || !formData.age || 
             !formData.gender || !formData.phone || !formData.address) {
           toast({
             variant: 'error',
@@ -336,10 +342,13 @@ export function RegistrationModule() {
 
       // If returning patient, update instead of creating new
       if (returningPatient) {
-        const updated = await updatePatient(returningPatient.id, {
+        // Send age directly, no conversion needed
+        const updateData = {
           ...formData,
-          // Keep existing patient number
-        })
+          age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
+        }
+        
+        const updated = await updatePatient(returningPatient.id, updateData)
         
         // Log activity
         if (user?.id) {
@@ -372,8 +381,10 @@ export function RegistrationModule() {
       }
 
       // 🎯 ACTUALLY SAVE TO CONTEXT - NOW WORKS!
+      // Send age directly, no conversion needed
       const patientData = {
         ...formData,
+        age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
         patient_number: generatePatientNumber(),
         status: 'active' as const,
       }
@@ -451,7 +462,7 @@ export function RegistrationModule() {
       setFormData({
         first_name: '',
         last_name: '',
-        date_of_birth: '',
+        age: '',
         gender: '',
         phone: '',
         address: '',
@@ -559,15 +570,22 @@ export function RegistrationModule() {
 
   const handleEditPatient = (patient: Patient) => {
     setSelectedPatient(patient)
+    // Use age from patient if available, otherwise calculate from date_of_birth
+    const age = (patient as any).age 
+      ? (patient as any).age.toString() 
+      : patient.date_of_birth 
+        ? calculateAge(patient.date_of_birth).toString()
+        : ''
     setFormData({
       first_name: patient.first_name,
       last_name: patient.last_name,
-      date_of_birth: patient.date_of_birth,
+      age: age, // Use age directly or calculated from date_of_birth
       gender: patient.gender,
       phone: patient.phone,
         address: patient.address || '',
       emergency_contact: patient.emergency_contact || '',
       emergency_phone: patient.emergency_phone || '',
+      visit_reason: '',
     })
     setIsEditDialogOpen(true)
   }
@@ -581,8 +599,14 @@ export function RegistrationModule() {
         throw new Error('No patient selected')
       }
 
+      // Send age directly, no conversion needed
+      const updateData = {
+        ...formData,
+        age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
+      }
+      
       // 🎯 ACTUALLY UPDATE IN CONTEXT - NOW WORKS!
-      await updatePatient(selectedPatient.id, formData)
+      await updatePatient(selectedPatient.id, updateData)
       
       // TODO: Also send to backend API when available
       // await fetch(`/api/patients/${selectedPatient.id}`, { 
@@ -773,7 +797,7 @@ export function RegistrationModule() {
                             </TableCell>
                             <TableCell>
                               <div className="text-sm">
-                                <div>{calculateAge(patient.date_of_birth)} years</div>
+                                <div>{(patient as any).age || (patient.date_of_birth ? calculateAge(patient.date_of_birth) : 'N/A')} years</div>
                                 <div className="text-muted-foreground capitalize">{patient.gender}</div>
                               </div>
                             </TableCell>
@@ -916,16 +940,20 @@ export function RegistrationModule() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="date_of_birth">Date of Birth *</Label>
+                        <Label htmlFor="age">Age (years) *</Label>
                         <Input
-                          id="date_of_birth"
-                          name="date_of_birth"
-                          type="date"
-                          value={formData.date_of_birth}
+                          id="age"
+                          name="age"
+                          type="number"
+                          min="0"
+                          max="150"
+                          placeholder="Enter age"
+                          value={formData.age}
                           onChange={handleInputChange}
                           required={!quickRegistrationMode}
                           disabled={quickRegistrationMode && !!returningPatient}
                         />
+                        <p className="text-xs text-muted-foreground">Date of birth will be calculated automatically</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="gender">Gender *</Label>
@@ -1298,7 +1326,7 @@ export function RegistrationModule() {
                     <Label className="text-muted-foreground">Date of Birth</Label>
                     <p className="font-medium">
                       {new Date(selectedPatient.date_of_birth).toLocaleDateString()} 
-                      <span className="text-muted-foreground ml-2">({calculateAge(selectedPatient.date_of_birth)} years)</span>
+                      <span className="text-muted-foreground ml-2">({(selectedPatient as any).age || calculateAge(selectedPatient.date_of_birth)} years)</span>
                     </p>
                   </div>
                   <div>
@@ -1554,15 +1582,19 @@ export function RegistrationModule() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-dob">Date of Birth *</Label>
+                  <Label htmlFor="edit-age">Age (years) *</Label>
                   <Input
-                    id="edit-dob"
-                    name="date_of_birth"
-                    type="date"
-                    value={formData.date_of_birth}
+                    id="edit-age"
+                    name="age"
+                    type="number"
+                    min="0"
+                    max="150"
+                    placeholder="Enter age"
+                    value={formData.age}
                     onChange={handleInputChange}
                     required
                   />
+                  <p className="text-xs text-muted-foreground">Date of birth will be calculated automatically</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-gender">Gender *</Label>

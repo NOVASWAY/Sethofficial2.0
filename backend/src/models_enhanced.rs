@@ -108,9 +108,12 @@ pub struct Service {
     pub category: String,
     pub description: Option<String>,
     pub unit_price: Decimal,
+    pub cash_price: Option<Decimal>,
+    pub nhif_price: Option<Decimal>,
     pub sha_approved: bool,
     pub sha_price: Option<Decimal>,
     pub is_active: bool,
+    pub requires_prescription: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -122,8 +125,11 @@ pub struct CreateService {
     pub category: String,
     pub description: Option<String>,
     pub unit_price: Decimal,
+    pub cash_price: Option<Decimal>,
+    pub nhif_price: Option<Decimal>,
     pub sha_approved: bool,
     pub sha_price: Option<Decimal>,
+    pub requires_prescription: Option<bool>,
 }
 
 // Stock movement models
