@@ -1508,6 +1508,249 @@ export const dataIsolationAPI = {
 }
 
 // ========================================
+// LAB TEST APIs
+// ========================================
+
+// Lab Test Order Types
+export interface LabTestOrder {
+  id: string
+  order_number: string
+  patient_id: string
+  consultation_id?: string
+  ordering_clinician_id: string
+  test_type: string
+  test_code?: string
+  test_name: string
+  priority: 'routine' | 'urgent' | 'stat'
+  clinical_indication?: string
+  sample_type?: string
+  sample_collection_date?: string
+  status: 'pending' | 'collected' | 'in_progress' | 'completed' | 'cancelled'
+  notes?: string
+  ordered_at: string
+  collected_at?: string
+  completed_at?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateLabTestOrder {
+  patient_id: string
+  consultation_id?: string
+  ordering_clinician_id: string
+  test_type: string
+  test_code?: string
+  test_name: string
+  priority?: 'routine' | 'urgent' | 'stat'
+  clinical_indication?: string
+  sample_type?: string
+  notes?: string
+}
+
+export interface UpdateLabTestOrder {
+  status?: string
+  sample_collection_date?: string
+  collected_at?: string
+  completed_at?: string
+  notes?: string
+}
+
+// Lab Test Result Types
+export interface LabTestResult {
+  id: string
+  order_id: string
+  result_number: string
+  test_type: string
+  test_code?: string
+  test_name: string
+  test_values: Record<string, any>
+  reference_ranges?: Record<string, any>
+  abnormal_flags?: Record<string, any>
+  result_date: string
+  verified_by?: string
+  verified_at?: string
+  reviewed_by?: string
+  reviewed_at?: string
+  notes?: string
+  attachments?: string[]
+  status: 'pending' | 'verified' | 'reviewed' | 'cancelled'
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateLabTestResult {
+  order_id: string
+  test_type: string
+  test_code?: string
+  test_name: string
+  test_values: Record<string, any>
+  reference_ranges?: Record<string, any>
+  abnormal_flags?: Record<string, any>
+  notes?: string
+  attachments?: string[]
+}
+
+export interface UpdateLabTestResult {
+  test_values?: Record<string, any>
+  reference_ranges?: Record<string, any>
+  abnormal_flags?: Record<string, any>
+  notes?: string
+  attachments?: string[]
+  status?: string
+}
+
+export const labAPI = {
+  /**
+   * Create lab test order
+   * POST /lab/orders
+   */
+  createOrder: async (orderData: CreateLabTestOrder) => {
+    const response = await apiCall<{ success: boolean; data: LabTestOrder; message?: string; error?: string }>('/lab/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+    })
+    return response.data
+  },
+
+  /**
+   * Get all lab test orders
+   * GET /lab/orders
+   */
+  getOrders: async (params?: { patient_id?: string; status?: string; test_type?: string; priority?: string; limit?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: LabTestOrder[]; message?: string; error?: string }>(`/lab/orders${query}`)
+    return response.data
+  },
+
+  /**
+   * Get specific lab test order
+   * GET /lab/orders/:id
+   */
+  getOrder: async (orderId: string) => {
+    const response = await apiCall<{ success: boolean; data: LabTestOrder; message?: string; error?: string }>(`/lab/orders/${orderId}`)
+    return response.data
+  },
+
+  /**
+   * Update lab test order
+   * PUT /lab/orders/:id
+   */
+  updateOrder: async (orderId: string, updateData: UpdateLabTestOrder) => {
+    const response = await apiCall<{ success: boolean; data: LabTestOrder; message?: string; error?: string }>(`/lab/orders/${orderId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    })
+    return response.data
+  },
+
+  /**
+   * Get pending lab test orders (for lab technician queue)
+   * GET /lab/orders/pending
+   */
+  getPendingOrders: async (params?: { priority?: string; test_type?: string; limit?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: LabTestOrder[]; message?: string; error?: string }>(`/lab/orders/pending${query}`)
+    return response.data
+  },
+
+  /**
+   * Cancel lab test order
+   * DELETE /lab/orders/:id
+   */
+  cancelOrder: async (orderId: string) => {
+    const response = await apiCall<{ success: boolean; data?: any; message?: string; error?: string }>(`/lab/orders/${orderId}`, {
+      method: 'DELETE',
+    })
+    return response
+  },
+
+  /**
+   * Create lab test result
+   * POST /lab/results
+   */
+  createResult: async (resultData: CreateLabTestResult) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult; message?: string; error?: string }>('/lab/results', {
+      method: 'POST',
+      body: JSON.stringify(resultData),
+    })
+    return response.data
+  },
+
+  /**
+   * Get all lab test results
+   * GET /lab/results
+   */
+  getResults: async (params?: { order_id?: string; patient_id?: string; status?: string; test_type?: string; limit?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: LabTestResult[]; message?: string; error?: string }>(`/lab/results${query}`)
+    return response.data
+  },
+
+  /**
+   * Get specific lab test result
+   * GET /lab/results/:id
+   */
+  getResult: async (resultId: string) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult; message?: string; error?: string }>(`/lab/results/${resultId}`)
+    return response.data
+  },
+
+  /**
+   * Update lab test result
+   * PUT /lab/results/:id
+   */
+  updateResult: async (resultId: string, updateData: UpdateLabTestResult) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult; message?: string; error?: string }>(`/lab/results/${resultId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    })
+    return response.data
+  },
+
+  /**
+   * Get patient's lab test results
+   * GET /lab/results/patient/:patient_id
+   */
+  getPatientResults: async (patientId: string) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult[]; message?: string; error?: string }>(`/lab/results/patient/${patientId}`)
+    return response.data
+  },
+
+  /**
+   * Get results for specific order
+   * GET /lab/results/order/:order_id
+   */
+  getOrderResults: async (orderId: string) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult[]; message?: string; error?: string }>(`/lab/results/order/${orderId}`)
+    return response.data
+  },
+
+  /**
+   * Verify lab test result (by lab technician)
+   * POST /lab/results/:id/verify
+   */
+  verifyResult: async (resultId: string) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult; message?: string; error?: string }>(`/lab/results/${resultId}/verify`, {
+      method: 'POST',
+    })
+    return response.data
+  },
+
+  /**
+   * Review lab test result (by clinician)
+   * POST /lab/results/:id/review
+   */
+  reviewResult: async (resultId: string) => {
+    const response = await apiCall<{ success: boolean; data: LabTestResult; message?: string; error?: string }>(`/lab/results/${resultId}/review`, {
+      method: 'POST',
+    })
+    return response.data
+  },
+}
+
+// ========================================
 // ENHANCED VALIDATION APIs
 // ========================================
 
@@ -1610,6 +1853,7 @@ export default {
   activityLog: activityLogAPI,
   dataIsolation: dataIsolationAPI,
   validation: validationAPI,
+  lab: labAPI,
 }
 
 // Export error class

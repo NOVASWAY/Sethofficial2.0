@@ -9,7 +9,8 @@ import {
   Users, Calendar, DollarSign, Pill, Package, AlertTriangle, 
   Clock, FileText, Activity, TrendingUp, BarChart3, 
   User, UserCog, Stethoscope, Shield, Bell, Star,
-  Plus, Search, Filter, Download, RefreshCw, Settings, Edit
+  Plus, Search, Filter, Download, RefreshCw, Settings, Edit,
+  FlaskConical, CheckCircle2, AlertCircle, FileCheck
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { usePatient } from '@/contexts/patient-context'
@@ -209,6 +210,13 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
           { id: 'expiry_alerts', label: 'Expiry Alerts', icon: AlertTriangle, value: 2, color: 'text-red-600' },
           { id: 'inventory_value', label: 'Inventory Value', icon: DollarSign, value: 'KSh 450,000', color: 'text-purple-600' }
         ]
+      case 'lab_technician':
+        return [
+          { id: 'pending_orders', label: 'Pending Lab Orders', icon: FlaskConical, value: 8, color: 'text-blue-600' },
+          { id: 'completed_today', label: 'Completed Today', icon: CheckCircle2, value: 15, color: 'text-green-600' },
+          { id: 'urgent_orders', label: 'Urgent Orders', icon: AlertCircle, value: 2, color: 'text-orange-600' },
+          { id: 'verified_today', label: 'Verified Today', icon: FileCheck, value: 12, color: 'text-purple-600' }
+        ]
       default:
         return baseMetrics
     }
@@ -251,6 +259,13 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
           { label: 'Stock Alerts', icon: AlertTriangle, action: () => router.push(`/dashboard/${role}/stock-alerts`), color: 'bg-red-500' },
           { label: 'Check Stock', icon: Package, action: () => router.push(`/dashboard/${role}/inventory`), color: 'bg-green-500' },
           { label: 'Update Inventory', icon: Edit, action: () => router.push(`/dashboard/${role}/pharmacy`), color: 'bg-purple-500' }
+        ]
+      case 'lab_technician':
+        return [
+          { label: 'Lab Queue', icon: FlaskConical, action: () => router.push(`/dashboard/${role}/lab/queue`), color: 'bg-blue-500' },
+          { label: 'Enter Results', icon: FileText, action: () => router.push(`/dashboard/${role}/lab/results/enter`), color: 'bg-green-500' },
+          { label: 'View Results', icon: Eye, action: () => router.push(`/dashboard/${role}/lab/results`), color: 'bg-purple-500' },
+          { label: 'Lab Dashboard', icon: BarChart3, action: () => router.push(`/dashboard/${role}/lab`), color: 'bg-orange-500' }
         ]
       default:
         return []
@@ -295,6 +310,12 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
           { id: '1', action: 'Medicine dispensed', time: '4 minutes ago', icon: Pill, color: 'text-blue-600' },
           { id: '2', action: 'Stock updated', time: '16 minutes ago', icon: Package, color: 'text-green-600' },
           { id: '3', action: 'Expiry alert checked', time: '28 minutes ago', icon: AlertTriangle, color: 'text-red-600' }
+        ]
+      case 'lab_technician':
+        return [
+          { id: '1', action: 'Lab result entered', time: '5 minutes ago', icon: FlaskConical, color: 'text-blue-600' },
+          { id: '2', action: 'Result verified', time: '14 minutes ago', icon: CheckCircle2, color: 'text-green-600' },
+          { id: '3', action: 'Urgent order processed', time: '22 minutes ago', icon: AlertCircle, color: 'text-orange-600' }
         ]
       default:
         return baseActivity

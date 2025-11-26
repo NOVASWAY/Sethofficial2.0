@@ -9,10 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   User, Calendar, Receipt, Pill, Stethoscope, Activity, 
   TrendingUp, AlertCircle, CheckCircle2, Clock, FileText,
-  ArrowLeft, Edit, Eye
+  ArrowLeft, Edit, Eye, FlaskConical
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { consultationAPI, invoiceAPI, prescriptionAPI, appointmentAPI } from '@/lib/api-client'
+import { consultationAPI, invoiceAPI, prescriptionAPI, appointmentAPI, labAPI } from '@/lib/api-client'
+import { LabResultViewer } from './lab-result-viewer'
 import { usePatientEnhanced, type Patient } from '@/contexts/patient-context-enhanced'
 import { VISIT_REASON_CATEGORIES, type VisitReasonCategory, categorizeVisitReason } from './registration-module'
 
@@ -32,6 +33,8 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
   const [invoices, setInvoices] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [appointments, setAppointments] = useState<any[]>([])
+  const [labResults, setLabResults] = useState<any[]>([])
+  const [selectedLabResult, setSelectedLabResult] = useState<string | null>(null)
   
   // Statistics
   const [stats, setStats] = useState({
@@ -66,22 +69,25 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
       }
 
       // Load all related data
-      const [consultationsData, invoicesData, prescriptionsData, appointmentsData] = await Promise.all([
+      const [consultationsData, invoicesData, prescriptionsData, appointmentsData, labResultsData] = await Promise.all([
         consultationAPI.getByPatientId(patientId).catch(() => ({ data: [] })),
         invoiceAPI.getAll({ patient_id: patientId }).catch(() => ({ data: [] })),
         prescriptionAPI.getAll({ patient_id: patientId }).catch(() => ({ data: [] })),
         appointmentAPI.getAll({ patient_id: patientId }).catch(() => ({ data: [] })),
+        labAPI.getPatientResults(patientId).catch(() => []),
       ])
 
       const consultationsList = consultationsData?.data || []
       const invoicesList = invoicesData?.data || []
       const prescriptionsList = prescriptionsData?.data || []
       const appointmentsList = appointmentsData?.data || []
+      const labResultsList = Array.isArray(labResultsData) ? labResultsData : (labResultsData?.data || [])
 
       setConsultations(consultationsList)
       setInvoices(invoicesList)
       setPrescriptions(prescriptionsList)
       setAppointments(appointmentsList)
+      setLabResults(labResultsList)
 
       // Calculate statistics
       const totalSpent = invoicesList.reduce((sum: number, inv: any) => 
@@ -295,11 +301,12 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="visits">Visits ({consultations.length})</TabsTrigger>
           <TabsTrigger value="billing">Billing ({invoices.length})</TabsTrigger>
           <TabsTrigger value="medications">Medications ({prescriptions.length})</TabsTrigger>
+          <TabsTrigger value="lab-results">Lab Results ({labResults.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -526,6 +533,85 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
               ))
             )}
           </div>
+        </TabsContent>
+
+        {/* Lab Results Tab */}
+        <TabsContent value="lab-results" className="space-y-4">
+          {selectedLabResult ? (
+            <div className="space-y-4">
+              <Button variant="outline" onClick={() => setSelectedLabResult(null)}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Results
+              </Button>
+              <LabResultViewer 
+                resultId={selectedLabResult} 
+                showActions={false}
+                onBack={() => setSelectedLabResult(null)}
+              />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lab Test Results</CardTitle>
+                  <CardDescription>
+                    View all laboratory test results for this patient
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {labResults.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FlaskConical className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-muted-foreground">No lab test results found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {labResults.map((result: any) => (
+                        <Card 
+                          key={result.id} 
+                          className="border-l-4 border-l-blue-500 cursor-pointer hover:bg-accent transition-colors"
+                          onClick={() => setSelectedLabResult(result.id)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant={
+                                    result.status === 'reviewed' ? 'default' : 
+                                    result.status === 'verified' ? 'default' : 
+                                    'secondary'
+                                  }>
+                                    {result.status || 'pending'}
+                                  </Badge>
+                                  <span className="text-sm text-muted-foreground">
+                                    {new Date(result.result_date).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <p className="font-medium text-sm">
+                                  {result.test_name || result.test_type}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Result #: {result.result_number}
+                                </p>
+                                {result.verified_at && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Verified: {new Date(result.verified_at).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

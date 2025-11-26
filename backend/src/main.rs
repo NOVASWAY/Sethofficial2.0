@@ -476,6 +476,24 @@ async fn main() -> std::io::Result<()> {
                     .route("/reports/sha-claims", web::get().to(simple_handlers::get_sha_claims_report))
                     .route("/reports/audit", web::get().to(simple_handlers::get_audit_report))
                     .route("/reports/dashboard", web::get().to(simple_handlers::get_dashboard_report))
+                    
+                    // LAB TEST ORDER ROUTES
+                    .route("/lab/orders", web::post().to(handlers::lab_order_handlers::create_lab_order))
+                    .route("/lab/orders", web::get().to(handlers::lab_order_handlers::get_lab_orders))
+                    .route("/lab/orders/pending", web::get().to(handlers::lab_order_handlers::get_pending_lab_orders))
+                    .route("/lab/orders/{id}", web::get().to(handlers::lab_order_handlers::get_lab_order))
+                    .route("/lab/orders/{id}", web::put().to(handlers::lab_order_handlers::update_lab_order))
+                    .route("/lab/orders/{id}", web::delete().to(handlers::lab_order_handlers::cancel_lab_order))
+                    
+                    // LAB TEST RESULT ROUTES
+                    .route("/lab/results", web::post().to(handlers::lab_result_handlers::create_lab_result))
+                    .route("/lab/results", web::get().to(handlers::lab_result_handlers::get_lab_results))
+                    .route("/lab/results/{id}", web::get().to(handlers::lab_result_handlers::get_lab_result))
+                    .route("/lab/results/{id}", web::put().to(handlers::lab_result_handlers::update_lab_result))
+                    .route("/lab/results/patient/{patient_id}", web::get().to(handlers::lab_result_handlers::get_patient_lab_results))
+                    .route("/lab/results/order/{order_id}", web::get().to(handlers::lab_result_handlers::get_order_lab_results))
+                    .route("/lab/results/{id}/verify", web::post().to(handlers::lab_result_handlers::verify_lab_result))
+                    .route("/lab/results/{id}/review", web::post().to(handlers::lab_result_handlers::review_lab_result))
             )
             
             // ===========================================

@@ -500,6 +500,14 @@ impl UserManagementService {
                 "invoices:read".to_string(),
                 "invoices:write".to_string(),
             ],
+            "lab_technician" => vec![
+                "patients:read".to_string(),
+                "lab_orders:read".to_string(),
+                "lab_orders:write".to_string(),
+                "lab_results:read".to_string(),
+                "lab_results:write".to_string(),
+                "lab_results:verify".to_string(),
+            ],
             _ => vec!["patients:read".to_string()],
         }
     }

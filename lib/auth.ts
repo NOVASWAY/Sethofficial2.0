@@ -195,6 +195,7 @@ export function canAccessRole(user: User | null, requiredRole: string): boolean 
     'clinician': 4,
     'nurse': 3,
     'pharmacist': 2,
+    'lab_technician': 2,
     'receptionist': 1
   }
   

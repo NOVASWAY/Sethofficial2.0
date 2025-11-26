@@ -398,6 +398,102 @@ pub struct Pricing {
     pub updated_at: DateTime<Utc>,
 }
 
+// Lab test order models
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct LabTestOrder {
+    pub id: Uuid,
+    pub order_number: String,
+    pub patient_id: Uuid,
+    pub consultation_id: Option<Uuid>,
+    pub ordering_clinician_id: Uuid,
+    pub test_type: String,
+    pub test_code: Option<String>,
+    pub test_name: String,
+    pub priority: String, // routine, urgent, stat
+    pub clinical_indication: Option<String>,
+    pub sample_type: Option<String>,
+    pub sample_collection_date: Option<DateTime<Utc>>,
+    pub status: String, // pending, collected, in_progress, completed, cancelled
+    pub notes: Option<String>,
+    pub ordered_at: DateTime<Utc>,
+    pub collected_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateLabTestOrder {
+    pub patient_id: Uuid,
+    pub consultation_id: Option<Uuid>,
+    pub ordering_clinician_id: Uuid,
+    pub test_type: String,
+    pub test_code: Option<String>,
+    pub test_name: String,
+    pub priority: Option<String>, // routine, urgent, stat
+    pub clinical_indication: Option<String>,
+    pub sample_type: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateLabTestOrder {
+    pub status: Option<String>,
+    pub sample_collection_date: Option<DateTime<Utc>>,
+    pub collected_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+}
+
+// Lab test result models
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct LabTestResult {
+    pub id: Uuid,
+    pub order_id: Uuid,
+    pub result_number: String,
+    pub test_type: String,
+    pub test_code: Option<String>,
+    pub test_name: String,
+    pub test_values: serde_json::Value, // Actual test results
+    pub reference_ranges: Option<serde_json::Value>, // Normal ranges
+    pub abnormal_flags: Option<serde_json::Value>, // Which values are abnormal
+    pub result_date: DateTime<Utc>,
+    pub verified_by: Option<Uuid>,
+    pub verified_at: Option<DateTime<Utc>>,
+    pub reviewed_by: Option<Uuid>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub attachments: Option<serde_json::Value>, // Array of file paths/URLs
+    pub status: String, // pending, verified, reviewed, cancelled
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateLabTestResult {
+    pub order_id: Uuid,
+    pub test_type: String,
+    pub test_code: Option<String>,
+    pub test_name: String,
+    pub test_values: serde_json::Value,
+    pub reference_ranges: Option<serde_json::Value>,
+    pub abnormal_flags: Option<serde_json::Value>,
+    pub notes: Option<String>,
+    pub attachments: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateLabTestResult {
+    pub test_values: Option<serde_json::Value>,
+    pub reference_ranges: Option<serde_json::Value>,
+    pub abnormal_flags: Option<serde_json::Value>,
+    pub notes: Option<String>,
+    pub attachments: Option<serde_json::Value>,
+    pub status: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatePricing {
     pub service_name: String,

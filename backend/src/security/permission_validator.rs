@@ -467,6 +467,78 @@ impl PermissionValidator {
                 rules
             }),
         });
+
+        // Lab Technician permissions - lab focused
+        self.role_permissions.insert("lab_technician".to_string(), RolePermissions {
+            role: "lab_technician".to_string(),
+            permissions: vec![
+                Permission {
+                    resource: "patients".to_string(),
+                    action: "read".to_string(),
+                    conditions: Some({
+                        let mut conditions = HashMap::new();
+                        conditions.insert("department".to_string(), serde_json::Value::String("laboratory".to_string()));
+                        conditions
+                    }),
+                },
+                Permission {
+                    resource: "lab_orders".to_string(),
+                    action: "read".to_string(),
+                    conditions: None,
+                },
+                Permission {
+                    resource: "lab_orders".to_string(),
+                    action: "write".to_string(),
+                    conditions: None,
+                },
+                Permission {
+                    resource: "lab_results".to_string(),
+                    action: "read".to_string(),
+                    conditions: None,
+                },
+                Permission {
+                    resource: "lab_results".to_string(),
+                    action: "write".to_string(),
+                    conditions: None,
+                },
+                Permission {
+                    resource: "lab_results".to_string(),
+                    action: "verify".to_string(),
+                    conditions: None,
+                },
+                Permission {
+                    resource: "consultations".to_string(),
+                    action: "read".to_string(),
+                    conditions: Some({
+                        let mut conditions = HashMap::new();
+                        conditions.insert("department".to_string(), serde_json::Value::String("laboratory".to_string()));
+                        conditions
+                    }),
+                },
+                Permission {
+                    resource: "dashboard".to_string(),
+                    action: "read".to_string(),
+                    conditions: None,
+                },
+            ],
+            department_restrictions: Some(vec!["laboratory".to_string()]),
+            data_isolation_rules: Some({
+                let mut rules = HashMap::new();
+                rules.insert("patients".to_string(), serde_json::json!({
+                    "filter": "department = 'laboratory'",
+                    "can_view_all": false
+                }));
+                rules.insert("lab_orders".to_string(), serde_json::json!({
+                    "filter": "status IN ('pending', 'collected', 'in_progress')",
+                    "can_view_all": true
+                }));
+                rules.insert("lab_results".to_string(), serde_json::json!({
+                    "filter": "status IN ('pending', 'verified')",
+                    "can_view_all": true
+                }));
+                rules
+            }),
+        });
     }
 
     pub fn validate_access(&self, request: &AccessRequest) -> AccessDecision {

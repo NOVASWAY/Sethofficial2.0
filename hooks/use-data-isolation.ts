@@ -105,6 +105,22 @@ export function getUserDataPermissions(role: string): UserDataPermissions {
         canDeleteAssigned: false
       }
     
+    case 'lab_technician':
+      return {
+        canViewAll: false,
+        canEditAll: false,
+        canDeleteAll: false,
+        canViewOwn: true,
+        canEditOwn: true,
+        canDeleteOwn: false,
+        canViewDepartment: true,
+        canEditDepartment: true,
+        canDeleteDepartment: false,
+        canViewAssigned: true,
+        canEditAssigned: true,
+        canDeleteAssigned: false
+      }
+    
     case 'receptionist':
       return {
         canViewAll: false,

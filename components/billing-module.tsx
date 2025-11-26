@@ -21,6 +21,8 @@ import { useWorkflow } from '@/contexts/workflow-context'
 import { useInvoices } from '@/contexts/invoice-context'
 import { useMpesa } from '@/hooks/use-mpesa'
 import { useEffect } from 'react'
+import { PrintableInvoice } from '@/components/printable-invoice'
+import { invoiceAPI } from '@/lib/api-client'
 
 interface InvoiceItem {
   id: string
@@ -290,8 +292,8 @@ export function BillingModule() {
         }
       }
 
-      // Create invoice using Invoice Context
-      const newInvoice = addInvoice({
+      // Create invoice using Invoice Context (this saves to backend via invoiceAPI.create)
+      const newInvoice = await addInvoice({
         patientId: invoiceData.patient_id,
         patientName: invoiceData.patient_name,
         date: new Date().toISOString().split('T')[0],
@@ -319,6 +321,9 @@ export function BillingModule() {
         consultationId: invoiceData.consultation_id,
       })
 
+      // Store last generated invoice for printing
+      setLastGeneratedInvoice(newInvoice)
+
       // Record payments for each allocation
       for (const allocation of paymentAllocations) {
         addPayment({
@@ -338,6 +343,16 @@ export function BillingModule() {
         title: 'Invoice Generated Successfully',
         description: `Invoice ${newInvoice.invoiceNumber} created and saved`,
       })
+
+      // Auto-print receipt if enabled
+      if (autoPrintEnabled) {
+        setTimeout(() => {
+          handlePrintReceipt(newInvoice)
+        }, 500)
+      } else {
+        // Show print dialog if auto-print is disabled
+        setShowPrintDialog(true)
+      }
 
       // Clear consultation from workflow
       setPendingConsultation(null)
@@ -399,6 +414,27 @@ export function BillingModule() {
   const calculateChange = () => {
     const received = parseFloat(cashReceived) || 0
     return received - totals.total
+  }
+
+  const handlePrintReceipt = (invoice: any) => {
+    // Open print dialog using PrintableInvoice component
+    // This will be handled by showing the PrintableInvoice dialog
+    setLastGeneratedInvoice(invoice)
+    setShowPrintDialog(true)
+  }
+
+  const handleToggleAutoPrint = () => {
+    const newValue = !autoPrintEnabled
+    setAutoPrintEnabled(newValue)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('autoPrintReceipts', newValue.toString())
+    }
+    toast({
+      title: newValue ? 'Auto-Print Enabled' : 'Auto-Print Disabled',
+      description: newValue 
+        ? 'Receipts will automatically print after invoice generation'
+        : 'You will be prompted to print receipts manually',
+    })
   }
 
   return (
@@ -926,6 +962,35 @@ export function BillingModule() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Print Receipt Dialog */}
+      {showPrintDialog && lastGeneratedInvoice && (
+        <PrintableInvoice 
+          invoice={lastGeneratedInvoice} 
+          onClose={() => {
+            setShowPrintDialog(false)
+            setLastGeneratedInvoice(null)
+          }} 
+        />
+      )}
+
+      {/* Auto-Print Toggle */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <Card className="p-3 shadow-lg">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="autoPrintToggle"
+              checked={autoPrintEnabled}
+              onChange={handleToggleAutoPrint}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="autoPrintToggle" className="text-sm cursor-pointer">
+              Auto-print receipts
+            </Label>
+          </div>
+        </Card>
       </div>
     </div>
   )

@@ -12,14 +12,15 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { 
   Stethoscope, Activity, FileText, Pill, Calendar, User, 
-  Heart, Thermometer, Scale, Ruler, Plus, X, Save, ArrowRight 
+  Heart, Thermometer, Scale, Ruler, Plus, X, Save, ArrowRight,
+  FlaskConical
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { usePatient, type Consultation as PatientConsultation } from '@/contexts/patient-context'
 import { PatientHistoryPanel } from './patient-history-panel'
 import { useWorkflow } from '@/contexts/workflow-context'
 import { useRouter } from 'next/navigation'
-import { consultationAPI, serviceCatalogAPI, prescriptionAPI, patientAPI, pharmacyAPI, activityLogAPI } from '@/lib/api-client'
+import { consultationAPI, serviceCatalogAPI, prescriptionAPI, patientAPI, pharmacyAPI, activityLogAPI, labAPI, CreateLabTestOrder } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
 
@@ -80,6 +81,30 @@ export function ConsultationModule() {
   const [services, setServices] = useState<Service[]>([])
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [labOrders, setLabOrders] = useState<Array<{
+    id: string
+    test_type: string
+    test_name: string
+    test_code?: string
+    priority: 'routine' | 'urgent' | 'stat'
+    clinical_indication?: string
+    sample_type?: string
+  }>>([])
+  const [newLabOrder, setNewLabOrder] = useState<{
+    test_type: string
+    test_name: string
+    test_code?: string
+    priority: 'routine' | 'urgent' | 'stat'
+    clinical_indication: string
+    sample_type: string
+  }>({
+    test_type: '',
+    test_name: '',
+    test_code: '',
+    priority: 'routine',
+    clinical_indication: '',
+    sample_type: '',
+  })
   const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null)
   const [loadingPatient, setLoadingPatient] = useState(false)
   const [medicines, setMedicines] = useState<Array<{
@@ -433,6 +458,49 @@ export function ConsultationModule() {
     )
   }
 
+  const addLabOrder = () => {
+    if (!newLabOrder.test_name || !newLabOrder.test_type) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Test name and type are required',
+      })
+      return
+    }
+
+    if (!consultationData.patient_id) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please select a patient first',
+      })
+      return
+    }
+
+    setLabOrders([...labOrders, {
+      id: crypto.randomUUID(),
+      ...newLabOrder,
+    }])
+
+    setNewLabOrder({
+      test_type: '',
+      test_name: '',
+      test_code: '',
+      priority: 'routine',
+      clinical_indication: '',
+      sample_type: '',
+    })
+
+    toast({
+      title: 'Lab Test Added',
+      description: `${newLabOrder.test_name} added to lab test orders`,
+    })
+  }
+
+  const removeLabOrder = (index: number) => {
+    setLabOrders(labOrders.filter((_, i) => i !== index))
+  }
+
   const generateConsultationNumber = () => {
     const date = new Date()
     const year = date.getFullYear()
@@ -559,6 +627,55 @@ export function ConsultationModule() {
           title: 'Consultation Saved Locally',
           description: 'Consultation saved to workflow context. API save failed.',
         })
+      }
+
+      // Create lab test orders when consultation is saved
+      if (consultationId && labOrders.length > 0) {
+        try {
+          for (const labOrder of labOrders) {
+            const labOrderData: CreateLabTestOrder = {
+              patient_id: consultationData.patient_id,
+              consultation_id: consultationId,
+              ordering_clinician_id: consultationData.clinician_id || user?.id || '',
+              test_type: labOrder.test_type,
+              test_code: labOrder.test_code || undefined,
+              test_name: labOrder.test_name,
+              priority: labOrder.priority,
+              clinical_indication: labOrder.clinical_indication || undefined,
+              sample_type: labOrder.sample_type || undefined,
+            }
+
+            await labAPI.createOrder(labOrderData)
+
+            // Log lab order creation activity
+            if (user?.id) {
+              try {
+                await activityLogAPI.log({
+                  action: 'create_lab_order',
+                  module: 'laboratory',
+                  entity_type: 'lab_order',
+                  entity_id: labOrder.id,
+                  description: `Lab test order created: ${labOrder.test_name}`,
+                  user_id: user.id,
+                })
+              } catch (logError) {
+                console.error('Error logging lab order activity:', logError)
+              }
+            }
+          }
+
+          toast({
+            title: 'Lab Test Orders Created',
+            description: `${labOrders.length} lab test order(s) created successfully`,
+          })
+        } catch (labError) {
+          console.error('Error creating lab test orders:', labError)
+          toast({
+            variant: 'destructive',
+            title: 'Lab Order Error',
+            description: 'Failed to create some lab test orders',
+          })
+        }
       }
 
       // 🔥 CRITICAL FIX: Auto-create prescriptions when consultation is saved
@@ -746,7 +863,7 @@ export function ConsultationModule() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="vitals">
             <Activity className="mr-2 h-4 w-4" />
             Vitals
@@ -762,6 +879,10 @@ export function ConsultationModule() {
           <TabsTrigger value="prescriptions">
             <Pill className="mr-2 h-4 w-4" />
             Prescriptions
+          </TabsTrigger>
+          <TabsTrigger value="lab-tests">
+            <FlaskConical className="mr-2 h-4 w-4" />
+            Lab Tests
           </TabsTrigger>
           <TabsTrigger value="services">
             <Heart className="mr-2 h-4 w-4" />
@@ -1173,6 +1294,135 @@ export function ConsultationModule() {
                               variant="ghost"
                               size="sm"
                               onClick={() => removePrescription(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Lab Tests Tab */}
+        <TabsContent value="lab-tests" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lab Test Orders</CardTitle>
+              <CardDescription>Order laboratory tests for this patient</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Test Type *</Label>
+                  <Select
+                    value={newLabOrder.test_type}
+                    onValueChange={(value) => setNewLabOrder({...newLabOrder, test_type: value, test_name: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select test type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CBC">Complete Blood Count (CBC)</SelectItem>
+                      <SelectItem value="Urinalysis">Urinalysis</SelectItem>
+                      <SelectItem value="Blood Glucose">Blood Glucose</SelectItem>
+                      <SelectItem value="Lipid Profile">Lipid Profile</SelectItem>
+                      <SelectItem value="Liver Function">Liver Function Test</SelectItem>
+                      <SelectItem value="Kidney Function">Kidney Function Test</SelectItem>
+                      <SelectItem value="Thyroid Function">Thyroid Function Test</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Test Name *</Label>
+                  <Input
+                    placeholder="e.g., Complete Blood Count"
+                    value={newLabOrder.test_name}
+                    onChange={(e) => setNewLabOrder({...newLabOrder, test_name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={newLabOrder.priority}
+                    onValueChange={(value: 'routine' | 'urgent' | 'stat') => setNewLabOrder({...newLabOrder, priority: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="routine">Routine</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="stat">STAT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Sample Type</Label>
+                  <Select
+                    value={newLabOrder.sample_type}
+                    onValueChange={(value) => setNewLabOrder({...newLabOrder, sample_type: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select sample type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="blood">Blood</SelectItem>
+                      <SelectItem value="urine">Urine</SelectItem>
+                      <SelectItem value="stool">Stool</SelectItem>
+                      <SelectItem value="sputum">Sputum</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Clinical Indication</Label>
+                  <Textarea
+                    placeholder="Reason for ordering this test..."
+                    value={newLabOrder.clinical_indication}
+                    onChange={(e) => setNewLabOrder({...newLabOrder, clinical_indication: e.target.value})}
+                    rows={2}
+                  />
+                </div>
+              </div>
+              <Button onClick={addLabOrder} className="w-full">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Lab Test Order
+              </Button>
+
+              {labOrders.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label>Ordered Lab Tests ({labOrders.length})</Label>
+                    {labOrders.map((order, index) => (
+                      <Card key={index}>
+                        <CardContent className="pt-4">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold">{order.test_name}</p>
+                                <Badge variant={order.priority === 'stat' ? 'destructive' : order.priority === 'urgent' ? 'default' : 'secondary'}>
+                                  {order.priority.toUpperCase()}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Type: {order.test_type}
+                                {order.sample_type && ` • Sample: ${order.sample_type}`}
+                              </p>
+                              {order.clinical_indication && (
+                                <p className="text-sm italic">{order.clinical_indication}</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeLabOrder(index)}
                             >
                               <X className="h-4 w-4" />
                             </Button>

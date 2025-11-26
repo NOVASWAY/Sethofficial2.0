@@ -18,6 +18,7 @@ import {
   Pill,
   Users,
   Calendar,
+  FlaskConical,
   Package,
   BarChart3,
   Settings,
@@ -33,6 +34,7 @@ import {
   DollarSign,
   AlertTriangle,
   Truck,
+  FileText,
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -65,11 +67,17 @@ const roleConfig = {
     color: "bg-accent",
     permissions: ["pharmacy", "inventory", "reports", "invoices", "patients"],
   },
+  lab_technician: {
+    label: "Lab Technician",
+    icon: FlaskConical,
+    color: "bg-purple-500",
+    permissions: ["lab", "lab_orders", "lab_results", "patients"],
+  },
   admin: {
     label: "Administrator",
     icon: Shield,
     color: "bg-destructive",
-    permissions: ["patients", "appointments", "invoices", "pharmacy", "inventory", "reports", "settings", "users"],
+    permissions: ["patients", "appointments", "invoices", "pharmacy", "inventory", "reports", "settings", "users", "lab"],
   },
 }
 
@@ -92,6 +100,9 @@ const navigationItems = [
   },
   { id: "invoices", label: "Invoice Records", icon: Receipt, path: "/invoices", permissions: ["invoices"] },
   { id: "pharmacy", label: "Pharmacy Management", icon: Pill, path: "/pharmacy", permissions: ["pharmacy"] },
+  { id: "lab-dashboard", label: "Lab Dashboard", icon: FlaskConical, path: "/lab", permissions: ["lab", "lab_orders", "lab_results"] },
+  { id: "lab-queue", label: "Lab Queue", icon: FlaskConical, path: "/lab/queue", permissions: ["lab", "lab_orders"] },
+  { id: "lab-results", label: "Lab Results", icon: FileText, path: "/lab/results", permissions: ["lab", "lab_results"] },
   { id: "inventory", label: "Stock Management", icon: Package, path: "/inventory", permissions: ["inventory"] },
   { id: "stock-receiving", label: "Stock Receiving", icon: Truck, path: "/stock-receiving", permissions: ["inventory"] },
   { id: "expiry-alerts", label: "Expiry Alerts", icon: AlertTriangle, path: "/expiry-alerts", permissions: ["pharmacy", "inventory"] },
