@@ -384,16 +384,18 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
 
       // Call API to create service
       const response = await serviceCatalogAPI.create({
-        service_id: formData.code,
-        name: formData.name,
+        service_code: formData.code,
+        service_name: formData.name,
         category: formData.category,
-        description: formData.description,
+        description: formData.description || '',
+        unit_price: parseFloat(formData.price),
         cash_price: parseFloat(formData.price),
         sha_price: formData.shaPrice ? parseFloat(formData.shaPrice) : undefined,
+        sha_approved: false,
         requires_prescription: formData.requiresDoctor,
       })
 
-      if (response.success && response.data) {
+      if (response.success) {
         // Reload services from API
         await loadServicesFromAPI()
 
@@ -481,19 +483,19 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
 
     try {
       setIsLoadingServices(true)
-      const response = await serviceCatalogAPI.getAllForAdmin()
+      const servicesArray = await serviceCatalogAPI.getAllForAdmin()
       
-      if (response && response.services) {
+      if (servicesArray && Array.isArray(servicesArray) && servicesArray.length > 0) {
         // Transform API response to match Service interface
-        const transformedServices: Service[] = response.services.map((s: any) => ({
+        const transformedServices: Service[] = servicesArray.map((s: any) => ({
           id: s.id,
           code: s.service_code,
           name: s.service_name,
           category: s.category,
           description: s.description || '',
-          price: s.cash_price || s.unit_price || 0,
-          shaPrice: s.sha_price || undefined,
-          isActive: s.is_active,
+          price: s.cash_price ? parseFloat(s.cash_price) : (s.unit_price ? parseFloat(s.unit_price) : 0),
+          shaPrice: s.sha_price ? parseFloat(s.sha_price) : undefined,
+          isActive: s.is_active !== undefined ? s.is_active : true,
           requiresDoctor: s.requires_prescription || false,
           createdAt: s.created_at,
           updatedAt: s.updated_at,
@@ -501,10 +503,16 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
         
         setServices(transformedServices)
         setFilteredServices(transformedServices)
+      } else if (servicesArray && Array.isArray(servicesArray)) {
+        // Empty array - no services yet, keep default services
+        setServices(defaultServices)
+        setFilteredServices(defaultServices)
       }
     } catch (error) {
       console.error('Error loading services:', error)
       // Fall back to default services on error
+      setServices(defaultServices)
+      setFilteredServices(defaultServices)
     } finally {
       setIsLoadingServices(false)
     }

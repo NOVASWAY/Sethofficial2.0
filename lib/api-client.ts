@@ -1191,23 +1191,24 @@ export const serviceCatalogAPI = {
    */
   getAllForAdmin: async () => {
     const response = await apiCall<{ success: boolean; data: { services: any[] }; message: string; error: any }>('/admin/services')
+    // Backend returns { success: true, data: { services: [...] } }
     return response.data?.services || []
   },
 
   /**
    * Update service prices (admin only)
-   * PUT /admin/services/:serviceId
+   * PUT /admin/services/:id/prices
    */
   updatePrices: async (serviceId: string, cashPrice: number, nhifPrice?: number, shaPrice?: number) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/admin/services/${serviceId}`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/admin/services/${serviceId}/prices`, {
       method: 'PUT',
       body: JSON.stringify({
         cash_price: cashPrice,
-        nhif_price: nhifPrice || cashPrice,
-        sha_price: shaPrice || cashPrice,
+        nhif_price: nhifPrice,
+        sha_price: shaPrice,
       }),
     })
-    return response.data
+    return response
   },
 
   /**
@@ -1215,20 +1216,22 @@ export const serviceCatalogAPI = {
    * POST /admin/services
    */
   create: async (serviceData: {
-    service_id: string
-    name: string
+    service_code: string
+    service_name: string
     category: string
     description?: string
-    cash_price: number
+    unit_price: number
+    cash_price?: number
     nhif_price?: number
     sha_price?: number
+    sha_approved?: boolean
     requires_prescription?: boolean
   }) => {
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/admin/services', {
       method: 'POST',
       body: JSON.stringify(serviceData),
     })
-    return response.data
+    return response
   },
 }
 
