@@ -17,6 +17,8 @@ import {
 import { useAuth } from '@/contexts/auth-context'
 import { usePatient } from '@/contexts/patient-context'
 import { useInventory } from '@/contexts/inventory-context'
+import { activityLogAPI, userPreferencesAPI } from '@/lib/api-client'
+import { SettingsModal } from '@/components/settings-modal'
 
 interface UserPreferences {
   dashboardLayout: 'compact' | 'detailed' | 'custom'
@@ -65,63 +67,85 @@ export function UserSpecificDashboard({ role }: UserSpecificDashboardProps) {
   const [userActivity, setUserActivity] = useState<UserActivity[]>([])
   const [isCustomizing, setIsCustomizing] = useState(false)
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([])
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
 
-  // Load user preferences
+  // Load user preferences and activity
   useEffect(() => {
     if (user) {
-      // Load from localStorage or API
-      const savedPreferences = localStorage.getItem(`user_preferences_${user.id}`)
-      if (savedPreferences) {
-        setPreferences(JSON.parse(savedPreferences))
+      // Try to load from API first, fallback to localStorage
+      const loadPreferences = async () => {
+        try {
+          // TODO: Load from API when backend endpoint is ready
+          // const apiPreferences = await userPreferencesAPI.get(user.id)
+          // if (apiPreferences) {
+          //   setPreferences(apiPreferences)
+          //   return
+          // }
+        } catch (error) {
+          // Fallback to localStorage
+        }
+        
+        // Fallback to localStorage
+        const savedPreferences = localStorage.getItem(`user_preferences_${user.id}`)
+        if (savedPreferences) {
+          try {
+            setPreferences(JSON.parse(savedPreferences))
+          } catch (e) {
+            // Invalid JSON, use defaults
+          }
+        }
       }
       
-      // Load user activity
+      loadPreferences()
       loadUserActivity()
     }
   }, [user])
 
   // Save preferences
-  const savePreferences = (newPreferences: Partial<UserPreferences>) => {
+  const savePreferences = async (newPreferences: Partial<UserPreferences>) => {
     const updatedPreferences = { ...preferences, ...newPreferences }
     setPreferences(updatedPreferences)
     
     if (user) {
+      // Save to localStorage immediately
       localStorage.setItem(`user_preferences_${user.id}`, JSON.stringify(updatedPreferences))
-      // TODO: Save to backend API
+      
+      // Try to save to backend API
+      try {
+        await userPreferencesAPI.update(user.id, updatedPreferences)
+      } catch (error) {
+        // Silently fail - localStorage is already saved
+        console.warn('Failed to save preferences to backend:', error)
+      }
     }
   }
 
-  // Load user activity
+  // Load user activity from API
   const loadUserActivity = async () => {
-    // Mock user activity data
-    const mockActivity: UserActivity[] = [
-      {
-        id: '1',
-        action: 'Patient Registration',
-        module: 'Patients',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        details: 'Registered new patient: John Doe',
-        ipAddress: '192.168.1.100'
-      },
-      {
-        id: '2',
-        action: 'Consultation',
-        module: 'Consultations',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        details: 'Completed consultation for patient: Jane Smith',
-        ipAddress: '192.168.1.100'
-      },
-      {
-        id: '3',
-        action: 'Prescription',
-        module: 'Pharmacy',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 hours ago
-        details: 'Dispensed medication: Paracetamol 500mg',
-        ipAddress: '192.168.1.100'
-      }
-    ]
-    
-    setUserActivity(mockActivity)
+    if (!user?.id) {
+      setUserActivity([])
+      return
+    }
+
+    try {
+      const response = await activityLogAPI.getUserActivity(user.id, { limit: 10 })
+      
+      // Transform API response to UserActivity format
+      const activities: UserActivity[] = (response?.data || response || []).map((item: any) => ({
+        id: item.id || item.activity_id || `activity-${Date.now()}-${Math.random()}`,
+        action: item.action || item.action_type || 'Unknown Action',
+        module: item.module || item.entity_type || 'Unknown',
+        timestamp: item.timestamp ? new Date(item.timestamp) : new Date(item.created_at || Date.now()),
+        details: item.details || item.description || item.message || `${item.action} in ${item.module}`,
+        ipAddress: item.ip_address || item.ip || 'Unknown'
+      }))
+      
+      setUserActivity(activities)
+    } catch (error) {
+      console.error('Failed to load user activity:', error)
+      // Fallback to empty array on error
+      setUserActivity([])
+    }
   }
 
   // Get role-specific metrics
@@ -214,10 +238,10 @@ export function UserSpecificDashboard({ role }: UserSpecificDashboardProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsCustomizing(!isCustomizing)}
+            onClick={() => setIsSettingsModalOpen(true)}
           >
             <Settings className="h-4 w-4 mr-2" />
-            Customize
+            Settings
           </Button>
         </div>
       </div>

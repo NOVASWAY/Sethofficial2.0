@@ -9,12 +9,13 @@ import {
   Users, Calendar, DollarSign, Pill, Package, AlertTriangle, 
   Clock, FileText, Activity, TrendingUp, BarChart3, 
   User, UserCog, Stethoscope, Shield, Bell, Star,
-  Plus, Search, Filter, Download, RefreshCw
+  Plus, Search, Filter, Download, RefreshCw, Settings, Edit
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { usePatient } from '@/contexts/patient-context'
 import { useInventory } from '@/contexts/inventory-context'
 import { useDataIsolation } from '@/hooks/use-data-isolation'
+import { useRouter } from 'next/navigation'
 
 interface RoleSpecificDashboardProps {
   role: string
@@ -22,11 +23,34 @@ interface RoleSpecificDashboardProps {
 
 export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const { patientsData } = usePatient()
   const { medicines, stockMovements } = useInventory()
   
   const [activeTab, setActiveTab] = useState('overview')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [stockAlerts, setStockAlerts] = useState<any[]>([])
+  const [loadingAlerts, setLoadingAlerts] = useState(false)
+
+  // Load stock alerts for pharmacist
+  useEffect(() => {
+    if (role === 'pharmacist') {
+      loadStockAlerts()
+    }
+  }, [role])
+
+  const loadStockAlerts = async () => {
+    setLoadingAlerts(true)
+    try {
+      const response = await pharmacyAPI.getStockAlerts({ days: 30 })
+      setStockAlerts(response?.data || response || [])
+    } catch (error) {
+      console.error('Error loading stock alerts:', error)
+      setStockAlerts([])
+    } finally {
+      setLoadingAlerts(false)
+    }
+  }
 
   // Convert patients data to array for data isolation
   const patientsArray = Array.from(patientsData.values())
@@ -195,38 +219,38 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
     switch (role) {
       case 'admin':
         return [
-          { label: 'Add User', icon: User, action: () => console.log('Add User'), color: 'bg-blue-500' },
-          { label: 'System Settings', icon: Settings, action: () => console.log('System Settings'), color: 'bg-gray-500' },
-          { label: 'Generate Report', icon: BarChart3, action: () => console.log('Generate Report'), color: 'bg-green-500' },
-          { label: 'Backup System', icon: Shield, action: () => console.log('Backup System'), color: 'bg-purple-500' }
+          { label: 'Add User', icon: User, action: () => router.push(`/dashboard/${role}/users`), color: 'bg-blue-500' },
+          { label: 'System Settings', icon: Settings, action: () => router.push(`/dashboard/${role}/settings`), color: 'bg-gray-500' },
+          { label: 'Generate Report', icon: BarChart3, action: () => router.push(`/dashboard/${role}/reports`), color: 'bg-green-500' },
+          { label: 'Audit Logs', icon: Shield, action: () => router.push(`/dashboard/${role}/audit-logs`), color: 'bg-purple-500' }
         ]
       case 'receptionist':
         return [
-          { label: 'Register Patient', icon: UserPlus, action: () => console.log('Register Patient'), color: 'bg-blue-500' },
-          { label: 'Schedule Appointment', icon: Calendar, action: () => console.log('Schedule Appointment'), color: 'bg-green-500' },
-          { label: 'Process Billing', icon: DollarSign, action: () => console.log('Process Billing'), color: 'bg-purple-500' },
-          { label: 'Search Patient', icon: Search, action: () => console.log('Search Patient'), color: 'bg-orange-500' }
+          { label: 'Register Patient', icon: UserPlus, action: () => router.push(`/dashboard/${role}/registration`), color: 'bg-blue-500' },
+          { label: 'Schedule Appointment', icon: Calendar, action: () => router.push(`/dashboard/${role}/appointments`), color: 'bg-green-500' },
+          { label: 'Process Billing', icon: DollarSign, action: () => router.push(`/dashboard/${role}/billing`), color: 'bg-purple-500' },
+          { label: 'Search Patient', icon: Search, action: () => router.push(`/dashboard/${role}/patients`), color: 'bg-orange-500' }
         ]
       case 'nurse':
         return [
-          { label: 'Record Vitals', icon: Activity, action: () => console.log('Record Vitals'), color: 'bg-blue-500' },
-          { label: 'Patient Assessment', icon: FileText, action: () => console.log('Patient Assessment'), color: 'bg-green-500' },
-          { label: 'Medication Admin', icon: Pill, action: () => console.log('Medication Admin'), color: 'bg-purple-500' },
-          { label: 'Update Records', icon: Edit, action: () => console.log('Update Records'), color: 'bg-orange-500' }
+          { label: 'Record Vitals', icon: Activity, action: () => router.push(`/dashboard/${role}/consultation`), color: 'bg-blue-500' },
+          { label: 'Patient Assessment', icon: FileText, action: () => router.push(`/dashboard/${role}/consultation`), color: 'bg-green-500' },
+          { label: 'Patient Queue', icon: Users, action: () => router.push(`/dashboard/${role}/queue`), color: 'bg-purple-500' },
+          { label: 'View Patients', icon: FileText, action: () => router.push(`/dashboard/${role}/patients`), color: 'bg-orange-500' }
         ]
       case 'clinician':
         return [
-          { label: 'New Consultation', icon: Stethoscope, action: () => console.log('New Consultation'), color: 'bg-blue-500' },
-          { label: 'Write Prescription', icon: Pill, action: () => console.log('Write Prescription'), color: 'bg-green-500' },
-          { label: 'Review Patient', icon: FileText, action: () => console.log('Review Patient'), color: 'bg-purple-500' },
-          { label: 'Schedule Follow-up', icon: Calendar, action: () => console.log('Schedule Follow-up'), color: 'bg-orange-500' }
+          { label: 'New Consultation', icon: Stethoscope, action: () => router.push(`/dashboard/${role}/consultation`), color: 'bg-blue-500' },
+          { label: 'Patient Queue', icon: Users, action: () => router.push(`/dashboard/${role}/queue`), color: 'bg-green-500' },
+          { label: 'Review Patient', icon: FileText, action: () => router.push(`/dashboard/${role}/patients`), color: 'bg-purple-500' },
+          { label: 'Schedule Follow-up', icon: Calendar, action: () => router.push(`/dashboard/${role}/appointments`), color: 'bg-orange-500' }
         ]
       case 'pharmacist':
         return [
-          { label: 'Dispense Medicine', icon: Pill, action: () => console.log('Dispense Medicine'), color: 'bg-blue-500' },
-          { label: 'Check Stock', icon: Package, action: () => console.log('Check Stock'), color: 'bg-green-500' },
-          { label: 'Update Inventory', icon: Edit, action: () => console.log('Update Inventory'), color: 'bg-purple-500' },
-          { label: 'Expiry Alerts', icon: AlertTriangle, action: () => console.log('Expiry Alerts'), color: 'bg-red-500' }
+          { label: 'Prescription Queue', icon: Pill, action: () => router.push(`/dashboard/${role}/prescription-queue`), color: 'bg-blue-500' },
+          { label: 'Stock Alerts', icon: AlertTriangle, action: () => router.push(`/dashboard/${role}/stock-alerts`), color: 'bg-red-500' },
+          { label: 'Check Stock', icon: Package, action: () => router.push(`/dashboard/${role}/inventory`), color: 'bg-green-500' },
+          { label: 'Update Inventory', icon: Edit, action: () => router.push(`/dashboard/${role}/pharmacy`), color: 'bg-purple-500' }
         ]
       default:
         return []
@@ -328,6 +352,50 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
+          {/* Stock Alerts for Pharmacist */}
+          {role === 'pharmacist' && stockAlerts.length > 0 && (
+            <Card className="border-red-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Stock Alerts ({stockAlerts.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {stockAlerts.slice(0, 5).map((alert: any) => (
+                    <div key={alert.id || alert.medicine_id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <p className="font-medium text-sm">{alert.medicine_name || alert.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {alert.alert_type === 'low_stock' 
+                            ? `Low stock: ${alert.current_stock} remaining`
+                            : `Expiring: ${new Date(alert.expiry_date).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(`/dashboard/${role}/inventory`)}
+                      >
+                        View
+                      </Button>
+                    </div>
+                  ))}
+                  {stockAlerts.length > 5 && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => router.push(`/dashboard/${role}/stock-alerts`)}
+                    >
+                      View All Alerts ({stockAlerts.length})
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Key Metrics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {roleMetrics.map((metric) => (

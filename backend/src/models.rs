@@ -124,6 +124,55 @@ pub struct PatientImport {
     pub op_number: String,
 }
 
+// Import tracking models
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ImportSession {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub file_name: String,
+    pub file_size: Option<i64>,
+    pub total_records: i32,
+    pub imported_count: i32,
+    pub failed_count: i32,
+    pub duplicate_count: i32,
+    pub status: String, // pending, in_progress, completed, failed, cancelled, partial
+    pub batch_size: i32,
+    pub total_batches: i32,
+    pub current_batch: i32,
+    pub progress_percentage: Option<rust_decimal::Decimal>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub error_summary: Option<serde_json::Value>,
+    pub batch_results: Option<serde_json::Value>,
+    pub metadata: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateImportSession {
+    pub file_name: String,
+    pub file_size: Option<i64>,
+    pub total_records: i32,
+    pub batch_size: Option<i32>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ImportAuditLog {
+    pub id: Uuid,
+    pub import_session_id: Uuid,
+    pub user_id: Uuid,
+    pub action: String,
+    pub record_index: Option<i32>,
+    pub record_data: Option<serde_json::Value>,
+    pub result: String,
+    pub error_message: Option<String>,
+    pub error_details: Option<serde_json::Value>,
+    pub batch_number: Option<i32>,
+    pub timestamp: DateTime<Utc>,
+}
+
 // Appointment models
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Appointment {

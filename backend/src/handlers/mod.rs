@@ -23,6 +23,7 @@ pub mod mfa_handlers;
 pub mod password_reset_handlers;
 pub mod email_verification_handlers;
 pub mod csrf_handlers;
+pub mod batch_import_handlers;
 
 // Re-export handlers for easier imports
 pub use auth_handlers::*;

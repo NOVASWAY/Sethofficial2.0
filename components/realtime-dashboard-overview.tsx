@@ -9,7 +9,7 @@ import {
   TrendingUp, TrendingDown, Users, Calendar, DollarSign, 
   Pill, Package, AlertTriangle, Clock, FileText, Activity,
   RefreshCw, Settings, BarChart3, PieChart, Wifi, WifiOff,
-  Bell, BellOff, Zap
+  Bell, BellOff, Zap, AlertCircle
 } from 'lucide-react'
 import { useRealtimeDashboard } from '@/hooks/use-realtime-dashboard'
 import { useToast } from '@/hooks/use-toast'

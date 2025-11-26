@@ -400,6 +400,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/patients/{id}", web::delete().to(simple_handlers::delete_patient))
                     .route("/patients/search", web::get().to(simple_handlers::search_patients))
                     .route("/patients/import", web::post().to(simple_handlers::import_patients))
+                    .route("/patients/import/batch", web::post().to(handlers::batch_import_handlers::batch_import_patients))
+                    .route("/patients/import/status/{session_id}", web::get().to(handlers::batch_import_handlers::get_import_status))
+                    .route("/patients/import/history", web::get().to(handlers::batch_import_handlers::get_import_history))
+                    .route("/patients/import/resume/{session_id}", web::post().to(handlers::batch_import_handlers::resume_import))
                     
                     // CONSULTATION MANAGEMENT ROUTES
                     .route("/consultations", web::get().to(simple_handlers::get_consultations))

@@ -19,7 +19,7 @@ import { usePatient, type Consultation as PatientConsultation } from '@/contexts
 import { PatientHistoryPanel } from './patient-history-panel'
 import { useWorkflow } from '@/contexts/workflow-context'
 import { useRouter } from 'next/navigation'
-import { consultationAPI, serviceCatalogAPI, prescriptionAPI, patientAPI, pharmacyAPI } from '@/lib/api-client'
+import { consultationAPI, serviceCatalogAPI, prescriptionAPI, patientAPI, pharmacyAPI, activityLogAPI } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
 
@@ -590,6 +590,26 @@ export function ConsultationModule() {
           const prescriptionResult = await prescriptionAPI.create(prescriptionData)
 
           if (prescriptionResult) {
+            // Log prescription creation activity
+            if (user?.id && prescriptionResult.id) {
+              try {
+                await activityLogAPI.log({
+                  action: 'create_prescription',
+                  module: 'pharmacy',
+                  entity_type: 'prescription',
+                  entity_id: prescriptionResult.id,
+                  details: {
+                    consultation_id: consultationId,
+                    patient_id: consultationData.patient_id,
+                    medication_count: prescriptions.length,
+                    medications: prescriptions.map(p => p.medication_name)
+                  }
+                })
+              } catch (error) {
+                console.warn('Failed to log prescription activity:', error)
+              }
+            }
+            
             toast({
               title: 'Prescriptions Created Successfully',
               description: `${prescriptions.length} medication(s) have been saved as a prescription and linked to this consultation.`,

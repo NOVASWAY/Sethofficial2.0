@@ -1,6 +1,13 @@
 // Comprehensive API Client for Clinic Management System
 // This file provides a centralized location for all backend API calls
 
+// Type declaration for process.env in client-side Next.js
+declare const process: {
+  env: {
+    NEXT_PUBLIC_API_URL?: string
+  }
+}
+
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
 
@@ -351,6 +358,85 @@ export const patientAPI = {
       message: string
       error?: any
     }>('/patients/import', {
+      method: 'POST',
+      body: JSON.stringify({ patients }),
+    })
+    return response.data
+  },
+
+  /**
+   * Batch import patients with progress tracking
+   * POST /api/patients/import/batch
+   */
+  batchImport: async (patients: any[], batchSize: number = 100) => {
+    const response = await apiCall<{ 
+      success: boolean
+      data: {
+        total_records: number
+        total_batches: number
+        batch_size: number
+        imported: number
+        failed: number
+        errors: any[]
+        batch_results: Array<{
+          batch_number: number
+          total_batches: number
+          start_index: number
+          end_index: number
+          imported: number
+          failed: number
+          errors: any[]
+        }>
+      }
+      message?: string
+      error?: string
+    }>('/patients/import/batch', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        patients,
+        batch_size: batchSize 
+      }),
+    })
+    return response.data
+  },
+
+  /**
+   * Get import history
+   * GET /api/patients/import/history
+   */
+  getImportHistory: async (page: number = 1, perPage: number = 20) => {
+    const response = await apiCall<{ 
+      success: boolean
+      data: {
+        sessions: any[]
+        pagination: {
+          page: number
+          per_page: number
+          total: number
+          total_pages: number
+        }
+      }
+    }>(`/patients/import/history?page=${page}&per_page=${perPage}`)
+    return response.data
+  },
+
+  /**
+   * Resume failed/interrupted import
+   * POST /api/patients/import/resume/{session_id}
+   */
+  resumeImport: async (sessionId: string, patients: any[]) => {
+    const response = await apiCall<{
+      success: boolean
+      data: {
+        session_id: string
+        total_records: number
+        imported: number
+        failed: number
+        errors: any[]
+        batch_results: any[]
+      }
+      message: string
+    }>(`/patients/import/resume/${sessionId}`, {
       method: 'POST',
       body: JSON.stringify({ patients }),
     })

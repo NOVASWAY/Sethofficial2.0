@@ -1,0 +1,9 @@
+Name,Age,Location,OP Number,Phone Number
+J,45,Nairobi,123/06,0712345678
+Mary Smith,200,Kiambu,456/10,invalid-phone
+David Kamau,-5,Nakuru,789/15,+254734567890
+,28,Nairobi,123/06,0712345678
+Peter Kamau,abc,Nakuru,234/08,0723456789
+Grace Njeri,67,Nyeri,234/08,123
+James Mwangi,52,Thika,567/12,999
+
