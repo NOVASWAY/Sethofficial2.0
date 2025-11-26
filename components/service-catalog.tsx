@@ -523,6 +523,7 @@ export function ServiceCatalog({ role = 'admin' }: ServiceCatalogProps) {
     if (canManageServices) {
       loadServicesFromAPI()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManageServices])
 
   const getCategoryIcon = (category: Service['category']) => {

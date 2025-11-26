@@ -2,7 +2,7 @@ use actix_web::{web, HttpResponse, Result as ActixResult};
 use uuid::Uuid;
 use chrono::Utc;
 use serde_json::json;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, prelude::*};
 use crate::models_enhanced::{Service, CreateService};
 use crate::simple_handlers::get_current_user;
 use crate::ApiResponse;
@@ -199,15 +199,26 @@ pub async fn update_service_prices(
     let update_data = req.into_inner();
     let now = Utc::now();
 
+    // Extract and validate prices
     let cash_price = update_data.get("cash_price")
         .and_then(|v| v.as_f64())
-        .map(Decimal::from);
+        .map(|f| Decimal::from_f64_retain(f).unwrap_or_else(|| Decimal::ZERO));
     let nhif_price = update_data.get("nhif_price")
         .and_then(|v| v.as_f64())
-        .map(Decimal::from);
+        .map(|f| Decimal::from_f64_retain(f).unwrap_or_else(|| Decimal::ZERO));
     let sha_price = update_data.get("sha_price")
         .and_then(|v| v.as_f64())
-        .map(Decimal::from);
+        .map(|f| Decimal::from_f64_retain(f).unwrap_or_else(|| Decimal::ZERO));
+
+    // Validate that at least one price is provided
+    if cash_price.is_none() && nhif_price.is_none() && sha_price.is_none() {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
+            success: false,
+            data: None,
+            message: None,
+            error: Some("At least one price (cash_price, nhif_price, or sha_price) must be provided".to_string()),
+        }));
+    }
 
 
     match sqlx::query_as::<_, Service>(
@@ -242,11 +253,19 @@ pub async fn update_service_prices(
         }
         Err(e) => {
             eprintln!("Error updating service: {}", e);
+            
+            // Check if service not found
+            let error_msg = if e.to_string().contains("no rows returned") {
+                "Service not found".to_string()
+            } else {
+                format!("Failed to update service: {}", e)
+            };
+            
             Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
                 success: false,
                 data: None,
                 message: None,
-                error: Some(format!("Failed to update service: {}", e)),
+                error: Some(error_msg),
             }))
         }
     }
