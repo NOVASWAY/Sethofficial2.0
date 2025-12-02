@@ -137,7 +137,7 @@ impl MfaService {
         .await
         .map_err(|e| AppError::Database(e))?;
 
-        let mfa_method = user_row.mfa_method.map(|m| {
+        let mfa_method = user_row.mfa_method.map(|m: String| {
             match m.as_str() {
                 "totp" => MfaMethod::Totp,
                 "sms" => MfaMethod::Sms,

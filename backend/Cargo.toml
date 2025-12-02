@@ -44,6 +44,9 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json", "bigdecimal", "ipnetwork"] }
 dotenvy = "0.15"
 
+# Decimal arithmetic for financial calculations
+rust_decimal = { version = "1.33", features = ["serde-with-str"] }
+
 # SSL/TLS Support
 rustls = "0.21"
 rustls-pemfile = "1.0"

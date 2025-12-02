@@ -22,7 +22,7 @@ import { useInvoices } from '@/contexts/invoice-context'
 import { useMpesa } from '@/hooks/use-mpesa'
 import { useEffect, useState } from 'react'
 import { PrintableInvoice } from '@/components/printable-invoice'
-import { invoiceAPI } from '@/lib/api-client'
+import { invoiceAPI, shaClaimAPI } from '@/lib/api-client'
 import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
 
 interface InvoiceItem {
@@ -129,6 +129,8 @@ export function BillingModule() {
   const [mpesaCode, setMpesaCode] = useState('')
   const [mpesaPhone, setMpesaPhone] = useState('')
   const [cashReceived, setCashReceived] = useState('')
+  const [bankReference, setBankReference] = useState('')
+  const [chequeNumber, setChequeNumber] = useState('')
 
   // Add service from catalog
   const handleAddService = () => {
@@ -424,33 +426,46 @@ export function BillingModule() {
 
   const handleGenerateShaClaim = async (invoiceNumber: string) => {
     try {
+      // Get current date for month/year
+      const now = new Date()
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December']
+      const month = monthNames[now.getMonth()]
+      const year = now.getFullYear()
+      
+      // Generate claim number from invoice number
+      const invoiceDatePart = invoiceNumber.split('-')[1] || now.toISOString().slice(0, 10).replace(/-/g, '')
+      const claimNumber = `SHA-${invoiceDatePart}-${Math.floor(Math.random() * 1000)}`
+      
+      // Prepare claim payload matching backend expectations
       const claimPayload = {
-        claim_number: `SHA-${invoiceNumber.split('-')[1]}-${Math.floor(Math.random() * 1000)}`,
-        invoice_number: invoiceNumber,
-        patient_name: invoiceData.patient_name,
-        patient_sha_number: invoiceData.sha_number,
-        claim_date: new Date().toISOString().split('T')[0],
-        service_date: new Date().toISOString().split('T')[0],
-        total_amount: totals.shaTotal,
-        status: 'pending',
+        claimNumber: claimNumber,
+        month: month,
+        year: year,
+        submissionDate: now.toISOString().split('T')[0], // Format: YYYY-MM-DD
+        totalAmount: totals.shaTotal,
+        totalPatients: 1, // Single invoice = 1 patient
+        shaWebsiteReference: `INV-${invoiceNumber}`, // Link to invoice
+        notes: `Invoice: ${invoiceNumber}\nPatient: ${invoiceData.patient_name}\nSHA Number: ${invoiceData.sha_number}\nTotal SHA Amount: KSh ${totals.shaTotal.toFixed(2)}`,
       }
 
-      // TODO: Replace with actual API call
-      // await fetch('/api/sha-claims', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(claimPayload),
-      // })
-
-      toast({
-        title: 'SHA Claim Created',
-        description: `Claim ${claimPayload.claim_number} generated for submission`,
-      })
-    } catch (error) {
+      // Call the SHA claim API
+      const response = await shaClaimAPI.create(claimPayload)
+      
+      if (response.success) {
+        toast({
+          title: 'SHA Claim Created',
+          description: `Claim ${claimNumber} has been created and is ready for submission`,
+        })
+      } else {
+        throw new Error(response.error || 'Failed to create SHA claim')
+      }
+    } catch (error: any) {
+      console.error('SHA claim creation error:', error)
       toast({
         variant: 'error',
         title: 'SHA Claim Generation Failed',
-        description: 'Invoice created but SHA claim failed. Please create manually.',
+        description: error?.message || 'Invoice created but SHA claim failed. Please create manually.',
       })
     }
   }

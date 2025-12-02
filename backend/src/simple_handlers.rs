@@ -306,8 +306,10 @@ pub async fn get_profile(req: HttpRequest, state: web::Data<AppState>) -> Result
     match verify_jwt_from_request(&req, &state.auth_service) {
         Ok(claims) => {
             // Get full user details from database
+            let user_id = uuid::Uuid::parse_str(&claims.sub)
+                .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
             match sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-                .bind(claims.user_id)
+                .bind(user_id)
                 .fetch_optional(&state.db_pool)
                 .await
             {
@@ -916,7 +918,7 @@ pub async fn import_patients(
             if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
                 // Calculate age from date_of_birth
                 if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
-                    let age = chrono::Utc::now().year() - dob.year();
+                    let age = chrono::Utc::now().date_naive().year() - dob.year();
                     processed_patient["age"] = json!(age);
                 } else {
                     // Invalid date, use default age
@@ -4805,7 +4807,8 @@ pub async fn create_sha_claim(
         Err(response) => return Ok(response),
     };
 
-    let user_id = claims.user_id;
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     // Extract required fields
     let claim_number = match claim_data.get("claimNumber").and_then(|v| v.as_str()) {

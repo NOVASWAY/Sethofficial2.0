@@ -4,8 +4,8 @@ use chrono::Utc;
 use serde_json::json;
 use rust_decimal::{Decimal, prelude::*};
 use crate::models_enhanced::{Service, CreateService};
-use crate::simple_handlers::get_current_user;
-use crate::ApiResponse;
+use crate::middleware::auth::get_current_user;
+use crate::models::ApiResponse;
 
 /// Create a new service (Admin only)
 pub async fn create_service(

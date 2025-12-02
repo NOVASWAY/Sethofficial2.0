@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ThemeToggleSimple } from "@/components/theme-toggle-simple"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { NotificationCenter } from "@/components/notification-center"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "@/contexts/language-context"
@@ -47,25 +48,25 @@ const roleConfig = {
     label: "Receptionist",
     icon: User,
     color: "bg-blue-500",
-    permissions: ["patients", "appointments", "invoices"],
+    permissions: ["patients", "appointments", "invoices", "visits"], // Added "visits" to see consultation history for billing
   },
   nurse: {
     label: "Nurse",
     icon: UserCog,
     color: "bg-green-500",
-    permissions: ["patients", "appointments", "visits", "reports"],
+    permissions: ["patients", "appointments", "visits", "reports", "prescriptions"], // Added "prescriptions" to view patient prescriptions
   },
   clinician: {
     label: "Clinician",
     icon: Stethoscope,
     color: "bg-primary",
-    permissions: ["patients", "appointments", "visits", "reports", "prescriptions"],
+    permissions: ["patients", "appointments", "visits", "reports", "prescriptions", "invoices"], // Added "invoices" to view invoices for own consultations
   },
   pharmacist: {
     label: "Pharmacist",
     icon: Pill,
     color: "bg-accent",
-    permissions: ["pharmacy", "inventory", "reports", "invoices", "patients"],
+    permissions: ["pharmacy", "inventory", "reports", "invoices", "patients", "prescriptions"], // Added "prescriptions" to view prescriptions to dispense
   },
   lab_technician: {
     label: "Lab Technician",
@@ -77,7 +78,7 @@ const roleConfig = {
     label: "Administrator",
     icon: Shield,
     color: "bg-destructive",
-    permissions: ["patients", "appointments", "invoices", "pharmacy", "inventory", "reports", "settings", "users", "lab"],
+    permissions: ["patients", "appointments", "invoices", "pharmacy", "inventory", "reports", "settings", "users", "lab", "visits", "prescriptions"], // Added "visits" and "prescriptions" for full access
   },
 }
 
@@ -88,7 +89,7 @@ const navigationItems = [
   { id: "billing", label: "Billing & Invoicing", icon: Receipt, path: "/billing", permissions: ["invoices"] },
   { id: "pharmacy-dispensing", label: "Pharmacy Dispensing", icon: Pill, path: "/pharmacy-dispensing", permissions: ["pharmacy"] },
   { id: "appointments", label: "Appointments", icon: Calendar, path: "/appointments", permissions: ["appointments"] },
-  { id: "queue", label: "Patient Queue", icon: Users, path: "/queue", permissions: ["visits", "patients"] },
+  { id: "queue", label: "Patient Queue", icon: Users, path: "/queue", permissions: ["visits", "patients", "appointments"] }, // Allow receptionists to see queue
   { id: "patients", label: "Patient Records", icon: Users, path: "/patients", permissions: ["patients"] },
   { id: "visits", label: "Visit History", icon: ClipboardList, path: "/visits", permissions: ["visits"] },
   {
@@ -104,7 +105,7 @@ const navigationItems = [
   { id: "lab-queue", label: "Lab Queue", icon: FlaskConical, path: "/lab/queue", permissions: ["lab", "lab_orders"] },
   { id: "lab-results", label: "Lab Results", icon: FileText, path: "/lab/results", permissions: ["lab", "lab_results"] },
   { id: "inventory", label: "Stock Management", icon: Package, path: "/inventory", permissions: ["inventory"] },
-  { id: "stock-receiving", label: "Stock Receiving", icon: Truck, path: "/stock-receiving", permissions: ["inventory"] },
+  { id: "stock-receiving", label: "Stock Receiving", icon: Truck, path: "/stock-receiving", permissions: ["inventory", "pharmacy"] }, // Allow pharmacists to receive stock
   { id: "expiry-alerts", label: "Expiry Alerts", icon: AlertTriangle, path: "/expiry-alerts", permissions: ["pharmacy", "inventory"] },
   { id: "services", label: "Service Catalog", icon: DollarSign, path: "/services", permissions: ["invoices", "settings"] },
   { id: "medicines", label: "Medicine Catalog", icon: Pill, path: "/medicines", permissions: ["pharmacy", "settings"] },
@@ -237,6 +238,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <NotificationCenter className="hidden sm:block" />
               <LanguageSwitcher variant="select" className="hidden sm:flex" />
               <ThemeToggleSimple />
               <Badge variant="outline" className="hidden sm:flex">

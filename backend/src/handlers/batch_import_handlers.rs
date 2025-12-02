@@ -4,6 +4,9 @@ use sqlx::PgPool;
 use chrono::Utc;
 use uuid::Uuid;
 use sqlx::FromRow;
+use rust_decimal::Decimal;
+use sqlx::types::BigDecimal;
+use std::str::FromStr;
 
 use crate::AppState;
 use crate::middleware::auth::get_current_user;
@@ -23,7 +26,7 @@ struct ImportSession {
     pub batch_size: i32,
     pub total_batches: i32,
     pub current_batch: i32,
-    pub progress_percentage: Option<sqlx::types::Decimal>,
+    pub progress_percentage: Option<BigDecimal>,
     pub started_at: Option<chrono::DateTime<Utc>>,
     pub completed_at: Option<chrono::DateTime<Utc>>,
     pub error_summary: Option<serde_json::Value>,
@@ -45,7 +48,7 @@ pub async fn batch_import_patients(
 ) -> Result<HttpResponse> {
     let claims = get_current_user(&http_req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("User not authenticated"))?;
-    let user_id = claims.user_id;
+    let user_id = claims.sub;
 
     let patients_array = match import_data.get("patients").and_then(|v| v.as_array()) {
         Some(arr) => arr,
@@ -144,7 +147,7 @@ pub async fn batch_import_patients(
                 if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
                     // Calculate age from date_of_birth
                     if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
-                        let age = chrono::Utc::now().year() - dob.year();
+                        let age = chrono::Utc::now().date_naive().year() - dob.year();
                         processed_patient["age"] = json!(age);
                     } else {
                         // Invalid date, use default age
@@ -213,7 +216,7 @@ pub async fn batch_import_patients(
         .bind((batch_num + 1) as i32)
         .bind(all_imported as i32)
         .bind(all_errors.len() as i32)
-        .bind(sqlx::types::Decimal::from_f64_retain(progress))
+        .bind(BigDecimal::from_str(&progress.to_string()).unwrap_or(BigDecimal::from(0)))
         .bind(Utc::now())
         .bind(session_id)
         .execute(&state.db_pool)
@@ -255,7 +258,7 @@ pub async fn batch_import_patients(
     .bind(all_imported as i32)
     .bind(all_errors.len() as i32)
     .bind(duplicate_count as i32)
-    .bind(sqlx::types::Decimal::from_f64_retain(final_progress))
+    .bind(BigDecimal::from_str(&final_progress.to_string()).unwrap_or(BigDecimal::from(0)))
     .bind(completed_at)
     .bind(json!(batch_results))
     .bind(json!({
@@ -300,7 +303,7 @@ pub async fn get_import_status(
 ) -> Result<HttpResponse> {
     let claims = get_current_user(&http_req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("User not authenticated"))?;
-    let user_id = claims.user_id;
+    let user_id = claims.sub;
 
     let session_id_str = path.into_inner();
     let session_id = match Uuid::parse_str(&session_id_str) {
@@ -364,7 +367,7 @@ pub async fn get_import_history(
 ) -> Result<HttpResponse> {
     let claims = get_current_user(&http_req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("User not authenticated"))?;
-    let user_id = claims.user_id;
+    let user_id = claims.sub;
 
     let page = query.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
     let per_page = query.get("per_page").and_then(|v| v.as_i64()).unwrap_or(20);
@@ -425,7 +428,7 @@ pub async fn resume_import(
 ) -> Result<HttpResponse> {
     let claims = get_current_user(&http_req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("User not authenticated"))?;
-    let user_id = claims.user_id;
+    let user_id = claims.sub;
 
     let session_id = path.into_inner();
 
@@ -537,7 +540,7 @@ pub async fn resume_import(
                 if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
                     // Calculate age from date_of_birth
                     if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
-                        let age = chrono::Utc::now().year() - dob.year();
+                        let age = chrono::Utc::now().date_naive().year() - dob.year();
                         processed_patient["age"] = json!(age);
                     } else {
                         // Invalid date, use default age
@@ -599,7 +602,7 @@ pub async fn resume_import(
         .bind((batch_num + 1) as i32)
         .bind(all_imported as i32)
         .bind(all_failed as i32)
-        .bind(sqlx::types::Decimal::from_f64_retain(progress))
+        .bind(BigDecimal::from_str(&progress.to_string()).unwrap_or(BigDecimal::from(0)))
         .bind(Utc::now())
         .bind(session_id)
         .execute(&state.db_pool)
@@ -639,7 +642,7 @@ pub async fn resume_import(
     .bind(status)
     .bind(all_imported as i32)
     .bind(all_failed as i32)
-    .bind(sqlx::types::Decimal::from_f64_retain(final_progress))
+    .bind(BigDecimal::from_str(&final_progress.to_string()).unwrap_or(BigDecimal::from(0)))
     .bind(completed_at)
     .bind(json!(batch_results))
     .bind(json!({

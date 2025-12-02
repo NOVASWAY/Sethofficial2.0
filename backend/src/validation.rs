@@ -38,7 +38,7 @@ impl Validate for CreatePatient {
         }
 
         // Date of birth validation
-        let today = Utc::now();
+        let today = Utc::now().date_naive();
         if self.date_of_birth > today {
             errors.add_error("date_of_birth".to_string(), "Date of birth cannot be in the future".to_string(), Some(serde_json::Value::String(self.date_of_birth.to_string())));
         }

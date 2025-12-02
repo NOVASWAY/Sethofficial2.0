@@ -17,6 +17,8 @@ import { reportsAPI } from '@/lib/api-client'
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useMemo, useCallback } from 'react'
 import { Skeleton } from "@/components/ui/loading"
+import { ActivityFeed } from "@/components/activity-feed"
+import { AnnouncementsPanel } from "@/components/announcements-panel"
 
 interface MetricCardProps {
   title: string
@@ -412,6 +414,12 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
           icon={Activity}
           color="text-cyan-600"
         />
+      </div>
+
+      {/* Activity Feed & Announcements */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <ActivityFeed limit={20} showFilters={true} realtime={true} />
+        <AnnouncementsPanel limit={10} showUnreadOnly={false} />
       </div>
 
       {/* Detailed Cards */}

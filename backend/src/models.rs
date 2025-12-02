@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc, NaiveDate, NaiveTime};
 use sqlx::FromRow;
+use rust_decimal::Decimal;
+use sqlx::types::BigDecimal;
+use std::collections::HashMap;
 
 // User models
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -142,7 +145,7 @@ pub struct ImportSession {
     pub batch_size: i32,
     pub total_batches: i32,
     pub current_batch: i32,
-    pub progress_percentage: Option<rust_decimal::Decimal>,
+    pub progress_percentage: Option<BigDecimal>,
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub error_summary: Option<serde_json::Value>,
@@ -638,4 +641,65 @@ pub struct SettingsResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateSettingsRequest {
     pub settings: serde_json::Value,
+}
+
+// User Notes models for collaborative communication
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Note {
+    pub id: Uuid,
+    pub resource_type: String,
+    pub resource_id: Uuid,
+    pub user_id: Uuid,
+    pub content: String,
+    pub is_important: bool,
+    pub is_urgent: bool,
+    pub is_private: bool,
+    pub tags: Option<Vec<String>>,
+    pub metadata: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub created_by: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateNote {
+    pub resource_type: String,
+    pub resource_id: Uuid,
+    pub content: String,
+    pub is_important: Option<bool>,
+    pub is_urgent: Option<bool>,
+    pub is_private: Option<bool>,
+    pub tags: Option<Vec<String>>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateNote {
+    pub content: Option<String>,
+    pub is_important: Option<bool>,
+    pub is_urgent: Option<bool>,
+    pub is_private: Option<bool>,
+    pub tags: Option<Vec<String>>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NoteWithUser {
+    pub id: Uuid,
+    pub resource_type: String,
+    pub resource_id: Uuid,
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub user_role: String,
+    pub content: String,
+    pub is_important: bool,
+    pub is_urgent: bool,
+    pub is_private: bool,
+    pub tags: Option<Vec<String>>,
+    pub metadata: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub created_by: Option<Uuid>,
 }

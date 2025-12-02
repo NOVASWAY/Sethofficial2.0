@@ -168,7 +168,7 @@ pub async fn get_lab_orders(
         query_builder.push(" LIMIT 100");
     }
 
-    match query_builder.build_query_as::<_, LabTestOrder>().fetch_all(&**pool).await {
+    match query_builder.build_query_as::<_, LabTestOrder>().fetch_all(&state.db_pool).await {
         Ok(orders) => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,
@@ -377,7 +377,7 @@ pub async fn get_pending_lab_orders(
         query_builder.push(" LIMIT 50");
     }
 
-    match query_builder.build_query_as::<_, LabTestOrder>().fetch_all(&**pool).await {
+    match query_builder.build_query_as::<_, LabTestOrder>().fetch_all(&state.db_pool).await {
         Ok(orders) => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,

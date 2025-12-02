@@ -94,7 +94,7 @@ pub async fn get_user_preferences(
     };
 
     // Check if user is requesting their own preferences or has admin permissions
-    if claims.user_id != user_id && claims.role != "admin" {
+    if claims.sub != user_id && claims.role != "admin" {
         return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -125,7 +125,7 @@ pub async fn get_user_preferences(
                         success: false,
                         data: None,
                         message: Some("Failed to create default preferences".to_string()),
-                        error: Some(e.to_string()),
+                        error: Some(format!("{}", e)),
                     }));
                 }
             }
@@ -135,7 +135,7 @@ pub async fn get_user_preferences(
                 success: false,
                 data: None,
                 message: Some("Failed to fetch user preferences".to_string()),
-                error: Some(e.to_string()),
+                error: Some(format!("{}", e)),
             }));
         }
     };
@@ -195,7 +195,7 @@ pub async fn update_user_preferences(
     };
 
     // Check if user is updating their own preferences or has admin permissions
-    if claims.user_id != user_id && claims.role != "admin" {
+    if claims.sub != user_id && claims.role != "admin" {
         return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -338,7 +338,7 @@ pub async fn update_user_preferences(
                                 success: false,
                                 data: None,
                                 message: Some("Failed to update preferences".to_string()),
-                                error: Some(e.to_string()),
+                                error: Some(format!("{}", e)),
                             }));
                         }
                     }
@@ -348,7 +348,7 @@ pub async fn update_user_preferences(
                         success: false,
                         data: None,
                         message: Some("Failed to create default preferences".to_string()),
-                        error: Some(e.to_string()),
+                        error: Some(format!("{}", e)),
                     }));
                 }
             }
@@ -358,7 +358,7 @@ pub async fn update_user_preferences(
                 success: false,
                 data: None,
                 message: Some("Failed to update user preferences".to_string()),
-                error: Some(e.to_string()),
+                error: Some(format!("{}", e)),
             }));
         }
     };
@@ -417,7 +417,7 @@ pub async fn reset_user_preferences(
     };
 
     // Check if user is resetting their own preferences or has admin permissions
-    if claims.user_id != user_id && claims.role != "admin" {
+    if claims.sub != user_id && claims.role != "admin" {
         return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -459,7 +459,7 @@ pub async fn reset_user_preferences(
                 success: false,
                 data: None,
                 message: Some("Failed to reset preferences".to_string()),
-                error: Some(e.to_string()),
+                error: Some(format!("{}", e)),
             }));
         }
     }
@@ -472,7 +472,7 @@ pub async fn reset_user_preferences(
                 success: false,
                 data: None,
                 message: Some("Failed to create default preferences".to_string()),
-                error: Some(e.to_string()),
+                error: Some(format!("{}", e)),
             }));
         }
     };

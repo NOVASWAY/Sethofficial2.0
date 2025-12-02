@@ -116,7 +116,8 @@ pub async fn get_filtered_patients(
     let search_term = query.get("search");
 
     // Build query based on user role and permissions
-    let patients = match build_filtered_patients_query(&pool, &claims.user_id, &user.role, &user.department, limit, offset, status_filter, search_term).await {
+    let department = user.department.as_deref().unwrap_or("");
+    let patients = match build_filtered_patients_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, search_term).await {
         Ok(patients) => patients,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -215,7 +216,8 @@ pub async fn get_filtered_consultations(
     let date_to = query.get("date_to").and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Build query based on user role and permissions
-    let consultations = match build_filtered_consultations_query(&pool, &claims.user_id, &user.role, &user.department, limit, offset, status_filter, date_from, date_to).await {
+    let department = user.department.as_deref().unwrap_or("");
+    let consultations = match build_filtered_consultations_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, date_from, date_to).await {
         Ok(consultations) => consultations,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -312,7 +314,8 @@ pub async fn get_filtered_prescriptions(
     let status_filter = query.get("status");
 
     // Build query based on user role and permissions
-    let prescriptions = match build_filtered_prescriptions_query(&pool, &claims.user_id, &user.role, &user.department, limit, offset, status_filter).await {
+    let department = user.department.as_deref().unwrap_or("");
+    let prescriptions = match build_filtered_prescriptions_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter).await {
         Ok(prescriptions) => prescriptions,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -411,7 +414,8 @@ pub async fn get_filtered_invoices(
     let date_to = query.get("date_to").and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Build query based on user role and permissions
-    let invoices = match build_filtered_invoices_query(&pool, &claims.user_id, &user.role, &user.department, limit, offset, status_filter, date_from, date_to).await {
+    let department = user.department.as_deref().unwrap_or("");
+    let invoices = match build_filtered_invoices_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, date_from, date_to).await {
         Ok(invoices) => invoices,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {

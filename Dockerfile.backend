@@ -30,8 +30,7 @@ ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
 # Build the application
 # Note: sqlx::query! macros require DATABASE_URL at compile time
-# If database is not accessible during build, use SQLX_OFFLINE=true
-# For now, we'll try to build and see actual errors
+# The database should be accessible during build
 RUN RUST_BACKTRACE=1 cargo build --release
 
 # Runtime stage

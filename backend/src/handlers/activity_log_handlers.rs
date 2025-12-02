@@ -147,7 +147,7 @@ pub async fn log_user_activity(
          RETURNING id, user_id, action, module, entity_type, entity_id, details, 
                    ip_address, user_agent, session_id, created_at"
     )
-    .bind(claims.user_id)
+    .bind(uuid::Uuid::parse_str(&claims.sub).map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?)
     .bind(&activity_data.action)
     .bind(&activity_data.module)
     .bind(activity_data.entity_type.as_deref())
@@ -225,7 +225,7 @@ pub async fn get_user_activity(
     };
 
     // Check if user is requesting their own activity or has admin permissions
-    if claims.user_id != user_id && claims.role != "admin" {
+    if claims.sub != user_id.to_string() && claims.role != "admin" {
         return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,

@@ -1,5 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse, Result, middleware::Next, dev::ServiceRequest, dev::ServiceResponse, Error};
-use actix_web::body::MessageBody;
+use actix_web::body::{MessageBody, BoxBody};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use regex::Regex;
@@ -149,21 +149,21 @@ fn escape_html(input: &str) -> String {
 pub async fn validate_patient_data(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Basic validation middleware - in a real implementation,
     // you would extract and validate the request body here
     
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 pub async fn validate_user_data(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Basic validation middleware - in a real implementation,
     // you would extract and validate the request body here
     
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // Generic validation middleware
@@ -178,7 +178,7 @@ where
     // In a real implementation, you would extract the JSON body,
     // deserialize it to T, validate it, and sanitize the data
     
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // Query parameter validation

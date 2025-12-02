@@ -27,6 +27,10 @@ pub mod batch_import_handlers;
 pub mod lab_order_handlers;
 pub mod lab_result_handlers;
 pub mod service_handlers;
+pub mod notes_handlers;
+pub mod internal_notifications_handlers;
+pub mod task_handlers;
+pub mod announcements_handlers;
 
 // Re-export handlers for easier imports
 pub use auth_handlers::*;
@@ -54,3 +58,7 @@ pub use csrf_handlers::*;
 pub use lab_order_handlers::*;
 pub use lab_result_handlers::*;
 pub use service_handlers::*;
+pub use notes_handlers::*;
+pub use internal_notifications_handlers::*;
+pub use task_handlers::*;
+pub use announcements_handlers::*;

@@ -370,7 +370,6 @@ impl MonitoringService {
             if should_trigger {
                 // Check cooldown
                 let can_trigger = if let Some(last_triggered) = config.last_triggered {
-                    let cooldown_duration = Duration::from_secs(config.cooldown_minutes as u64 * 60);
                     Utc::now() - last_triggered > chrono::Duration::seconds(config.cooldown_minutes as i64 * 60)
                 } else {
                     true

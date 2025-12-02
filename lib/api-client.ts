@@ -1032,6 +1032,77 @@ export const reportsAPI = {
 }
 
 // ========================================
+// NOTES APIs (User Notes System)
+// ========================================
+
+export const notesAPI = {
+  /**
+   * Get all notes for a resource
+   * GET /notes?resource_type=patient&resource_id=uuid
+   */
+  getNotes: async (resourceType: string, resourceId: string) => {
+    const query = `?resource_type=${encodeURIComponent(resourceType)}&resource_id=${encodeURIComponent(resourceId)}`
+    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any }>(`/notes${query}`)
+    // Extract the data array from ApiResponse
+    if (response && response.success && response.data) {
+      return Array.isArray(response.data) ? response.data : []
+    }
+    return []
+  },
+
+  /**
+   * Create a new note
+   * POST /notes
+   */
+  create: async (noteData: {
+    resource_type: string
+    resource_id: string
+    content: string
+    is_important?: boolean
+    is_urgent?: boolean
+    is_private?: boolean
+    tags?: string[]
+    metadata?: any
+  }) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/notes', {
+      method: 'POST',
+      body: JSON.stringify(noteData),
+    })
+    return response
+  },
+
+  /**
+   * Update a note
+   * PUT /notes/:id
+   */
+  update: async (id: string, updates: {
+    content?: string
+    is_important?: boolean
+    is_urgent?: boolean
+    is_private?: boolean
+    tags?: string[]
+    metadata?: any
+  }) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/notes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+    return response
+  },
+
+  /**
+   * Delete a note
+   * DELETE /notes/:id
+   */
+  delete: async (id: string) => {
+    const response = await apiCall<{ success: boolean; message: string; error: any }>(`/notes/${id}`, {
+      method: 'DELETE',
+    })
+    return response
+  },
+}
+
+// ========================================
 // USER MANAGEMENT APIs (Admin only)
 // ========================================
 
@@ -1325,34 +1396,34 @@ export const dashboardAPI = {
    * GET /dashboard/user/:userId/metrics
    */
   getUserMetrics: async (userId: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/dashboard/user/${userId}/metrics`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/dashboard/metrics/user/${userId}`)
     return response.data
   },
 
   /**
    * Get role-based dashboard metrics
-   * GET /dashboard/role/:role/metrics
+   * GET /dashboard/metrics/role/:role
    */
   getRoleMetrics: async (role: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/dashboard/role/${role}/metrics`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/dashboard/metrics/role/${role}`)
     return response.data
   },
 
   /**
    * Get department-based dashboard metrics
-   * GET /dashboard/department/:department/metrics
+   * GET /dashboard/metrics/department/:department
    */
   getDepartmentMetrics: async (department: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/dashboard/department/${department}/metrics`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/dashboard/metrics/department/${department}`)
     return response.data
   },
 
   /**
    * Get system health metrics
-   * GET /dashboard/system/health
+   * GET /dashboard/health
    */
   getSystemHealth: async () => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/dashboard/system/health')
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/dashboard/health')
     return response.data
   },
 }
@@ -1367,16 +1438,16 @@ export const userPreferencesAPI = {
    * GET /user/:userId/preferences
    */
   get: async (userId: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user/${userId}/preferences`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user-preferences/${userId}`)
     return response.data
   },
 
   /**
    * Update user preferences
-   * PUT /user/:userId/preferences
+   * PUT /user-preferences/:userId
    */
   update: async (userId: string, preferences: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user/${userId}/preferences`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user-preferences/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(preferences),
     })
@@ -1385,10 +1456,10 @@ export const userPreferencesAPI = {
 
   /**
    * Reset user preferences to default
-   * POST /user/:userId/preferences/reset
+   * POST /user-preferences/:userId/reset
    */
   reset: async (userId: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user/${userId}/preferences/reset`, {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user-preferences/${userId}/reset`, {
       method: 'POST',
     })
     return response.data
@@ -1396,10 +1467,10 @@ export const userPreferencesAPI = {
 
   /**
    * Get role preference template
-   * GET /user/:role/preferences/template
+   * GET /user-preferences/role/:role/template
    */
   getTemplate: async (role: string) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user/${role}/preferences/template`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/user-preferences/role/${role}/template`)
     return response.data
   },
 }
@@ -1443,11 +1514,11 @@ export const activityLogAPI = {
 
   /**
    * Get activity statistics
-   * GET /activity/stats
+   * GET /activity/statistics
    */
   getStats: async (params?: { days?: number }) => {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/activity/stats${query}`)
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/activity/statistics${query}`)
     return response.data
   },
 }
@@ -1819,6 +1890,172 @@ export const validationAPI = {
   },
 }
 
+// ========================================
+// FILE UPLOAD APIs
+// ========================================
+
+export const uploadAPI = {
+  /**
+   * Upload avatar image
+   * POST /upload/avatar
+   */
+  uploadAvatar: async (file: File, userId: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('user_id', userId)
+    
+    const response = await fetch(`${API_BASE_URL}/upload/avatar`, {
+      method: 'POST',
+      headers: getAuthorizationHeader(),
+      body: formData,
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new APIError(error.error || error.message || 'Upload failed', response.status)
+    }
+    
+    return await response.json()
+  },
+
+  /**
+   * Upload document
+   * POST /upload/document
+   */
+  uploadDocument: async (file: File, metadata: { entity_type: string; entity_id: string; document_type?: string }) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('entity_type', metadata.entity_type)
+    formData.append('entity_id', metadata.entity_id)
+    if (metadata.document_type) {
+      formData.append('document_type', metadata.document_type)
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/upload/document`, {
+      method: 'POST',
+      headers: getAuthorizationHeader(),
+      body: formData,
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new APIError(error.error || error.message || 'Upload failed', response.status)
+    }
+    
+    return await response.json()
+  },
+
+  /**
+   * Get file by ID
+   * GET /upload/files/:file_id
+   */
+  getFile: async (fileId: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/upload/files/${fileId}`)
+    return response.data
+  },
+
+  /**
+   * Get files list
+   * GET /upload/files
+   */
+  getFiles: async (params?: { entity_type?: string; entity_id?: string; limit?: number; offset?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/upload/files${query}`)
+    return response.data
+  },
+}
+
+// ========================================
+// BACKUP APIs (Admin only)
+// ========================================
+
+export const backupAPI = {
+  /**
+   * Create backup
+   * POST /admin/backup
+   */
+  create: async () => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/admin/backup', {
+      method: 'POST',
+    })
+    return response.data
+  },
+
+  /**
+   * List backups
+   * GET /admin/backups
+   */
+  list: async () => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/admin/backups')
+    return response.data
+  },
+
+  /**
+   * Get backup statistics
+   * GET /admin/backup/stats
+   */
+  getStats: async () => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/admin/backup/stats')
+    return response.data
+  },
+
+  /**
+   * Get backup details
+   * GET /admin/backup/:backup_id
+   */
+  get: async (backupId: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/admin/backup/${backupId}`)
+    return response.data
+  },
+}
+
+// ========================================
+// MONITORING APIs
+// ========================================
+
+export const monitoringAPI = {
+  /**
+   * Create log entry
+   * POST /monitoring/log
+   */
+  createLog: async (logData: any) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/monitoring/log', {
+      method: 'POST',
+      body: JSON.stringify(logData),
+    })
+    return response.data
+  },
+
+  /**
+   * Get system health
+   * GET /monitoring/health
+   */
+  getHealth: async () => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/monitoring/health')
+    return response.data
+  },
+
+  /**
+   * Get log statistics
+   * GET /monitoring/logs/statistics
+   */
+  getLogStats: async (params?: { days?: number; level?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/monitoring/logs/statistics${query}`)
+    return response.data
+  },
+
+  /**
+   * Get recent alerts
+   * GET /monitoring/alerts/recent
+   */
+  getRecentAlerts: async (params?: { limit?: number; severity?: string }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/monitoring/alerts/recent${query}`)
+    return response.data
+  },
+}
+
 // Create API client instance
 export const apiClient = {
   setToken: (token: string) => {
@@ -1833,6 +2070,318 @@ export const apiClient = {
 }
 
 // Export all APIs
+// ========================================
+// INTERNAL NOTIFICATIONS APIs
+// ========================================
+
+export interface InternalNotification {
+  id: string
+  recipient_id?: string
+  template: string
+  subject?: string
+  content: string
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  status: string
+  is_read: boolean
+  read_at?: string
+  action_url?: string
+  action_label?: string
+  metadata?: any
+  created_at: string
+  created_by?: string
+}
+
+export const notificationsAPI = {
+  /**
+   * Get all notifications for the current user
+   * GET /notifications?unread_only=false&limit=50
+   */
+  getAll: async (options?: { unreadOnly?: boolean; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (options?.unreadOnly) params.append('unread_only', 'true')
+    if (options?.limit) params.append('limit', options.limit.toString())
+    
+    const queryString = params.toString()
+    const endpoint = `/notifications${queryString ? `?${queryString}` : ''}`
+    
+    const response = await apiCall<{ success: boolean; data: InternalNotification[]; message?: string; error?: string }>(endpoint)
+    return response.data || []
+  },
+
+  /**
+   * Get unread notification count
+   * GET /notifications/unread-count
+   */
+  getUnreadCount: async () => {
+    const response = await apiCall<{ success: boolean; data: { count: number }; message?: string; error?: string }>('/notifications/unread-count')
+    return response.data?.count || 0
+  },
+
+  /**
+   * Mark a notification as read
+   * POST /notifications/:id/read
+   */
+  markAsRead: async (notificationId: string) => {
+    const response = await apiCall<{ success: boolean; data?: any; message?: string; error?: string }>(`/notifications/${notificationId}/read`, {
+      method: 'POST',
+    })
+    return response
+  },
+
+  /**
+   * Mark all notifications as read
+   * POST /notifications/read-all
+   */
+  markAllAsRead: async () => {
+    const response = await apiCall<{ success: boolean; data?: { updated_count: number }; message?: string; error?: string }>('/notifications/read-all', {
+      method: 'POST',
+    })
+    return response
+  },
+
+  /**
+   * Create a new internal notification
+   * POST /notifications
+   */
+  create: async (notificationData: {
+    recipient_id: string
+    content: string
+    template?: string
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
+    subject?: string
+    action_url?: string
+    action_label?: string
+    metadata?: any
+  }) => {
+    const response = await apiCall<{ success: boolean; data: InternalNotification; message?: string; error?: string }>('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(notificationData),
+    })
+    return response
+  },
+}
+
+// ========================================
+// TASK ASSIGNMENT APIs
+// ========================================
+
+export interface Task {
+  id: string
+  task_type: 'patient_consultation' | 'lab_test_review' | 'prescription_dispense' | 'follow_up' | 'documentation' | 'billing' | 'appointment' | 'custom'
+  title: string
+  description?: string
+  assigned_to?: string
+  assigned_by?: string
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  due_date?: string
+  completed_at?: string
+  cancelled_at?: string
+  patient_id?: string
+  consultation_id?: string
+  prescription_id?: string
+  lab_order_id?: string
+  invoice_id?: string
+  appointment_id?: string
+  metadata?: any
+  tags?: string[]
+  created_at: string
+  updated_at: string
+  assignee_name?: string
+  assignee_role?: string
+  assigner_name?: string
+  assigner_role?: string
+}
+
+export const tasksAPI = {
+  /**
+   * Get all tasks
+   * GET /tasks?assigned_to_me=true&status=pending&priority=high&task_type=consultation&limit=50
+   */
+  getAll: async (options?: {
+    assignedToMe?: boolean
+    status?: string
+    priority?: string
+    taskType?: string
+    limit?: number
+  }) => {
+    const params = new URLSearchParams()
+    if (options?.assignedToMe !== undefined) params.append('assigned_to_me', options.assignedToMe.toString())
+    if (options?.status) params.append('status', options.status)
+    if (options?.priority) params.append('priority', options.priority)
+    if (options?.taskType) params.append('task_type', options.taskType)
+    if (options?.limit) params.append('limit', options.limit.toString())
+    
+    const queryString = params.toString()
+    const endpoint = `/tasks${queryString ? `?${queryString}` : ''}`
+    
+    const response = await apiCall<{ success: boolean; data: Task[]; message?: string; error?: string }>(endpoint)
+    return response.data || []
+  },
+
+  /**
+   * Get a single task by ID
+   * GET /tasks/:id
+   */
+  getById: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: Task; message?: string; error?: string }>(`/tasks/${id}`)
+    return response.data
+  },
+
+  /**
+   * Create a new task
+   * POST /tasks
+   */
+  create: async (taskData: {
+    task_type: string
+    title: string
+    description?: string
+    assigned_to: string
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
+    due_date?: string
+    patient_id?: string
+    consultation_id?: string
+    prescription_id?: string
+    lab_order_id?: string
+    invoice_id?: string
+    appointment_id?: string
+    tags?: string[]
+    metadata?: any
+  }) => {
+    const response = await apiCall<{ success: boolean; data: Task; message?: string; error?: string }>('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    })
+    return response
+  },
+
+  /**
+   * Update a task
+   * PUT /tasks/:id
+   */
+  update: async (id: string, updates: {
+    title?: string
+    description?: string
+    status?: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold'
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
+    due_date?: string
+    assigned_to?: string
+  }) => {
+    const response = await apiCall<{ success: boolean; data: Task; message?: string; error?: string }>(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+    return response
+  },
+
+  /**
+   * Delete a task
+   * DELETE /tasks/:id
+   */
+  delete: async (id: string) => {
+    const response = await apiCall<{ success: boolean; message?: string; error?: string }>(`/tasks/${id}`, {
+      method: 'DELETE',
+    })
+    return response
+  },
+}
+
+// ========================================
+// ANNOUNCEMENTS APIs
+// ========================================
+
+export interface Announcement {
+  id: string
+  title: string
+  content: string
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  status: 'draft' | 'published' | 'archived' | 'cancelled'
+  scope: 'system' | 'department' | 'role' | 'custom'
+  target_departments?: string[]
+  target_roles?: string[]
+  target_user_ids?: string[]
+  published_at?: string
+  expires_at?: string
+  is_pinned: boolean
+  requires_acknowledgment: boolean
+  allow_comments: boolean
+  tags?: string[]
+  metadata?: any
+  created_by: string
+  created_at: string
+  updated_at: string
+  creator_name?: string
+  creator_role?: string
+  is_acknowledged?: boolean
+  acknowledged_at?: string
+}
+
+export const announcementsAPI = {
+  /**
+   * Get announcements visible to the current user
+   * GET /announcements?include_acknowledged=false&limit=50
+   */
+  getAll: async (options?: { includeAcknowledged?: boolean; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (options?.includeAcknowledged) params.append('include_acknowledged', 'true')
+    if (options?.limit) params.append('limit', options.limit.toString())
+    
+    const queryString = params.toString()
+    const endpoint = `/announcements${queryString ? `?${queryString}` : ''}`
+    
+    const response = await apiCall<{ success: boolean; data: Announcement[]; message?: string; error?: string }>(endpoint)
+    return response.data || []
+  },
+
+  /**
+   * Get unread announcements count
+   * GET /announcements/unread-count
+   */
+  getUnreadCount: async () => {
+    const response = await apiCall<{ success: boolean; data: { count: number }; message?: string; error?: string }>('/announcements/unread-count')
+    return response.data?.count || 0
+  },
+
+  /**
+   * Create a new announcement (admin/manager only)
+   * POST /announcements
+   */
+  create: async (announcementData: {
+    title: string
+    content: string
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
+    status?: 'draft' | 'published' | 'archived' | 'cancelled'
+    scope?: 'system' | 'department' | 'role' | 'custom'
+    target_departments?: string[]
+    target_roles?: string[]
+    target_user_ids?: string[]
+    published_at?: string
+    expires_at?: string
+    is_pinned?: boolean
+    requires_acknowledgment?: boolean
+    allow_comments?: boolean
+    tags?: string[]
+    metadata?: any
+  }) => {
+    const response = await apiCall<{ success: boolean; data: Announcement; message?: string; error?: string }>('/announcements', {
+      method: 'POST',
+      body: JSON.stringify(announcementData),
+    })
+    return response
+  },
+
+  /**
+   * Acknowledge an announcement
+   * POST /announcements/:id/acknowledge
+   */
+  acknowledge: async (announcementId: string) => {
+    const response = await apiCall<{ success: boolean; data?: any; message?: string; error?: string }>(`/announcements/${announcementId}/acknowledge`, {
+      method: 'POST',
+    })
+    return response
+  },
+}
+
 export default {
   auth: authAPI,
   patient: patientAPI,
@@ -1844,6 +2393,10 @@ export default {
   mpesa: mpesaAPI,
   appointment: appointmentAPI,
   shaClaim: shaClaimAPI,
+  notes: notesAPI,
+  notifications: notificationsAPI,
+  tasks: tasksAPI,
+  announcements: announcementsAPI,
   reports: reportsAPI,
   user: userAPI,
   audit: auditAPI,
@@ -1857,6 +2410,9 @@ export default {
   dataIsolation: dataIsolationAPI,
   validation: validationAPI,
   lab: labAPI,
+  upload: uploadAPI,
+  backup: backupAPI,
+  monitoring: monitoringAPI,
 }
 
 // Export error class

@@ -1,5 +1,6 @@
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
+    body::BoxBody,
     Error, HttpRequest, HttpResponse, Result,
     middleware::Next,
     web::{Data, self},
@@ -204,10 +205,10 @@ pub async fn csrf_protection_middleware(
     req: ServiceRequest,
     next: Next<impl actix_web::body::MessageBody>,
     csrf_service: web::Data<crate::csrf::CsrfService>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Skip CSRF check for GET, HEAD, OPTIONS requests
     if matches!(req.method(), &actix_web::http::Method::GET | &actix_web::http::Method::HEAD | &actix_web::http::Method::OPTIONS) {
-        return next.call(req).await;
+        return Ok(next.call(req).await?.map_into_boxed_body());
     }
 
     // Skip CSRF check for certain paths
@@ -245,7 +246,7 @@ pub async fn csrf_protection_middleware(
                     "message": "CSRF token required. Include 'X-CSRF-Token' header.",
                     "error": "CSRF_TOKEN_MISSING"
                 }))
-        ));
+        ).map_into_boxed_body());
     }
 
     // Extract user ID and session ID from request
@@ -255,7 +256,7 @@ pub async fn csrf_protection_middleware(
     match csrf_service.validate_token(csrf_token.unwrap(), user_id, session_id).await {
         Ok(true) => {
             // Token is valid, proceed
-            next.call(req).await
+            Ok(next.call(req).await?.map_into_boxed_body())
         }
         Ok(false) => {
             // Token is invalid or expired
@@ -266,7 +267,7 @@ pub async fn csrf_protection_middleware(
                         "message": "CSRF token is invalid or expired",
                         "error": "CSRF_TOKEN_INVALID"
                     }))
-            ))
+            ).map_into_boxed_body())
         }
         Err(e) => {
             // Error during validation
@@ -278,7 +279,7 @@ pub async fn csrf_protection_middleware(
                         "message": "Error validating CSRF token",
                         "error": "CSRF_VALIDATION_ERROR"
                     }))
-            ))
+            ).map_into_boxed_body())
         }
     }
 }

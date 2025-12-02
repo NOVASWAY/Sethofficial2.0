@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { EnhancedServiceCatalog, Service } from './enhanced-service-catalog'
-import { billingAPI, serviceCatalogAPI, invoiceAPI } from '@/lib/api-client'
+import { billingAPI, serviceCatalogAPI, invoiceAPI, shaClaimAPI } from '@/lib/api-client'
 
 interface BillingItem {
   service_id: string
@@ -45,14 +45,18 @@ interface EnhancedBillingModuleProps {
   patientName?: string
   consultationId?: string
   onInvoiceCreated?: (invoice: AutoBillResponse) => void
+  role?: string // Add role prop for access control
 }
 
 export function EnhancedBillingModule({ 
   patientId = '', 
   patientName = '', 
   consultationId = '',
-  onInvoiceCreated 
+  onInvoiceCreated,
+  role = 'receptionist' // Default to receptionist for backward compatibility
 }: EnhancedBillingModuleProps) {
+  // Only receptionists and admins can create invoices
+  const canCreateInvoices = role === "receptionist" || role === "admin"
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
@@ -60,6 +64,8 @@ export function EnhancedBillingModule({
   const [patientType, setPatientType] = useState<'adult' | 'child' | 'senior'>('adult')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa' | 'bank_transfer' | 'cheque'>('cash')
   const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('')
+  const [bankReference, setBankReference] = useState('')
+  const [chequeNumber, setChequeNumber] = useState('')
   const [autoBillResult, setAutoBillResult] = useState<AutoBillResponse | null>(null)
   const [notes, setNotes] = useState('')
 
@@ -253,6 +259,36 @@ export function EnhancedBillingModule({
                         </p>
                       </div>
                     )}
+                    {paymentMethod === 'bank_transfer' && (
+                      <div>
+                        <Label htmlFor="bank-reference">Bank Transfer Reference Number</Label>
+                        <Input
+                          id="bank-reference"
+                          type="text"
+                          placeholder="Enter bank transfer reference"
+                          value={bankReference}
+                          onChange={(e) => setBankReference(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter the bank transfer reference number for tracking
+                        </p>
+                      </div>
+                    )}
+                    {paymentMethod === 'cheque' && (
+                      <div>
+                        <Label htmlFor="cheque-number">Cheque Number</Label>
+                        <Input
+                          id="cheque-number"
+                          type="text"
+                          placeholder="Enter cheque number"
+                          value={chequeNumber}
+                          onChange={(e) => setChequeNumber(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter the cheque number for tracking
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -388,24 +424,31 @@ export function EnhancedBillingModule({
               </div>
 
               <div className="space-y-2">
-                <Button 
-                  onClick={handleCreateAutoBill} 
-                  disabled={loading || selectedServices.length === 0 || !patientId}
-                  className="w-full" 
-                  size="lg"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Creating Auto-Bill...
-                    </>
-                  ) : (
-                    <>
-                      <Calculator className="mr-2 h-5 w-5" />
-                      Create Automated Bill
-                    </>
-                  )}
-                </Button>
+                {canCreateInvoices ? (
+                  <Button 
+                    onClick={handleCreateAutoBill} 
+                    disabled={loading || selectedServices.length === 0 || !patientId}
+                    className="w-full" 
+                    size="lg"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Creating Auto-Bill...
+                      </>
+                    ) : (
+                      <>
+                        <Calculator className="mr-2 h-5 w-5" />
+                        Create Automated Bill
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <div className="text-center p-4 text-muted-foreground">
+                    <p className="text-sm">Only receptionists and administrators can create invoices.</p>
+                    <p className="text-xs mt-2">You can view invoices in the Invoice Records section.</p>
+                  </div>
+                )}
                 
                 <Button 
                   variant="outline" 
@@ -523,6 +566,16 @@ export function EnhancedBillingModule({
                           // Add phone number for M-Pesa payments
                           if (paymentMethod === 'mpesa' && mpesaPhoneNumber) {
                             paymentData.phone_number = mpesaPhoneNumber.replace(/\s+/g, '')
+                          }
+                          
+                          // Add reference number for bank transfer
+                          if (paymentMethod === 'bank_transfer' && bankReference) {
+                            paymentData.reference_number = bankReference
+                          }
+                          
+                          // Add cheque number for cheque payments
+                          if (paymentMethod === 'cheque' && chequeNumber) {
+                            paymentData.reference_number = chequeNumber
                           }
                           
                           await invoiceAPI.processPayment(autoBillResult.invoice_id, paymentData)

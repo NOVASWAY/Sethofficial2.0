@@ -10,6 +10,7 @@ use security::security_headers;
 mod database;
 mod auth;
 mod models;
+mod models_enhanced;
 mod simple_handlers;
 mod jwt_utils;
 mod middleware;
@@ -30,6 +31,7 @@ mod metrics;
 mod validation;
 mod csrf;
 mod backup_scheduler;
+mod security;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -495,11 +497,86 @@ async fn main() -> std::io::Result<()> {
                     .route("/lab/results/{id}/verify", web::post().to(handlers::lab_result_handlers::verify_lab_result))
                     .route("/lab/results/{id}/review", web::post().to(handlers::lab_result_handlers::review_lab_result))
                     
+                    // NOTES ROUTES (User Notes System)
+                    .route("/notes", web::get().to(handlers::notes_handlers::get_notes))
+                    .route("/notes", web::post().to(handlers::notes_handlers::create_note))
+                    .route("/notes/{id}", web::put().to(handlers::notes_handlers::update_note))
+                    .route("/notes/{id}", web::delete().to(handlers::notes_handlers::delete_note))
+                    
+                    // INTERNAL NOTIFICATIONS ROUTES
+                    .route("/notifications", web::get().to(handlers::internal_notifications_handlers::get_user_notifications))
+                    .route("/notifications", web::post().to(handlers::internal_notifications_handlers::create_internal_notification))
+                    .route("/notifications/unread-count", web::get().to(handlers::internal_notifications_handlers::get_unread_count))
+                    .route("/notifications/{id}/read", web::post().to(handlers::internal_notifications_handlers::mark_notification_read))
+                    .route("/notifications/read-all", web::post().to(handlers::internal_notifications_handlers::mark_all_read))
+                    
+                    // TASK ASSIGNMENT ROUTES
+                    .route("/tasks", web::get().to(handlers::task_handlers::get_tasks))
+                    .route("/tasks", web::post().to(handlers::task_handlers::create_task))
+                    .route("/tasks/{id}", web::get().to(handlers::task_handlers::get_task))
+                    .route("/tasks/{id}", web::put().to(handlers::task_handlers::update_task))
+                    .route("/tasks/{id}", web::delete().to(handlers::task_handlers::delete_task))
+                    
+                    // ANNOUNCEMENTS ROUTES
+                    .route("/announcements", web::get().to(handlers::announcements_handlers::get_announcements))
+                    .route("/announcements", web::post().to(handlers::announcements_handlers::create_announcement))
+                    .route("/announcements/{id}/acknowledge", web::post().to(handlers::announcements_handlers::acknowledge_announcement))
+                    .route("/announcements/unread-count", web::get().to(handlers::announcements_handlers::get_unread_announcements_count))
+                    
                     // SERVICE CATALOG ROUTES
                     .route("/services", web::get().to(handlers::service_handlers::get_services))
                     .route("/admin/services", web::get().to(handlers::service_handlers::get_services_for_admin))
                     .route("/admin/services", web::post().to(handlers::service_handlers::create_service))
                     .route("/admin/services/{id}/prices", web::put().to(handlers::service_handlers::update_service_prices))
+                    
+                    // DASHBOARD ROUTES
+                    .route("/dashboard/metrics/user/{user_id}", web::get().to(handlers::dashboard_handlers::get_user_dashboard_metrics))
+                    .route("/dashboard/metrics/role/{role}", web::get().to(handlers::dashboard_handlers::get_role_dashboard_metrics))
+                    .route("/dashboard/metrics/department/{department}", web::get().to(handlers::dashboard_handlers::get_department_dashboard_metrics))
+                    .route("/dashboard/health", web::get().to(handlers::dashboard_handlers::get_system_health_metrics))
+                    
+                    // USER PREFERENCES ROUTES
+                    .route("/user-preferences/{user_id}", web::get().to(handlers::user_preferences_handlers::get_user_preferences))
+                    .route("/user-preferences/{user_id}", web::put().to(handlers::user_preferences_handlers::update_user_preferences))
+                    .route("/user-preferences/{user_id}/reset", web::post().to(handlers::user_preferences_handlers::reset_user_preferences))
+                    .route("/user-preferences/role/{role}/template", web::get().to(handlers::user_preferences_handlers::get_role_preference_template))
+                    
+                    // ACTIVITY LOG ROUTES
+                    .route("/activity/log", web::post().to(handlers::activity_log_handlers::log_user_activity))
+                    .route("/activity/user/{user_id}", web::get().to(handlers::activity_log_handlers::get_user_activity))
+                    .route("/activity/recent", web::get().to(handlers::activity_log_handlers::get_recent_activities))
+                    .route("/activity/statistics", web::get().to(handlers::activity_log_handlers::get_activity_statistics))
+                    
+                    // DATA ISOLATION ROUTES
+                    .route("/data-isolation/patients", web::get().to(handlers::data_isolation_handlers::get_filtered_patients))
+                    .route("/data-isolation/consultations", web::get().to(handlers::data_isolation_handlers::get_filtered_consultations))
+                    .route("/data-isolation/prescriptions", web::get().to(handlers::data_isolation_handlers::get_filtered_prescriptions))
+                    .route("/data-isolation/invoices", web::get().to(handlers::data_isolation_handlers::get_filtered_invoices))
+                    .route("/data-isolation/validate", web::post().to(handlers::data_isolation_handlers::validate_data_access))
+                    
+                    // VALIDATION ROUTES
+                    .route("/validation/patient", web::post().to(handlers::validation_handlers::validate_patient_data))
+                    .route("/validation/user", web::post().to(handlers::validation_handlers::validate_user_data))
+                    .route("/validation/duplicate-check", web::post().to(handlers::validation_handlers::check_duplicate_patient))
+                    .route("/validation/business-rules", web::post().to(handlers::validation_handlers::validate_business_rules))
+                    
+                    // FILE UPLOAD ROUTES
+                    .route("/upload/avatar", web::post().to(handlers::upload_handlers::upload_avatar))
+                    .route("/upload/document", web::post().to(handlers::upload_handlers::upload_document))
+                    .route("/upload/files/{file_id}", web::get().to(handlers::upload_handlers::get_file))
+                    .route("/upload/files", web::get().to(handlers::upload_handlers::get_files))
+                    
+                    // BACKUP ROUTES (Admin only)
+                    .route("/admin/backup", web::post().to(handlers::backup_handlers::create_backup))
+                    .route("/admin/backups", web::get().to(handlers::backup_handlers::list_backups))
+                    .route("/admin/backup/stats", web::get().to(handlers::backup_handlers::get_backup_stats))
+                    .route("/admin/backup/{backup_id}", web::get().to(handlers::backup_handlers::get_backup))
+                    
+                    // MONITORING ROUTES
+                    .route("/monitoring/log", web::post().to(handlers::monitoring_handlers::create_log))
+                    .route("/monitoring/health", web::get().to(handlers::monitoring_handlers::get_system_health))
+                    .route("/monitoring/logs/statistics", web::get().to(handlers::monitoring_handlers::get_log_statistics))
+                    .route("/monitoring/alerts/recent", web::get().to(handlers::monitoring_handlers::get_recent_alerts))
             )
             
             // ===========================================

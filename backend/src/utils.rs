@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use rust_decimal::Decimal;
+use std::str::FromStr;
 
 // Utility functions for the application
 
@@ -16,12 +18,12 @@ pub fn generate_invoice_number() -> String {
 }
 
 /// Calculate tax amount (16% VAT in Kenya)
-pub fn calculate_tax(amount: rust_decimal::Decimal) -> rust_decimal::Decimal {
-    amount * rust_decimal::Decimal::from_str("0.16").unwrap()
+pub fn calculate_tax(amount: Decimal) -> Decimal {
+    amount * Decimal::from_str("0.16").unwrap()
 }
 
 /// Calculate total amount including tax
-pub fn calculate_total_with_tax(subtotal: rust_decimal::Decimal) -> rust_decimal::Decimal {
+pub fn calculate_total_with_tax(subtotal: Decimal) -> Decimal {
     let tax = calculate_tax(subtotal);
     subtotal + tax
 }

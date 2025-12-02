@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation'
 import { consultationAPI, serviceCatalogAPI, prescriptionAPI, patientAPI, pharmacyAPI, activityLogAPI, labAPI, CreateLabTestOrder } from '@/lib/api-client'
 import { useAuth } from '@/contexts/auth-context'
 import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
+import { NotesPanel } from './notes-panel'
 
 interface VitalSigns {
   temperature?: number
@@ -119,6 +120,7 @@ export function ConsultationModule() {
   const [medicineSearchTerm, setMedicineSearchTerm] = useState('')
   const [icd11SearchTerm, setIcd11SearchTerm] = useState('')
   const [showIcd11Suggestions, setShowIcd11Suggestions] = useState(false)
+  const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null)
   
   const [consultationData, setConsultationData] = useState({
     patient_id: '',
@@ -612,6 +614,7 @@ export function ConsultationModule() {
         // Update workflow data with API response ID if available
         if (apiResponse && apiResponse.id) {
           consultationId = apiResponse.id
+          setCurrentConsultationId(apiResponse.id) // Store for notes panel
           workflowData.consultation_id = apiResponse.id
           patientConsultation.id = apiResponse.id
         }
@@ -863,7 +866,7 @@ export function ConsultationModule() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="vitals">
             <Activity className="mr-2 h-4 w-4" />
             Vitals
@@ -887,6 +890,10 @@ export function ConsultationModule() {
           <TabsTrigger value="services">
             <Heart className="mr-2 h-4 w-4" />
             Services
+          </TabsTrigger>
+          <TabsTrigger value="notes">
+            <FileText className="mr-2 h-4 w-4" />
+            Notes
           </TabsTrigger>
         </TabsList>
 
@@ -1478,6 +1485,25 @@ export function ConsultationModule() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="notes" className="space-y-4">
+          {currentConsultationId ? (
+            <NotesPanel
+              resourceType="consultation"
+              resourceId={currentConsultationId}
+              title="Consultation Notes"
+              showAddButton={true}
+            />
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Save the consultation first to add notes.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
         </div>

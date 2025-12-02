@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { consultationAPI, invoiceAPI, prescriptionAPI, appointmentAPI, labAPI } from '@/lib/api-client'
 import { LabResultViewer } from './lab-result-viewer'
+import { NotesPanel } from './notes-panel'
 import { usePatientEnhanced, type Patient } from '@/contexts/patient-context-enhanced'
 import { VISIT_REASON_CATEGORIES, type VisitReasonCategory, categorizeVisitReason } from './registration-module'
 
@@ -301,12 +302,13 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="visits">Visits ({consultations.length})</TabsTrigger>
           <TabsTrigger value="billing">Billing ({invoices.length})</TabsTrigger>
           <TabsTrigger value="medications">Medications ({prescriptions.length})</TabsTrigger>
           <TabsTrigger value="lab-results">Lab Results ({labResults.length})</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -612,6 +614,15 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="notes" className="space-y-4">
+          <NotesPanel
+            resourceType="patient"
+            resourceId={patientId}
+            title="Patient Notes"
+            showAddButton={true}
+          />
         </TabsContent>
       </Tabs>
     </div>

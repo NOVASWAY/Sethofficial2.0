@@ -101,7 +101,7 @@ pub async fn get_user_dashboard_metrics(
     };
 
     // Check if user is requesting their own data or has admin permissions
-    if claims.user_id != user_id && claims.role != "admin" {
+    if claims.sub != user_id.to_string() && claims.role != "admin" {
         return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,

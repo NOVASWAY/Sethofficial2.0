@@ -1,4 +1,5 @@
 pub mod security;
+pub mod security_middleware;
 pub mod auth;
 
 pub use security::{
@@ -10,3 +11,4 @@ pub use security::{
     has_role,
     is_admin,
 };
+pub use security_middleware::csrf_protection_middleware;

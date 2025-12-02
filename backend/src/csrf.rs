@@ -6,7 +6,7 @@ use uuid::Uuid;
 use chrono::{Utc, Duration};
 
 use crate::redis_client::RedisClient;
-use crate::error::AppError;
+use crate::errors::AppError;
 
 /// CSRF token service for generating and validating CSRF tokens
 pub struct CsrfService {
