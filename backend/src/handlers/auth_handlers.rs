@@ -82,7 +82,8 @@ async fn login_internal(
     .bind(user.id)
         .fetch_optional(&data.db_pool)
     .await
-    .unwrap_or(None);
+    .ok()
+    .flatten();
 
     // If MFA is enabled, create MFA session instead of generating token
     if mfa_enabled.unwrap_or(false) {

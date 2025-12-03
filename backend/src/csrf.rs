@@ -9,6 +9,7 @@ use crate::redis_client::RedisClient;
 use crate::errors::AppError;
 
 /// CSRF token service for generating and validating CSRF tokens
+#[derive(Clone)]
 pub struct CsrfService {
     redis_client: Option<Arc<RedisClient>>,
     token_length: usize,

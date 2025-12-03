@@ -392,7 +392,8 @@ pub async fn delete_user(
     .bind(user_id)
     .fetch_optional(&data.db_pool)
     .await
-    .unwrap_or(None);
+    .ok()
+    .flatten();
     
     if user_role.as_deref() == Some("admin") && admin_count <= 1 {
         return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {

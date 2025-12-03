@@ -425,7 +425,10 @@ async fn validate_patient_business_rules(
     let mut rules = Vec::new();
 
     // Check if patient is under 18 and has guardian information
-    let dob_naive = patient_data.date_of_birth.date_naive();
+    let dob_naive = match patient_data.date_of_birth {
+        Some(dt) => dt.date_naive(),
+        None => return rules, // Return early if no date of birth
+    };
     let age = chrono::Utc::now().date_naive().signed_duration_since(dob_naive);
     if age.num_days() < 6570 { // Less than 18 years
         rules.push(BusinessRuleValidation {

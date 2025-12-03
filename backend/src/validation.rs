@@ -44,7 +44,7 @@ impl Validate for CreatePatient {
         }
 
         // Check if patient is too old (e.g., over 150 years)
-        let age = today.year() - self.date_of_birth.year();
+        let age = (today - self.date_of_birth).num_days() / 365;
         if age > 150 {
             errors.add_error("date_of_birth".to_string(), "Invalid date of birth".to_string(), Some(serde_json::Value::String(self.date_of_birth.to_string())));
         }
@@ -111,7 +111,7 @@ impl Validate for UpdatePatient {
             }
 
             // Check if patient is too old (e.g., over 150 years)
-            let age = today.year() - date_of_birth.year();
+            let age = (today - *date_of_birth).num_days() / 365;
             if age > 150 {
                 errors.add_error("date_of_birth".to_string(), "Invalid date of birth".to_string(), Some(serde_json::Value::String(date_of_birth.to_string())));
             }

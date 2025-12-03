@@ -211,7 +211,8 @@ pub async fn login(
                     .bind(user.id)
                     .fetch_optional(&state.db_pool)
                     .await
-                    .unwrap_or(None);
+                    .ok()
+                    .flatten();
 
                     // If MFA is enabled, create MFA session instead of generating token
                     if mfa_enabled.unwrap_or(false) {
@@ -677,7 +678,7 @@ pub async fn create_patient(
     .bind(first_name)
     .bind(last_name)
     .bind(age)
-    .bind(date_of_birth.map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc()))
+    .bind(date_of_birth.map(|d| d.and_hms_opt(0, 0, 0).unwrap_or_else(|| d.and_hms_opt(12, 0, 0).unwrap()).and_utc()))
     .bind(gender)
     .bind(phone)
     .bind(location)
@@ -918,7 +919,8 @@ pub async fn import_patients(
             if let Some(dob_str) = processed_patient.get("date_of_birth").and_then(|v| v.as_str()) {
                 // Calculate age from date_of_birth
                 if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
-                    let age = chrono::Utc::now().date_naive().year() - dob.year();
+                    let now = chrono::Utc::now().date_naive();
+                    let age = (now - dob).num_days() / 365;
                     processed_patient["age"] = json!(age);
                 } else {
                     // Invalid date, use default age

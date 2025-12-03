@@ -28,7 +28,7 @@ pub async fn get_financial_report(
     let total_revenue = total_revenue_result.unwrap_or(0.0);
 
     // Get monthly revenue breakdown
-    let monthly_revenue_result = sqlx::query_as::<_, (String, f64)>(
+    let monthly_revenue_result = sqlx::query_as::<(String, f64)>(
         "SELECT TO_CHAR(invoice_date, 'YYYY-MM') as month, COALESCE(SUM(final_amount), 0) as revenue 
          FROM invoices 
          WHERE invoice_date BETWEEN $1 AND $2 AND status = 'paid'
@@ -113,7 +113,7 @@ pub async fn get_patient_report(
     let new_patients = new_patients_result.unwrap_or(0);
 
     // Get gender distribution
-    let gender_distribution_result = sqlx::query_as::<_, (String, i64)>(
+    let gender_distribution_result = sqlx::query_as::<(String, i64)>(
         "SELECT gender, COUNT(*) as count FROM patients GROUP BY gender"
     )
     .fetch_all(&data.db_pool)
@@ -128,7 +128,7 @@ pub async fn get_patient_report(
         .collect::<Vec<_>>();
 
     // Get age distribution
-    let age_distribution_result = sqlx::query_as::<_, (String, i64)>(
+    let age_distribution_result = sqlx::query_as::<(String, i64)>(
         "SELECT 
             CASE 
                 WHEN EXTRACT(YEAR FROM AGE(date_of_birth)) < 18 THEN '0-17'
@@ -234,7 +234,7 @@ pub async fn get_inventory_report(
     let total_value = total_value_result.unwrap_or(0.0);
 
     // Get low stock items details
-    let low_stock_details_result = sqlx::query_as::<_, (String, i32, i32, f64)>(
+    let low_stock_details_result = sqlx::query_as::<(String, i32, i32, f64)>(
         "SELECT name, stock_quantity, minimum_stock, unit_price 
          FROM medicines 
          WHERE stock_quantity <= minimum_stock AND is_active = true 
@@ -256,7 +256,7 @@ pub async fn get_inventory_report(
         .collect::<Vec<_>>();
 
     // Get expiring items details
-    let expiring_details_result = sqlx::query_as::<_, (String, String, i32, f64)>(
+    let expiring_details_result = sqlx::query_as::<(String, String, i32, f64)>(
         "SELECT name, expiry_date::text, stock_quantity, unit_price 
          FROM medicines 
          WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days' AND is_active = true 
@@ -308,7 +308,7 @@ pub async fn get_audit_logs(
     // from various tables that track changes (consultations, patients, invoices, etc.)
     
     // Get recent consultations as audit entries
-    let consultations_result = sqlx::query_as::<_, (String, String, String, String, String)>(
+    let consultations_result = sqlx::query_as::<(String, String, String, String, String)>(
         "SELECT 
             'consultation' as action_type,
             'Created consultation for patient' as action_description,
@@ -341,7 +341,7 @@ pub async fn get_audit_logs(
         .collect::<Vec<_>>();
 
     // Get recent patient registrations
-    let patients_result = sqlx::query_as::<_, (String, String, String, String, String)>(
+    let patients_result = sqlx::query_as::<(String, String, String, String, String)>(
         "SELECT 
             'patient_registration' as action_type,
             'New patient registered' as action_description,
@@ -372,7 +372,7 @@ pub async fn get_audit_logs(
         .collect::<Vec<_>>();
 
     // Get recent invoices
-    let invoices_result = sqlx::query_as::<_, (String, String, String, String, String)>(
+    let invoices_result = sqlx::query_as::<(String, String, String, String, String)>(
         "SELECT 
             'invoice_created' as action_type,
             'Invoice created' as action_description,
@@ -447,7 +447,7 @@ pub async fn get_consultation_analytics(
     let date_to = query.get("date_to").and_then(|v| v.as_str()).unwrap_or("2024-12-31");
 
     // Get top diagnoses
-    let diagnoses_result = sqlx::query_as::<_, (String, i64)>(
+    let diagnoses_result = sqlx::query_as::<(String, i64)>(
         "SELECT diagnosis, COUNT(*) as count 
          FROM consultations 
          WHERE date BETWEEN $1 AND $2 AND diagnosis IS NOT NULL AND diagnosis != ''
@@ -486,7 +486,7 @@ pub async fn get_consultation_analytics(
         .collect::<Vec<_>>();
 
     // Get staff performance (doctors and their consultation counts)
-    let staff_performance_result = sqlx::query_as::<_, (String, String, i64)>(
+    let staff_performance_result = sqlx::query_as::<(String, String, i64)>(
         "SELECT u.name, u.department, COUNT(c.id) as consultation_count
          FROM users u
          LEFT JOIN consultations c ON u.id = c.doctor_id AND c.date BETWEEN $1 AND $2
@@ -511,7 +511,7 @@ pub async fn get_consultation_analytics(
         .collect::<Vec<_>>();
 
     // Get daily patient visits for the date range
-    let daily_visits_result = sqlx::query_as::<_, (String, i64)>(
+    let daily_visits_result = sqlx::query_as::<(String, i64)>(
         "SELECT date::text, COUNT(*) as visits
          FROM consultations
          WHERE date BETWEEN $1 AND $2

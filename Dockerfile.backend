@@ -1,8 +1,6 @@
 # Multi-stage build for Rust backend
-# Using Rust nightly to support edition2024 dependencies (moxcms requires it)
-# Note: edition2024 is still unstable, so we need nightly for now
-# The official rustlang/rust repository has nightly builds
-FROM rustlang/rust:nightly as builder
+# Using latest Rust stable - will handle Cargo.lock v4
+FROM rust:latest as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -31,7 +29,7 @@ ENV DATABASE_URL=${DATABASE_URL}
 # Build the application
 # Note: sqlx::query! macros require DATABASE_URL at compile time
 # The database should be accessible during build
-RUN RUST_BACKTRACE=1 cargo build --release
+RUN RUST_BACKTRACE=1 CARGO_BUILD_JOBS=2 cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim

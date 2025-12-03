@@ -32,7 +32,7 @@ pub fn generate_prescription_number() -> String {
 
 pub fn calculate_age(date_of_birth: NaiveDate) -> i32 {
     let today = Utc::now().date_naive();
-    let age = today.year() - date_of_birth.year();
+    let age = (today - date_of_birth).num_days() / 365;
     
     // Adjust if birthday hasn't occurred this year
     if today.month() < date_of_birth.month() || 

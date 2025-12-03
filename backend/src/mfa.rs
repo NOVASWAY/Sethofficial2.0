@@ -224,8 +224,8 @@ impl MfaService {
             return Ok(false);
         }
 
-        let secret = match user.mfa_secret {
-            Some(s) => s,
+        let secret = match &user.mfa_secret {
+            Some(s) => s.clone(),
             None => return Ok(false),
         };
 

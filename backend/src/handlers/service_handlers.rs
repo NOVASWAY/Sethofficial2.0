@@ -31,11 +31,12 @@ pub async fn create_service(
     let now = Utc::now();
 
     // Use cash_price from unit_price if cash_price not provided
-    let cash_price = service_data.cash_price.unwrap_or(service_data.unit_price);
+    let unit_price_f64 = service_data.unit_price;
+    let cash_price = service_data.cash_price.or(Some(unit_price_f64));
     let nhif_price = service_data.nhif_price;
     let sha_price = service_data.sha_price;
 
-    match sqlx::query_as::<_, Service>(
+    match sqlx::query_as::<Service>(
         r#"
         INSERT INTO services (
             id, service_code, service_name, category, description,
@@ -56,8 +57,8 @@ pub async fn create_service(
     .bind(&service_data.service_name)
     .bind(&service_data.category)
     .bind(&service_data.description)
-    .bind(service_data.unit_price)
-    .bind(cash_price)
+    .bind(unit_price_f64)
+    .bind(cash_price.unwrap_or(0.0))
     .bind(nhif_price)
     .bind(sha_price)
     .bind(service_data.sha_approved)
@@ -92,7 +93,7 @@ pub async fn create_service(
 pub async fn get_services(
     data: web::Data<crate::AppState>,
 ) -> ActixResult<HttpResponse> {
-    match sqlx::query_as::<_, Service>(
+    match sqlx::query_as::<Service>(
         r#"
         SELECT id, service_code, service_name, category, description,
                unit_price, cash_price, nhif_price, sha_price,
@@ -143,7 +144,7 @@ pub async fn get_services_for_admin(
         }));
     }
 
-    match sqlx::query_as::<_, Service>(
+    match sqlx::query_as::<Service>(
         r#"
         SELECT id, service_code, service_name, category, description,
                unit_price, cash_price, nhif_price, sha_price,
@@ -199,16 +200,13 @@ pub async fn update_service_prices(
     let update_data = req.into_inner();
     let now = Utc::now();
 
-    // Extract and validate prices
-    let cash_price = update_data.get("cash_price")
-        .and_then(|v| v.as_f64())
-        .map(|f| Decimal::from_f64_retain(f).unwrap_or_else(|| Decimal::ZERO));
-    let nhif_price = update_data.get("nhif_price")
-        .and_then(|v| v.as_f64())
-        .map(|f| Decimal::from_f64_retain(f).unwrap_or_else(|| Decimal::ZERO));
-    let sha_price = update_data.get("sha_price")
-        .and_then(|v| v.as_f64())
-        .map(|f| Decimal::from_f64_retain(f).unwrap_or_else(|| Decimal::ZERO));
+    // Extract and validate prices (keep as f64)
+    let cash_price: Option<f64> = update_data.get("cash_price")
+        .and_then(|v| v.as_f64());
+    let nhif_price: Option<f64> = update_data.get("nhif_price")
+        .and_then(|v| v.as_f64());
+    let sha_price: Option<f64> = update_data.get("sha_price")
+        .and_then(|v| v.as_f64());
 
     // Validate that at least one price is provided
     if cash_price.is_none() && nhif_price.is_none() && sha_price.is_none() {
@@ -221,7 +219,7 @@ pub async fn update_service_prices(
     }
 
 
-    match sqlx::query_as::<_, Service>(
+    match sqlx::query_as::<Service>(
         r#"
         UPDATE services 
         SET cash_price = COALESCE($2, cash_price),

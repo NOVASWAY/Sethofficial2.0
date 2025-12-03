@@ -33,13 +33,14 @@ pub async fn create_lab_result(
     let user_id = Uuid::parse_str(&claims.sub).ok();
 
     // Verify that the order exists and is not cancelled
-    let order_check: Option<(String,)> = sqlx::query_as(
+    let order_check = sqlx::query_as::<_, (String,)>(
         "SELECT status FROM lab_test_orders WHERE id = $1"
     )
     .bind(result_data.order_id)
     .fetch_optional(&data.db_pool)
     .await
-    .unwrap_or(None);
+    .ok()
+    .flatten();
 
     if let Some((status,)) = order_check {
         if status == "cancelled" {
@@ -193,7 +194,7 @@ pub async fn get_lab_results(
         query_builder.push(" LIMIT 100");
     }
 
-    match query_builder.build_query_as::<_, LabTestResult>().fetch_all(&**pool).await {
+    match query_builder.build_query_as::<LabTestResult>().fetch_all(&data.db_pool).await {
         Ok(results) => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,

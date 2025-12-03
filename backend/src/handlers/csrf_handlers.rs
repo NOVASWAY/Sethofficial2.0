@@ -3,7 +3,6 @@ use serde_json::json;
 
 use crate::csrf::CsrfService;
 use crate::middleware::security::get_user_id_from_request;
-use crate::error::ApiError;
 
 /// Generate a CSRF token for the current user/session
 pub async fn generate_csrf_token(
@@ -23,7 +22,10 @@ pub async fn generate_csrf_token(
             })))
         }
         Err(e) => {
-            Err(ApiError::internal_error(Some(format!("Failed to generate CSRF token: {}", e))))
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "success": false,
+                "error": format!("Failed to generate CSRF token: {}", e)
+            })))
         }
     }
 }
@@ -34,9 +36,15 @@ pub async fn validate_csrf_token(
     csrf_service: web::Data<CsrfService>,
     body: web::Json<serde_json::Value>,
 ) -> Result<HttpResponse> {
-    let token = body.get("token")
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| ApiError::bad_request("Token is required".to_string()))?;
+    let token = match body.get("token").and_then(|t| t.as_str()) {
+        Some(t) => t,
+        None => {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": "Token is required"
+            })));
+        }
+    };
     
     // Extract user ID and session ID from request
     let (user_id, session_id) = CsrfService::extract_context_from_request(&req);
@@ -59,7 +67,10 @@ pub async fn validate_csrf_token(
             }
         }
         Err(e) => {
-            Err(ApiError::internal_error(Some(format!("Failed to validate CSRF token: {}", e))))
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "success": false,
+                "error": format!("Failed to validate CSRF token: {}", e)
+            })))
         }
     }
 }

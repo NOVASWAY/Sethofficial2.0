@@ -490,12 +490,14 @@ pub async fn import_patients(
 
     for (index, patient_import) in import_data.iter().enumerate() {
         // Calculate date of birth from age
-        let current_year = Utc::now().date_naive().year();
-        let birth_year = current_year - patient_import.age;
-        let date_of_birth = chrono::NaiveDate::from_ymd_opt(birth_year, 1, 1)
-            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1990, 1, 1).unwrap())
+        let now = Utc::now().date_naive();
+        let current_year = now.year() as i32;
+        let birth_year = current_year - patient_import.age as i32;
+        let date_of_birth_naive = chrono::NaiveDate::from_ymd_opt(birth_year, 1, 1)
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1990, 1, 1).unwrap());
+        let date_of_birth = date_of_birth_naive
             .and_hms_opt(0, 0, 0)
-            .unwrap()
+            .unwrap_or_else(|| date_of_birth_naive.and_hms_opt(12, 0, 0).unwrap())
             .and_utc();
 
         // Generate patient number

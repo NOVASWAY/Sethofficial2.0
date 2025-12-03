@@ -1,5 +1,6 @@
 use actix_web::{dev::ServiceRequest, Error, HttpMessage, Result};
 use actix_web::dev::{ServiceResponse, Transform};
+use actix_web::body::BoxBody;
 use actix_web::middleware::Next;
 use actix_web::web::Data;
 use actix_web::HttpRequest;
@@ -27,9 +28,9 @@ impl<S, B> Transform<S, ServiceRequest> for PermissionMiddleware
 where
     S: actix_web::dev::Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: actix_web::body::MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Transform = PermissionMiddlewareService<S>;
     type InitError = ();
@@ -52,9 +53,9 @@ impl<S, B> actix_web::dev::Service<ServiceRequest> for PermissionMiddlewareServi
 where
     S: actix_web::dev::Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: actix_web::body::MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>>>>;
 
@@ -67,8 +68,8 @@ where
         let validator = self.validator.clone();
 
         Box::pin(async move {
-            // Extract claims from request extensions
-            if let Some(claims) = req.extensions().get::<Claims>() {
+            // Extract claims from request extensions before moving req
+            let should_deny = if let Some(claims) = req.extensions().get::<Claims>() {
                 // Determine resource and action from the request
                 let (resource, action) = extract_resource_and_action(&req);
                 
@@ -99,16 +100,16 @@ where
                     );
 
                     // Return 403 Forbidden
-                    return Ok(req.into_response(
-                        actix_web::HttpResponse::Forbidden()
-                            .json(serde_json::json!({
-                                "success": false,
-                                "message": "Access denied",
-                                "error": decision.reason,
-                                "resource": resource,
-                                "action": action
-                            }))
-                    ));
+                    let (req_parts, _) = req.into_parts();
+                    let response = actix_web::HttpResponse::Forbidden()
+                        .json(serde_json::json!({
+                            "success": false,
+                            "message": "Access denied",
+                            "error": decision.reason,
+                            "resource": resource,
+                            "action": action
+                        }));
+                    return Ok(ServiceResponse::new(req_parts, response).map_into_boxed_body());
                 }
 
                 // Log successful access
@@ -119,10 +120,13 @@ where
                     resource,
                     action
                 );
-            }
+                false
+            } else {
+                false
+            };
 
             // Continue with the request
-            service.call(req).await
+            service.call(req).await.map(|res| res.map_into_boxed_body())
         })
     }
 }

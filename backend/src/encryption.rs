@@ -79,8 +79,8 @@ $ sleep 5 && cd /home/njau-wangari/Downloads/backend && DATABASE_URL=postgresql:
     }
 
     pub fn hash_sensitive_data(&self, data: &str) -> String {
-        use argon2::{Argon2, PasswordHasher};
-        use argon2::password_hash::SaltString;
+        use argon2::Argon2;
+        use argon2::password_hash::{SaltString, PasswordHasher};
         
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();

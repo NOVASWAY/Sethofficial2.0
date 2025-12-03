@@ -168,7 +168,7 @@ pub async fn get_lab_orders(
         query_builder.push(" LIMIT 100");
     }
 
-    match query_builder.build_query_as::<_, LabTestOrder>().fetch_all(&state.db_pool).await {
+    match query_builder.build_query_as::<LabTestOrder>().fetch_all(&data.db_pool).await {
         Ok(orders) => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,
@@ -200,7 +200,7 @@ pub async fn get_lab_order(
 
     let order_id = path.into_inner();
 
-    match sqlx::query_as::<_, LabTestOrder>(
+    match sqlx::query_as::<LabTestOrder>(
         r#"
         SELECT id, order_number, patient_id, consultation_id, ordering_clinician_id,
                test_type, test_code, test_name, priority, clinical_indication,
@@ -377,7 +377,7 @@ pub async fn get_pending_lab_orders(
         query_builder.push(" LIMIT 50");
     }
 
-    match query_builder.build_query_as::<_, LabTestOrder>().fetch_all(&state.db_pool).await {
+    match query_builder.build_query_as::<LabTestOrder>().fetch_all(&data.db_pool).await {
         Ok(orders) => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,
@@ -418,10 +418,10 @@ pub async fn cancel_lab_order(
         "#
     )
     .bind(order_id)
-    .fetch_optional(&data.db_pool)
+    .execute(&data.db_pool)
     .await
     {
-        Ok(Some(_)) => {
+        Ok(result) if result.rows_affected() > 0 => {
             Ok(HttpResponse::Ok().json(ApiResponse {
                 success: true,
                 data: None,

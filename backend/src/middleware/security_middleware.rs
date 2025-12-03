@@ -4,6 +4,7 @@ use actix_web::{
     Error, HttpRequest, HttpResponse, Result,
     middleware::Next,
     web::{Data, self},
+    http::header::{HeaderName, HeaderValue},
 };
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -52,9 +53,9 @@ impl SecurityMiddleware {
 // Rate limiting middleware
 pub async fn rate_limit_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
+    next: Next<BoxBody>,
     rate_limiter: Arc<RateLimiter>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     let client_ip = req
         .connection_info()
         .remote_addr()
@@ -70,19 +71,20 @@ pub async fn rate_limit_middleware(
                     "error": "RATE_LIMIT_EXCEEDED",
                     "retry_after": 60
                 }))
-        ));
+        ).map_into_boxed_body());
     }
 
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // Request sanitization middleware
 pub async fn sanitization_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+    next: Next<BoxBody>,
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Sanitize query parameters
-    if let Some(query) = req.query_string() {
+    let query = req.query_string();
+    if !query.is_empty() {
         let sanitized_query = InputSanitizer::sanitize_string(query);
         if sanitized_query != query {
             return Ok(req.into_response(
@@ -108,54 +110,56 @@ pub async fn sanitization_middleware(
         ));
     }
 
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // Security headers middleware
 pub async fn security_headers_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+    next: Next<BoxBody>,
+) -> Result<ServiceResponse<BoxBody>, Error> {
+    // Get scheme before moving req
+    let is_https = req.connection_info().scheme() == "https";
     let mut res = next.call(req).await?;
     
     // Add security headers
     res.headers_mut().insert(
-        "X-Content-Type-Options",
-        "nosniff".parse().unwrap(),
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
     );
     res.headers_mut().insert(
-        "X-Frame-Options",
-        "DENY".parse().unwrap(),
+        HeaderName::from_static("x-frame-options"),
+        HeaderValue::from_static("DENY"),
     );
     res.headers_mut().insert(
-        "X-XSS-Protection",
-        "1; mode=block".parse().unwrap(),
+        HeaderName::from_static("x-xss-protection"),
+        HeaderValue::from_static("1; mode=block"),
     );
     res.headers_mut().insert(
-        "Referrer-Policy",
-        "strict-origin-when-cross-origin".parse().unwrap(),
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
     res.headers_mut().insert(
-        "Permissions-Policy",
-        "geolocation=(), microphone=(), camera=()".parse().unwrap(),
+        HeaderName::from_static("permissions-policy"),
+        HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
     );
     
     // Add HSTS header for HTTPS
-    if req.connection_info().scheme() == "https" {
+    if is_https {
         res.headers_mut().insert(
-            "Strict-Transport-Security",
-            "max-age=31536000; includeSubDomains".parse().unwrap(),
+            HeaderName::from_static("strict-transport-security"),
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
         );
     }
 
-    Ok(res)
+    Ok(res.map_into_boxed_body())
 }
 
 // Request logging middleware for security monitoring
 pub async fn security_logging_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+    next: Next<BoxBody>,
+) -> Result<ServiceResponse<BoxBody>, Error> {
     let start_time = SystemTime::now();
     let client_ip = req
         .connection_info()
@@ -197,13 +201,13 @@ pub async fn security_logging_middleware(
         duration
     );
 
-    Ok(res)
+    Ok(res.map_into_boxed_body())
 }
 
 // CSRF protection middleware
 pub async fn csrf_protection_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
+    next: Next<BoxBody>,
     csrf_service: web::Data<crate::csrf::CsrfService>,
 ) -> Result<ServiceResponse<BoxBody>, Error> {
     // Skip CSRF check for GET, HEAD, OPTIONS requests
@@ -287,15 +291,15 @@ pub async fn csrf_protection_middleware(
 // Session validation middleware
 pub async fn session_validation_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
+    next: Next<BoxBody>,
     session_manager: Arc<SessionManager>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Skip session validation for certain paths
     let path = req.path();
     let skip_paths = ["/health", "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/setup"];
     
     if skip_paths.iter().any(|&skip_path| path.starts_with(skip_path)) {
-        return next.call(req).await;
+        return Ok(next.call(req).await?.map_into_boxed_body());
     }
 
     // Extract session ID from token or header
@@ -317,15 +321,15 @@ pub async fn session_validation_middleware(
         }
     }
 
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // IP whitelist middleware
 pub async fn ip_whitelist_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
+    next: Next<BoxBody>,
     allowed_ips: Vec<String>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     let client_ip = req
         .connection_info()
         .remote_addr()
@@ -338,12 +342,12 @@ pub async fn ip_whitelist_middleware(
        client_ip.starts_with("192.168.") ||
        client_ip.starts_with("10.") ||
        client_ip.starts_with("172.") {
-        return next.call(req).await;
+        return Ok(next.call(req).await?.map_into_boxed_body());
     }
 
     // Check against whitelist
     if allowed_ips.contains(&client_ip) {
-        return next.call(req).await;
+        return Ok(next.call(req).await?.map_into_boxed_body());
     }
 
     // For admin endpoints, enforce IP whitelist
@@ -355,18 +359,18 @@ pub async fn ip_whitelist_middleware(
                     "message": "Access denied from this IP address",
                     "error": "IP_NOT_ALLOWED"
                 }))
-        ));
+        ).map_into_boxed_body());
     }
 
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // Request size limiting middleware
 pub async fn request_size_limit_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
+    next: Next<BoxBody>,
     max_size: usize,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Check Content-Length header
     if let Some(content_length) = req.headers().get("Content-Length") {
         if let Ok(length_str) = content_length.to_str() {
@@ -380,22 +384,23 @@ pub async fn request_size_limit_middleware(
                                 "error": "PAYLOAD_TOO_LARGE",
                                 "max_size": max_size
                             }))
-                    ));
+                    ).map_into_boxed_body());
                 }
             }
         }
     }
 
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // SQL injection protection middleware
 pub async fn sql_injection_protection_middleware(
     req: ServiceRequest,
-    next: Next<impl actix_web::body::MessageBody>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+    next: Next<BoxBody>,
+) -> Result<ServiceResponse<BoxBody>, Error> {
     // Check query parameters for SQL injection patterns
-    if let Some(query) = req.query_string() {
+    let query = req.query_string();
+    if !query.is_empty() {
         let suspicious_patterns = [
             "'", "\"", ";", "--", "/*", "*/", "xp_", "sp_", "exec", "execute",
             "union", "select", "insert", "update", "delete", "drop", "create",
@@ -417,7 +422,7 @@ pub async fn sql_injection_protection_middleware(
         }
     }
 
-    next.call(req).await
+    Ok(next.call(req).await?.map_into_boxed_body())
 }
 
 // Cleanup expired data middleware (runs periodically)

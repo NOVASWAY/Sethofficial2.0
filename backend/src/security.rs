@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 use chrono::{Utc, Duration};
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use std::sync::RwLock;
 use std::collections::HashMap;
@@ -297,7 +297,6 @@ impl PasswordSecurity {
     pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
-        
         let password_hash = argon2.hash_password(password.as_bytes(), &salt)?;
         Ok(password_hash.to_string())
     }
@@ -493,7 +492,8 @@ pub fn validate_secure_token(token: &str, config: &SecurityConfig) -> Result<Sec
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true;
     validation.validate_nbf = true;
-    validation.validate_iss = true;
+    // validate_iss field removed in newer jsonwebtoken versions
+    // validation.validate_iss = true;
     validation.validate_aud = true;
     validation.set_issuer(&["clinic-management"]);
     validation.set_audience(&["clinic-management-users"]);

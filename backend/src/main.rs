@@ -306,7 +306,7 @@ async fn main() -> std::io::Result<()> {
         // Add CSRF middleware conditionally (before routes)
         if enable_csrf_clone {
             app = app.wrap(actix_web::middleware::from_fn(
-                move |req: actix_web::dev::ServiceRequest, next: actix_web::middleware::Next<impl actix_web::body::MessageBody>| {
+                move |req: actix_web::dev::ServiceRequest, next: actix_web::middleware::Next<actix_web::body::BoxBody>| {
                     let csrf_service = csrf_service_clone.clone();
                     async move {
                         middleware::security_middleware::csrf_protection_middleware(

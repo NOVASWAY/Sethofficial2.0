@@ -145,7 +145,7 @@ pub struct ImportSession {
     pub batch_size: i32,
     pub total_batches: i32,
     pub current_batch: i32,
-    pub progress_percentage: Option<BigDecimal>,
+    pub progress_percentage: Option<f64>,
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub error_summary: Option<serde_json::Value>,
