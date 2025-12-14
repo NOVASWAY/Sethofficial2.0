@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
+import {
   Pill, Search, Filter, CheckCircle2, Clock, AlertTriangle,
   Eye, Package, Calendar, User
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from "@/contexts/auth-context"
+import { activityLogAPI } from "@/lib/api-client"
 import { prescriptionAPI } from '@/lib/api-client'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
@@ -39,17 +41,17 @@ export function PrescriptionQueue() {
       if (statusFilter !== 'all') {
         params.status = statusFilter
       }
-      
+
       const response = await prescriptionAPI.getAll(params)
       const prescriptionsList = response?.data || []
-      
+
       // Sort by created date (newest first)
       prescriptionsList.sort((a: any, b: any) => {
         const dateA = new Date(a.created_at || a.date || 0)
         const dateB = new Date(b.created_at || b.date || 0)
         return dateB.getTime() - dateA.getTime()
       })
-      
+
       setPrescriptions(prescriptionsList)
     } catch (error) {
       console.error('Error loading prescriptions:', error)
@@ -117,12 +119,12 @@ export function PrescriptionQueue() {
   }
 
   const filteredPrescriptions = prescriptions.filter((prescription: any) => {
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       prescription.prescription_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       prescription.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       prescription.medication_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       prescription.medicationName?.toLowerCase().includes(searchTerm.toLowerCase())
-    
+
     return matchesSearch
   })
 
@@ -233,10 +235,10 @@ export function PrescriptionQueue() {
           {filteredPrescriptions.map((prescription: any) => {
             const isPending = prescription.status === 'pending' || prescription.status === 'active'
             const isLowStock = prescription.available_stock !== undefined && prescription.available_stock < (prescription.quantity || 0)
-            
+
             return (
-              <Card 
-                key={prescription.id} 
+              <Card
+                key={prescription.id}
                 className={`border-l-4 ${isPending ? 'border-l-orange-500' : 'border-l-green-500'}`}
               >
                 <CardContent className="p-4">
@@ -259,7 +261,7 @@ export function PrescriptionQueue() {
                           {new Date(prescription.created_at || prescription.date).toLocaleDateString()}
                         </span>
                       </div>
-                      
+
                       <div className="space-y-1">
                         <p className="font-medium">
                           {prescription.medication_name || prescription.medicationName || 'Unknown medication'}
@@ -291,7 +293,7 @@ export function PrescriptionQueue() {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2 ml-4">
                       <Button
                         variant="outline"
@@ -335,7 +337,7 @@ export function PrescriptionQueue() {
               Review and dispense prescription {selectedPrescription?.prescription_number || selectedPrescription?.id}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedPrescription && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

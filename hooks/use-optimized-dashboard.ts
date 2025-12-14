@@ -112,31 +112,31 @@ export function useOptimizedFinancialData(dateFrom: string, dateTo: string, cach
 
   const cacheKey = useMemo(() => getCacheKey('financial', { date_from: dateFrom, date_to: dateTo }), [dateFrom, dateTo])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const result = await withCache(
-          cacheKey,
-          () => reportsAPI.getFinancial({ date_from: dateFrom, date_to: dateTo }),
-          cacheTTL
-        )
-        setData(result)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load financial data')
-      } finally {
-        setLoading(false)
-      }
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await withCache(
+        cacheKey,
+        () => reportsAPI.getFinancial({ date_from: dateFrom, date_to: dateTo }),
+        cacheTTL
+      )
+      setData(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load financial data')
+    } finally {
+      setLoading(false)
     }
-
-    fetchData()
   }, [cacheKey, dateFrom, dateTo, cacheTTL])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const refresh = useCallback(() => {
     dashboardCache.invalidate(cacheKey)
     fetchData()
-  }, [cacheKey])
+  }, [cacheKey, fetchData])
 
   return { data, loading, error, refresh }
 }

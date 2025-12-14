@@ -10,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Settings, Edit2, Plus, Save, X, DollarSign, Shield, 
+import {
+  Settings, Edit2, Plus, Save, X, DollarSign, Shield,
   Stethoscope, Beaker, Activity, FileText, Pill, Loader2
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -110,15 +110,15 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
       )
 
       // Update local state
-      setServices(prev => prev.map(service => 
-        service.id === editingService.id 
+      setServices(prev => prev.map(service =>
+        service.id === editingService.id
           ? {
-              ...service,
-              cash_price: parseFloat(editForm.cash_price),
-              nhif_price: parseFloat(editForm.nhif_price),
-              sha_price: parseFloat(editForm.sha_price),
-              updated_at: new Date().toISOString()
-            }
+            ...service,
+            cash_price: parseFloat(editForm.cash_price),
+            nhif_price: parseFloat(editForm.nhif_price),
+            sha_price: parseFloat(editForm.sha_price),
+            updated_at: new Date().toISOString()
+          }
           : service
       ))
 
@@ -145,10 +145,11 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
     try {
       setSaving(true)
       await serviceCatalogAPI.create({
-        service_id: createForm.service_id,
-        name: createForm.name,
+        service_code: createForm.service_id,
+        service_name: createForm.name,
         category: createForm.category,
         description: createForm.description,
+        unit_price: parseFloat(createForm.cash_price || createForm.nhif_price || createForm.sha_price || '0') || 0,
         cash_price: parseFloat(createForm.cash_price),
         nhif_price: parseFloat(createForm.nhif_price),
         sha_price: parseFloat(createForm.sha_price),
@@ -248,7 +249,7 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
           <div className="space-y-1">
             <p className="font-semibold">Admin Price Control</p>
             <p className="text-sm">
-              As an administrator, you can set and modify all service prices. 
+              As an administrator, you can set and modify all service prices.
               Changes will immediately affect billing calculations across the system.
             </p>
           </div>
@@ -311,9 +312,9 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleEditService(service)}
                     >
                       <Edit2 className="h-4 w-4" />
@@ -335,7 +336,7 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
               Update pricing for {editingService?.name}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -388,15 +389,15 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
             </Alert>
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setIsEditDialogOpen(false)}
                 disabled={saving}
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleSaveEdit}
                 disabled={saving}
               >
@@ -426,7 +427,7 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
               Add a new service to the clinic catalog
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -440,8 +441,8 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Select 
-                  value={createForm.category} 
+                <Select
+                  value={createForm.category}
                   onValueChange={(value) => setCreateForm(prev => ({ ...prev, category: value }))}
                 >
                   <SelectTrigger>
@@ -528,15 +529,15 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setIsCreateDialogOpen(false)}
                 disabled={saving}
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateService}
                 disabled={saving || !createForm.service_id || !createForm.name || !createForm.cash_price}
               >
@@ -559,3 +560,5 @@ export function AdminServiceManagement({ role = 'admin' }: AdminServiceManagemen
     </div>
   )
 }
+
+export default AdminServiceManagement

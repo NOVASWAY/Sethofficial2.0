@@ -26,7 +26,7 @@ export interface SessionInfo {
 export function generateToken(user: User): AuthToken {
   const now = Date.now()
   const expiresIn = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
-  
+
   // Create a simple token (in production, use proper JWT signing)
   const tokenData = {
     userId: user.id,
@@ -35,10 +35,10 @@ export function generateToken(user: User): AuthToken {
     iat: now,
     exp: now + expiresIn
   }
-  
+
   // Base64 encode the token data (in production, use JWT library)
   const token = btoa(JSON.stringify(tokenData))
-  
+
   return {
     token,
     expiresAt: now + expiresIn,
@@ -55,18 +55,18 @@ export function validateToken(token: string): { valid: boolean; decoded?: any; r
   try {
     // Decode the token
     const decoded = JSON.parse(atob(token))
-    
+
     // Check expiration
     const now = Date.now()
     if (decoded.exp < now) {
       return { valid: false, reason: 'Token expired' }
     }
-    
+
     // Check if token was issued in the future (clock skew)
     if (decoded.iat > now + 60000) { // Allow 1 minute clock skew
       return { valid: false, reason: 'Invalid token timestamp' }
     }
-    
+
     return { valid: true, decoded }
   } catch (error) {
     return { valid: false, reason: 'Invalid token format' }
@@ -94,28 +94,28 @@ export function getSession(): SessionInfo | null {
     const userStr = localStorage.getItem(USER_STORAGE_KEY)
     const token = localStorage.getItem(TOKEN_STORAGE_KEY)
     const expiryStr = localStorage.getItem(TOKEN_EXPIRY_KEY)
-    
+
     if (!userStr || !token || !expiryStr) {
       return null
     }
-    
+
     const user: User = JSON.parse(userStr)
     const expiresAt = parseInt(expiryStr, 10)
     const now = Date.now()
-    
+
     // Check if token is expired
     if (expiresAt < now) {
       clearSession()
       return null
     }
-    
+
     // Validate token
     const validation = validateToken(token)
     if (!validation.valid) {
       clearSession()
       return null
     }
-    
+
     return {
       user,
       token: {
@@ -176,7 +176,7 @@ export function getAuthToken(): string | null {
 export function getTimeUntilExpiry(): number | null {
   const session = getSession()
   if (!session) return null
-  
+
   return Math.max(0, session.token.expiresAt - Date.now())
 }
 
@@ -186,7 +186,7 @@ export function getTimeUntilExpiry(): number | null {
 export function shouldRefreshToken(): boolean {
   const timeLeft = getTimeUntilExpiry()
   if (timeLeft === null) return false
-  
+
   const thirtyMinutes = 30 * 60 * 1000
   return timeLeft < thirtyMinutes
 }
@@ -197,7 +197,7 @@ export function shouldRefreshToken(): boolean {
 export async function refreshToken(): Promise<AuthToken | null> {
   const session = getSession()
   if (!session) return null
-  
+
   // TODO: In production, call backend API to refresh token
   // const response = await fetch('/api/auth/refresh', {
   //   method: 'POST',
@@ -205,7 +205,7 @@ export async function refreshToken(): Promise<AuthToken | null> {
   // })
   // const data = await response.json()
   // return data.token
-  
+
   // For now, generate a new token client-side
   const newToken = generateToken(session.user)
   storeSession(session.user, newToken)
@@ -218,11 +218,11 @@ export async function refreshToken(): Promise<AuthToken | null> {
 export function hasPermission(permission: string): boolean {
   const user = getCurrentUser()
   if (!user) return false
-  
+
   // Admin has all permissions
-  if (user.permissions.includes('all')) return true
-  
-  return user.permissions.includes(permission)
+  if (user.permissions?.includes('all')) return true
+
+  return user.permissions?.includes(permission) || false
 }
 
 /**
@@ -231,7 +231,7 @@ export function hasPermission(permission: string): boolean {
 export function hasRole(role: string): boolean {
   const user = getCurrentUser()
   if (!user) return false
-  
+
   return user.role === role
 }
 
@@ -241,7 +241,7 @@ export function hasRole(role: string): boolean {
 export function getAuthorizationHeader(): { Authorization: string } | {} {
   const token = getAuthToken()
   if (!token) return {}
-  
+
   return {
     Authorization: `Bearer ${token}`
   }
@@ -252,7 +252,7 @@ export function getAuthorizationHeader(): { Authorization: string } | {} {
  */
 export function logout(): void {
   clearSession()
-  
+
   // TODO: Call backend to invalidate token
   // fetch('/api/auth/logout', {
   //   method: 'POST',
@@ -272,7 +272,7 @@ export function startSessionMonitor(onExpiry: () => void): () => void {
       refreshToken().catch(console.error)
     }
   }, 60000) // Check every minute
-  
+
   // Return cleanup function
   return () => clearInterval(interval)
 }

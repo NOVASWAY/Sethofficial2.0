@@ -29,9 +29,9 @@ export interface Invoice {
   total: number
   amountPaid: number
   balance: number
-  paymentMethod: 'cash' | 'mpesa' | 'sha' | 'mixed' | 'pending'
+  paymentMethod: 'cash' | 'mpesa' | 'sha' | 'nhif' | 'mixed' | 'pending'
   paymentStatus: 'pending' | 'partial' | 'paid' | 'overdue'
-  invoiceType: 'cash' | 'sha' | 'mixed'
+  invoiceType: 'cash' | 'sha' | 'nhif' | 'mixed'
   notes?: string
   shaClaimNumber?: string
   mpesaTransactionCode?: string
@@ -47,7 +47,7 @@ export interface Payment {
   invoiceId: string
   invoiceNumber: string
   amount: number
-  method: 'cash' | 'mpesa' | 'sha' | 'bank-transfer'
+  method: 'cash' | 'mpesa' | 'sha' | 'nhif' | 'bank-transfer'
   reference?: string
   transactionCode?: string
   date: string
@@ -172,7 +172,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     if (invoice) {
       const totalPaid = invoice.amountPaid + paymentData.amount
       const newBalance = invoice.total - totalPaid
-      
+
       updateInvoice(invoice.id, {
         amountPaid: totalPaid,
         balance: newBalance,
@@ -187,7 +187,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
 
   const getTotalRevenue = useCallback((startDate?: string, endDate?: string): number => {
     let filtered = invoices.filter(inv => inv.paymentStatus === 'paid')
-    
+
     if (startDate) {
       filtered = filtered.filter(inv => inv.date >= startDate)
     }
@@ -202,7 +202,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     let filtered = invoices.filter(
       inv => inv.paymentStatus === 'paid' && inv.paymentMethod === method
     )
-    
+
     if (startDate) {
       filtered = filtered.filter(inv => inv.date >= startDate)
     }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +43,8 @@ import { useToast } from "@/hooks/use-toast"
 import { shaClaimAPI } from "@/lib/api-client"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
+import { Skeleton } from "@/components/ui/skeleton"
+import { DashboardSkeleton } from "@/components/ui/loading"
 
 // Mock SHA claims data
 const mockSHAClaims = [
@@ -194,10 +196,20 @@ export function ReportsModule() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [customDateRange, setCustomDateRange] = useState<DateRange>({ from: undefined, to: undefined })
-  
+  const [isMounted, setIsMounted] = useState(false)
+
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const { toast } = useToast()
+
+  // Ensure component is mounted to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  if (!isMounted) {
+    return <DashboardSkeleton />
+  }
 
   // Context hooks for real data
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
@@ -259,11 +271,11 @@ export function ReportsModule() {
     const totalRevenue = getTotalRevenue()
     const revenueByMethod = getRevenueByMethod('cash') // Default to cash method
     const outstandingBalance = getOutstandingBalance()
-    
+
     // Patient data
     const totalPatients = patients.length
     const activePatients = patients.length // All patients are considered active in the current system
-    
+
     // Inventory data
     const lowStockItems = getLowStockMedicines()
     const expiringItems = medicines.filter(med => {
@@ -275,34 +287,34 @@ export function ReportsModule() {
         return expiryDate <= thirtyDaysFromNow
       })
     })
-    
+
     // Purchase order data
     const totalOrdersValue = getTotalOrdersValue()
     const pendingOrdersCount = getPendingOrdersCount()
-    
+
     // Audit log data
     const recentLogs = logs.slice(0, 50) // Last 50 logs
-    
+
     // Calculate filtered data based on custom date range
-    const filteredInvoices = invoices.filter(inv => 
+    const filteredInvoices = invoices.filter(inv =>
       isDateInRange(inv.createdAt, customDateRange)
     )
-    
-    const filteredPatients = patients.filter(patient => 
+
+    const filteredPatients = patients.filter(patient =>
       isDateInRange(patient.created_at, customDateRange)
     )
-    
-    const filteredLogs = logs.filter(log => 
+
+    const filteredLogs = logs.filter(log =>
       isDateInRange(log.timestamp, customDateRange)
     )
-    
-    const filteredPurchaseOrders = purchaseOrders.filter(po => 
+
+    const filteredPurchaseOrders = purchaseOrders.filter(po =>
       isDateInRange(po.orderDate, customDateRange)
     )
-    
+
     const monthlyRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0)
     const monthlyPatients = filteredPatients.length
-    
+
     return {
       totalRevenue,
       revenueByMethod,
@@ -325,7 +337,7 @@ export function ReportsModule() {
   // Memoize filtered audit logs
   const filteredLogs = useMemo(() => {
     return realData.recentLogs.filter((log: any) => {
-      const matchesSearch = !debouncedSearchQuery || 
+      const matchesSearch = !debouncedSearchQuery ||
         log.action.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         log.userName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         log.entityType.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
@@ -363,7 +375,7 @@ export function ReportsModule() {
 
   // Memoized cache key for SHA claims
   const shaClaimsCacheKey = useMemo(
-    () => getCacheKey('sha-claims', { 
+    () => getCacheKey('sha-claims', {
       dateFrom: customDateRange.from?.toISOString(),
       dateTo: customDateRange.to?.toISOString()
     }),
@@ -376,13 +388,13 @@ export function ReportsModule() {
         setShaClaimsLoading(true)
         const dateFrom = customDateRange.from ? format(customDateRange.from, 'yyyy-MM-dd') : undefined
         const dateTo = customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : undefined
-        
+
         const claims = await withCache(
           shaClaimsCacheKey,
           () => shaClaimAPI.getAll(),
           5 * 60 * 1000 // Cache for 5 minutes
         )
-        
+
         if (claims && Array.isArray(claims)) {
           // Filter claims by date range if specified
           let filtered = claims
@@ -391,15 +403,15 @@ export function ReportsModule() {
               const claimDate = claim.claim_date || claim.submission_date || claim.created_at
               if (!claimDate) return false
               const claimDateStr = typeof claimDate === 'string' ? claimDate.split('T')[0] : claimDate
-              
+
               if (dateFrom && claimDateStr < dateFrom) return false
               if (dateTo && claimDateStr > dateTo) return false
               return true
             })
           }
-          
+
           setFilteredClaims(filtered)
-          
+
           // Calculate stats
           const stats = {
             total: filtered.length,
@@ -420,7 +432,7 @@ export function ReportsModule() {
         setShaClaimsLoading(false)
       }
     }
-    
+
     fetchSHAClaims()
   }, [shaClaimsCacheKey, customDateRange])
 
@@ -454,8 +466,8 @@ export function ReportsModule() {
           className="w-full sm:w-auto"
         />
         <div className="text-sm text-muted-foreground">
-          Showing data for: {customDateRange.from || customDateRange.to ? 
-            `${customDateRange.from ? format(customDateRange.from, 'MMM dd') : 'Start'} - ${customDateRange.to ? format(customDateRange.to, 'MMM dd, yyyy') : 'End'}` : 
+          Showing data for: {customDateRange.from || customDateRange.to ?
+            `${customDateRange.from ? format(customDateRange.from, 'MMM dd') : 'Start'} - ${customDateRange.to ? format(customDateRange.to, 'MMM dd, yyyy') : 'End'} ` :
             'All time'
           }
         </div>
@@ -760,7 +772,7 @@ export function ReportsModule() {
                           <div
                             className="bg-primary h-2 rounded-full"
                             style={{
-                              width: `${(group.count / mockPatientStats.totalPatients) * 100}%`,
+                              width: `${(group.count / mockPatientStats.totalPatients) * 100}% `,
                             }}
                           />
                         </div>
@@ -787,7 +799,7 @@ export function ReportsModule() {
                           <div
                             className="bg-primary h-2 rounded-full"
                             style={{
-                              width: `${(count / mockPatientStats.totalPatients) * 100}%`,
+                              width: `${(count / mockPatientStats.totalPatients) * 100}% `,
                             }}
                           />
                         </div>
@@ -872,7 +884,7 @@ export function ReportsModule() {
         <CardContent>
           <DataExport
             data={reportType === "audit-trail" ? filteredLogs : [realData]}
-            filename={`${reportType}-report-${Date.now()}`}
+            filename={`${reportType} -report - ${Date.now()} `}
           />
         </CardContent>
       </Card>
@@ -880,3 +892,4 @@ export function ReportsModule() {
   )
 }
 
+export default ReportsModule

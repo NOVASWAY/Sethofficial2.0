@@ -18,6 +18,7 @@ export interface Appointment {
   notes?: string
   createdAt: string
   updatedAt: string
+  cancelledReason?: string
 }
 
 export interface QueueItem {
@@ -65,8 +66,8 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     const loadAppointments = async () => {
       try {
         const appointmentsData = await appointmentAPI.getAll()
-        setAppointments(appointmentsData || [])
-        
+        setAppointments(appointmentsData.data || [])
+
         // For now, we'll manage queue locally until backend queue API is implemented
         // TODO: Implement queue API endpoints in backend
         setQueue([])
@@ -134,7 +135,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
 
     // Add to queue
     const maxQueueNumber = queue.length > 0 ? Math.max(...queue.map(q => q.queueNumber)) : 0
-    
+
     const queueItem: QueueItem = {
       id: crypto.randomUUID(),
       patientId: appointment.patientId,
@@ -154,7 +155,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
 
   const addToQueue = (queueData: Omit<QueueItem, 'id' | 'queueNumber' | 'checkInTime' | 'status'>) => {
     const maxQueueNumber = queue.length > 0 ? Math.max(...queue.map(q => q.queueNumber)) : 0
-    
+
     const queueItem: QueueItem = {
       ...queueData,
       id: crypto.randomUUID(),
@@ -169,7 +170,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
   const callNextPatient = (clinicianId: string): QueueItem | null => {
     // Find next waiting patient (prioritize emergency, then urgent, then normal by queue number)
     const waitingPatients = queue.filter(q => q.status === 'waiting')
-    
+
     if (waitingPatients.length === 0) return null
 
     // Sort by priority and queue number
@@ -182,7 +183,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
 
     const nextPatient = waitingPatients[0]
     updateQueueStatus(nextPatient.id, 'called')
-    
+
     return nextPatient
   }
 

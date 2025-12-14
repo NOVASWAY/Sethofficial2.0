@@ -78,7 +78,7 @@ class WebSocketService {
 
       try {
         // Build WebSocket URL with auth token
-        const url = this.authToken 
+        const url = this.authToken
           ? `${this.config.url}?token=${this.authToken}`
           : this.config.url
 
@@ -89,14 +89,14 @@ class WebSocketService {
           this.isConnected = true
           this.isConnecting = false
           this.reconnectAttempts = 0
-          
+
           this.handlers.onConnect?.()
-          
+
           // Start heartbeat if enabled
           if (this.config.enableHeartbeat) {
             this.startHeartbeat()
           }
-          
+
           resolve()
         }
 
@@ -104,12 +104,12 @@ class WebSocketService {
           console.log('WebSocket disconnected:', event.code, event.reason)
           this.isConnected = false
           this.isConnecting = false
-          
+
           this.handlers.onDisconnect?.()
-          
+
           // Stop heartbeat
           this.stopHeartbeat()
-          
+
           // Attempt to reconnect if not a normal closure
           if (event.code !== 1000 && this.reconnectAttempts < this.config.maxReconnectAttempts!) {
             this.scheduleReconnect()
@@ -119,7 +119,7 @@ class WebSocketService {
         this.ws.onerror = (error) => {
           console.error('WebSocket error:', error)
           this.isConnecting = false
-          
+
           this.handlers.onError?.(error)
           reject(error)
         }
@@ -146,10 +146,10 @@ class WebSocketService {
       this.ws.close(1000, 'Client disconnect')
       this.ws = null
     }
-    
+
     this.isConnected = false
     this.isConnecting = false
-    
+
     // Clear timers
     this.stopHeartbeat()
     this.clearReconnectTimer()
@@ -266,11 +266,11 @@ class WebSocketService {
   // Schedule reconnection
   private scheduleReconnect() {
     this.clearReconnectTimer()
-    
+
     this.reconnectTimer = setTimeout(() => {
       this.reconnectAttempts++
       console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.config.maxReconnectAttempts})`)
-      
+
       this.connect().catch((error) => {
         console.error('Reconnection failed:', error)
       })
@@ -306,7 +306,7 @@ export const websocketService = new WebSocketService(wsConfig)
 // Hook for using WebSocket in React components
 export function useWebSocket(handlers: WebSocketEventHandlers = {}) {
   const { user } = useAuth()
-  
+
   // Set auth token when user changes
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token')
@@ -320,6 +320,13 @@ export function useWebSocket(handlers: WebSocketEventHandlers = {}) {
 
   // Connect on mount
   React.useEffect(() => {
+    // Skip WebSocket connection in mock mode (check if we're using mock API)
+    const USE_MOCK_DATA = true // Same flag as in api-client.ts
+    if (USE_MOCK_DATA) {
+      console.log('WebSocket disabled in mock mode')
+      return
+    }
+
     if (user) {
       websocketService.connect().catch(console.error)
     }

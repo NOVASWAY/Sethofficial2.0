@@ -295,7 +295,14 @@ pub async fn update_note(
     let mut updates = Vec::new();
     let mut param_count = 1;
 
-    if let Some(content) = update_data.content {
+    let content_opt = update_data.content.clone();
+    let is_important_opt = update_data.is_important;
+    let is_urgent_opt = update_data.is_urgent;
+    let is_private_opt = update_data.is_private;
+    let tags_opt = update_data.tags.clone();
+    let metadata_opt = update_data.metadata.clone();
+
+    if let Some(ref content) = content_opt {
         if content.trim().is_empty() {
             return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
                 success: false,
@@ -308,27 +315,27 @@ pub async fn update_note(
         param_count += 1;
     }
 
-    if let Some(is_important) = update_data.is_important {
+    if is_important_opt.is_some() {
         updates.push(format!("is_important = ${}", param_count));
         param_count += 1;
     }
 
-    if let Some(is_urgent) = update_data.is_urgent {
+    if is_urgent_opt.is_some() {
         updates.push(format!("is_urgent = ${}", param_count));
         param_count += 1;
     }
 
-    if let Some(is_private) = update_data.is_private {
+    if is_private_opt.is_some() {
         updates.push(format!("is_private = ${}", param_count));
         param_count += 1;
     }
 
-    if let Some(tags) = update_data.tags {
+    if tags_opt.is_some() {
         updates.push(format!("tags = ${}", param_count));
         param_count += 1;
     }
 
-    if let Some(metadata) = update_data.metadata {
+    if metadata_opt.is_some() {
         updates.push(format!("metadata = ${}", param_count));
         param_count += 1;
     }
@@ -354,22 +361,22 @@ pub async fn update_note(
     // Build parameters
     let mut query = sqlx::query(&query_str);
     
-    if let Some(content) = update_data.content {
+    if let Some(content) = content_opt {
         query = query.bind(content);
     }
-    if let Some(is_important) = update_data.is_important {
+    if let Some(is_important) = is_important_opt {
         query = query.bind(is_important);
     }
-    if let Some(is_urgent) = update_data.is_urgent {
+    if let Some(is_urgent) = is_urgent_opt {
         query = query.bind(is_urgent);
     }
-    if let Some(is_private) = update_data.is_private {
+    if let Some(is_private) = is_private_opt {
         query = query.bind(is_private);
     }
-    if let Some(tags) = update_data.tags {
-        query = query.bind(&tags);
+    if let Some(ref tags) = tags_opt {
+        query = query.bind(tags);
     }
-    if let Some(metadata) = update_data.metadata {
+    if let Some(metadata) = metadata_opt {
         query = query.bind(json!(metadata));
     }
     query = query.bind(Utc::now());

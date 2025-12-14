@@ -29,7 +29,7 @@ export default function ResendVerificationPage() {
     setError(null)
 
     try {
-      const response = await authAPI.resendVerification(email)
+      const response: any = await authAPI.resendVerification(email)
       if (response.success) {
         setSuccess(true)
       } else {

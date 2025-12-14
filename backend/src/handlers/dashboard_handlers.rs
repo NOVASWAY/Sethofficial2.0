@@ -115,7 +115,7 @@ pub async fn get_user_dashboard_metrics(
         "SELECT role, department FROM users WHERE id = $1",
     )
     .bind(user_id)
-    .fetch_one(&**pool)
+    .fetch_one(pool.get_ref())
     .await
     {
         Ok(user) => user,

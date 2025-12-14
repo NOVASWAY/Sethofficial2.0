@@ -156,7 +156,7 @@ pub async fn log_user_activity(
     .bind(ip_address.as_deref())
     .bind(user_agent.as_deref())
     .bind(claims.session_id.as_deref())
-    .fetch_one(pool)
+    .fetch_one(pool.get_ref())
     .await
     {
         Ok(activity) => activity,
@@ -281,7 +281,7 @@ pub async fn get_user_activity(
 
     // Execute query
     let query = query_builder.build_query_as::<UserActivity>();
-    let activities = match query.fetch_all(pool)
+    let activities = match query.fetch_all(pool.get_ref())
         .await
     {
         Ok(activities) => activities,
@@ -371,7 +371,7 @@ pub async fn get_recent_activities(
     )
     .bind(hours)
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(pool.get_ref())
     .await
     {
         Ok(activities) => activities,
@@ -459,28 +459,28 @@ pub async fn get_activity_statistics(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL $1 days"
     )
     .bind(days)
-    .fetch_one(pool)
+    .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
     let activities_today = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= CURRENT_DATE"
     )
-    .fetch_one(pool)
+    .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
     let activities_this_week = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= DATE_TRUNC('week', CURRENT_DATE)"
     )
-    .fetch_one(pool)
+    .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
     let activities_this_month = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM user_activity_logs WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)"
     )
-    .fetch_one(pool)
+    .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
@@ -494,7 +494,7 @@ pub async fn get_activity_statistics(
          LIMIT 10"
     )
     .bind(days)
-    .fetch_all(pool)
+    .fetch_all(pool.get_ref())
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -508,7 +508,7 @@ pub async fn get_activity_statistics(
          LIMIT 10"
     )
     .bind(days)
-    .fetch_all(pool)
+    .fetch_all(pool.get_ref())
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
@@ -521,7 +521,7 @@ pub async fn get_activity_statistics(
          ORDER BY hour"
     )
     .bind(days)
-    .fetch_all(pool)
+    .fetch_all(pool.get_ref())
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 

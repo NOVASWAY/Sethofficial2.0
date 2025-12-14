@@ -4,8 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  TrendingUp, TrendingDown, Users, Calendar, DollarSign, 
+import {
+  TrendingUp, TrendingDown, Users, Calendar, DollarSign,
   Pill, Package, AlertTriangle, Clock, FileText, Activity
 } from 'lucide-react'
 import { useInventory } from '@/contexts/inventory-context'
@@ -58,13 +58,21 @@ interface DashboardOverviewProps {
 }
 
 export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
-  const { medicines, stockMovements, getLowStockMedicines, getOutOfStockMedicines } = useInventory()
-  const { patientsData } = usePatient()
+  // Hooks must be called unconditionally - handle errors in data processing instead
+  const { medicines = [], stockMovements = [], getLowStockMedicines, getOutOfStockMedicines } = useInventory()
+  const { patientsData = new Map() } = usePatient()
   const { user } = useAuth()
-  
-  // Convert patients data to array for data isolation
-  const patientsArray = Array.from(patientsData.values())
-  
+
+  // Convert patients data to array for data isolation - safely handle empty Map
+  const patientsArray = useMemo(() => {
+    try {
+      return Array.from(patientsData?.values() || [])
+    } catch (error) {
+      console.error('Error converting patients data:', error)
+      return []
+    }
+  }, [patientsData])
+
   // Use data isolation for user-specific data
   const { filteredData: filteredPatients, dataCount: patientCount } = useDataIsolation(
     patientsArray,
@@ -76,7 +84,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
       permissions: getUserDataPermissions(role || user?.role || 'receptionist')
     }
   )
-  
+
   // Get user data permissions function
   function getUserDataPermissions(role: string) {
     switch (role) {
@@ -175,16 +183,31 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
 
   // Calculate metrics (memoized for performance)
   const totalPatients = useMemo(() => patientCount.filtered, [patientCount.filtered])
-  
-  const lowStockItems = useMemo(() => getLowStockMedicines().length, [medicines])
-  const outOfStockItems = useMemo(() => getOutOfStockMedicines().length, [medicines])
-  
+
+  const lowStockItems = useMemo(() => {
+    try {
+      return getLowStockMedicines().length
+    } catch (error) {
+      console.error('Error calculating low stock items:', error)
+      return 0
+    }
+  }, [getLowStockMedicines, medicines])
+
+  const outOfStockItems = useMemo(() => {
+    try {
+      return getOutOfStockMedicines().length
+    } catch (error) {
+      console.error('Error calculating out of stock items:', error)
+      return 0
+    }
+  }, [getOutOfStockMedicines, medicines])
+
   const expiryAlerts = useMemo(() => getAllExpiryAlerts(medicines), [medicines])
   const criticalExpiries = useMemo(
     () => expiryAlerts.filter(a => a.severity === 'expired' || a.severity === 'critical').length,
     [expiryAlerts]
   )
-  
+
   // Dashboard metrics from API
   const [dashboardMetrics, setDashboardMetrics] = useState<{
     today?: { appointments?: number; consultations?: number; revenue?: number }
@@ -220,29 +243,39 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
 
   // Memoize today's date to avoid recalculation
   const today = useMemo(() => new Date().toISOString().split('T')[0], [])
-  
+
   // Memoize expensive calculations
   const todaysMovements = useMemo(
     () => stockMovements.filter(m => m.timestamp.startsWith(today)),
     [stockMovements, today]
   )
-  
-  const todaysConsultations = useMemo(
-    () => filteredPatients
-      .flatMap(p => p.consultations)
-      .filter(c => c.date === today),
-    [filteredPatients, today]
-  )
-  
+
+  const todaysConsultations = useMemo(() => {
+    try {
+      // Handle both Map structure (PatientMedicalInfo) and array structure
+      return filteredPatients
+        .flatMap(p => {
+          // If p is PatientMedicalInfo from Map, use p.consultations
+          // If p is a regular patient object, check for consultations property
+          const consultations = (p as any)?.consultations || []
+          return Array.isArray(consultations) ? consultations : []
+        })
+        .filter(c => c && c.date === today)
+    } catch (error) {
+      console.error('Error calculating today\'s consultations:', error)
+      return []
+    }
+  }, [filteredPatients, today])
+
   // Calculate inventory value (memoized)
   const totalInventoryValue = useMemo(
     () => medicines.reduce((sum, m) => sum + (m.currentStock * m.unitPrice), 0),
     [medicines]
   )
-  
+
   // Calculate revenue change from historical data (with caching)
   const [revenueChange, setRevenueChange] = useState<number>(0)
-  
+
   useEffect(() => {
     const calculateRevenueChange = async () => {
       try {
@@ -295,23 +328,34 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
   // Use API data if available, otherwise fallback to context
   const todaysRevenue = dashboardMetrics?.today?.revenue || 0
   const monthlyRevenue = dashboardMetrics?.overview?.monthly_revenue || 0
-  
+
   // Memoize expensive calculations
   const pendingPrescriptions = useMemo(() => {
     if (dashboardMetrics?.alerts?.pending_prescriptions !== undefined) {
       return dashboardMetrics.alerts.pending_prescriptions
     }
-    return filteredPatients
-      .flatMap(p => p.consultations)
-      .flatMap(c => c.prescriptions)
-      .filter(p => p.status === 'pending').length
+    try {
+      return filteredPatients
+        .flatMap(p => {
+          const consultations = (p as any)?.consultations || []
+          return Array.isArray(consultations) ? consultations : []
+        })
+        .flatMap(c => {
+          const prescriptions = (c as any)?.prescriptions || []
+          return Array.isArray(prescriptions) ? prescriptions : []
+        })
+        .filter(p => p && p.status === 'pending').length
+    } catch (error) {
+      console.error('Error calculating pending prescriptions:', error)
+      return 0
+    }
   }, [dashboardMetrics?.alerts?.pending_prescriptions, filteredPatients])
-  
+
   const todaysConsultationsCount = useMemo(
     () => dashboardMetrics?.today?.consultations || todaysConsultations.length,
     [dashboardMetrics?.today?.consultations, todaysConsultations.length]
   )
-  
+
   const todaysAppointmentsCount = dashboardMetrics?.today?.appointments || 0
 
   return (
@@ -337,7 +381,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
               </AlertDescription>
             </Alert>
           )}
-          
+
           {outOfStockItems > 0 && (
             <Alert className="border-orange-500 bg-orange-50">
               <Package className="h-5 w-5 text-orange-600" />
@@ -356,9 +400,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Today's Revenue"
-          value={metricsLoading ? (
-            <Skeleton className="h-6 w-24" />
-          ) : `KSh ${todaysRevenue.toLocaleString()}`}
+          value={metricsLoading ? 'Loading...' : `KSh ${todaysRevenue.toLocaleString()}`}
           change={revenueChange}
           icon={DollarSign}
           color="text-green-600"
@@ -366,9 +408,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
         />
         <MetricCard
           title="Today's Consultations"
-          value={metricsLoading ? (
-            <Skeleton className="h-6 w-12" />
-          ) : todaysConsultationsCount}
+          value={metricsLoading ? '...' : todaysConsultationsCount}
           icon={FileText}
           color="text-blue-600"
         />
@@ -535,7 +575,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
                 </div>
               </div>
             )}
-            
+
             {lowStockItems > 0 && (
               <div className="flex items-center gap-3 p-3 border rounded-lg bg-yellow-50">
                 <AlertTriangle className="h-5 w-5 text-yellow-600" />
@@ -545,7 +585,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
                 </div>
               </div>
             )}
-            
+
             {pendingPrescriptions > 0 && (
               <div className="flex items-center gap-3 p-3 border rounded-lg bg-purple-50">
                 <Pill className="h-5 w-5 text-purple-600" />
@@ -555,7 +595,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
                 </div>
               </div>
             )}
-            
+
             {criticalExpiries > 0 && (
               <div className="flex items-center gap-3 p-3 border rounded-lg bg-orange-50">
                 <Clock className="h-5 w-5 text-orange-600" />
@@ -565,7 +605,7 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
                 </div>
               </div>
             )}
-            
+
             {outOfStockItems === 0 && lowStockItems === 0 && pendingPrescriptions === 0 && criticalExpiries === 0 && (
               <div className="flex items-center gap-3 p-3 border rounded-lg bg-green-50">
                 <Activity className="h-5 w-5 text-green-600" />
@@ -581,3 +621,5 @@ export function DashboardOverview({ role }: DashboardOverviewProps = {}) {
     </div>
   )
 }
+
+export default DashboardOverview

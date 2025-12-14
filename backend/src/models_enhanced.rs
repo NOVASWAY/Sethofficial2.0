@@ -266,6 +266,9 @@ pub enum PaymentType {
     Sha,
     Cash,
     Mpesa,
+    Card,      // Credit/Debit card via payment gateway (Stripe, etc.)
+    BankTransfer, // Direct bank transfer
+    Cheque,    // Cheque payment
 }
 
 // Report models

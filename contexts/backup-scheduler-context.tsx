@@ -13,8 +13,8 @@ export interface BackupSchedule {
   dayOfWeek?: number // 0-6 for weekly backups (0 = Sunday)
   dayOfMonth?: number // 1-31 for monthly backups
   maxBackups: number // Maximum number of backups to keep
-  lastBackup?: string
-  nextBackup?: string
+  lastBackup?: string | null
+  nextBackup?: string | null
 }
 
 interface BackupSchedulerContextType {
@@ -53,22 +53,22 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
     status: 'success' | 'failed'
     error?: string
   }>>([])
-  
+
   const { exportBackup } = useSettings()
   const { toast } = useToast()
 
   // Load schedule from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined') return
-    
+
     try {
       const savedSchedule = localStorage.getItem(BACKUP_SCHEDULE_STORAGE_KEY)
       const savedHistory = localStorage.getItem(BACKUP_HISTORY_STORAGE_KEY)
-      
+
       if (savedSchedule) {
         setSchedule(JSON.parse(savedSchedule))
       }
-      
+
       if (savedHistory) {
         setBackupHistory(JSON.parse(savedHistory))
       }
@@ -80,7 +80,7 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
   // Save schedule to localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return
-    
+
     try {
       localStorage.setItem(BACKUP_SCHEDULE_STORAGE_KEY, JSON.stringify(schedule))
     } catch (error) {
@@ -91,7 +91,7 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
   // Save backup history to localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return
-    
+
     try {
       localStorage.setItem(BACKUP_HISTORY_STORAGE_KEY, JSON.stringify(backupHistory))
     } catch (error) {
@@ -227,7 +227,7 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
     const lastBackup = schedule.lastBackup ? new Date(schedule.lastBackup) : null
 
     let status: 'idle' | 'running' | 'scheduled' | 'disabled' = 'disabled'
-    
+
     if (isBackupRunning) {
       status = 'running'
     } else if (schedule.enabled && nextBackup) {

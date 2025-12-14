@@ -65,57 +65,107 @@ pub async fn get_tasks(
         "#
     );
 
-    let mut bind_count = 1;
-    let mut bind_values: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send + Sync>> = vec![];
+    // Build query conditionally - sqlx doesn't support dynamic binding with trait objects
+    // So we build separate queries for each combination
+    let query_result = if assigned_to_me {
+        if let Some(status) = status_filter {
+            if let Some(priority) = priority_filter {
+                if let Some(task_type) = task_type_filter {
+                    // All filters
+                    sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.status = $2 AND t.priority = $3 AND t.task_type = $4 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $5", query_str))
+                        .bind(user_id).bind(status).bind(priority).bind(task_type).bind(limit)
+                        .fetch_all(&data.db_pool).await
+                } else {
+                    // assigned_to, status, priority
+                    sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.status = $2 AND t.priority = $3 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $4", query_str))
+                        .bind(user_id).bind(status).bind(priority).bind(limit)
+                        .fetch_all(&data.db_pool).await
+                }
+            } else if let Some(task_type) = task_type_filter {
+                // assigned_to, status, task_type
+                sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.status = $2 AND t.task_type = $3 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $4", query_str))
+                    .bind(user_id).bind(status).bind(task_type).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            } else {
+                // assigned_to, status
+                sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.status = $2 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $3", query_str))
+                    .bind(user_id).bind(status).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            }
+        } else if let Some(priority) = priority_filter {
+            if let Some(task_type) = task_type_filter {
+                // assigned_to, priority, task_type
+                sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.priority = $2 AND t.task_type = $3 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $4", query_str))
+                    .bind(user_id).bind(priority).bind(task_type).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            } else {
+                // assigned_to, priority
+                sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.priority = $2 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $3", query_str))
+                    .bind(user_id).bind(priority).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            }
+        } else if let Some(task_type) = task_type_filter {
+            // assigned_to, task_type
+            sqlx::query(&format!("{} AND t.assigned_to = $1 AND t.task_type = $2 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $3", query_str))
+                .bind(user_id).bind(task_type).bind(limit)
+                .fetch_all(&data.db_pool).await
+        } else {
+            // assigned_to only
+            sqlx::query(&format!("{} AND t.assigned_to = $1 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $2", query_str))
+                .bind(user_id).bind(limit)
+                .fetch_all(&data.db_pool).await
+        }
+    } else {
+        if let Some(status) = status_filter {
+            if let Some(priority) = priority_filter {
+                if let Some(task_type) = task_type_filter {
+                    // status, priority, task_type
+                    sqlx::query(&format!("{} AND t.status = $1 AND t.priority = $2 AND t.task_type = $3 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $4", query_str))
+                        .bind(status).bind(priority).bind(task_type).bind(limit)
+                        .fetch_all(&data.db_pool).await
+                } else {
+                    // status, priority
+                    sqlx::query(&format!("{} AND t.status = $1 AND t.priority = $2 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $3", query_str))
+                        .bind(status).bind(priority).bind(limit)
+                        .fetch_all(&data.db_pool).await
+                }
+            } else if let Some(task_type) = task_type_filter {
+                // status, task_type
+                sqlx::query(&format!("{} AND t.status = $1 AND t.task_type = $2 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $3", query_str))
+                    .bind(status).bind(task_type).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            } else {
+                // status only
+                sqlx::query(&format!("{} AND t.status = $1 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $2", query_str))
+                    .bind(status).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            }
+        } else if let Some(priority) = priority_filter {
+            if let Some(task_type) = task_type_filter {
+                // priority, task_type
+                sqlx::query(&format!("{} AND t.priority = $1 AND t.task_type = $2 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $3", query_str))
+                    .bind(priority).bind(task_type).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            } else {
+                // priority only
+                sqlx::query(&format!("{} AND t.priority = $1 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $2", query_str))
+                    .bind(priority).bind(limit)
+                    .fetch_all(&data.db_pool).await
+            }
+        } else if let Some(task_type) = task_type_filter {
+            // task_type only
+            sqlx::query(&format!("{} AND t.task_type = $1 ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $2", query_str))
+                .bind(task_type).bind(limit)
+                .fetch_all(&data.db_pool).await
+        } else {
+            // no filters
+            sqlx::query(&format!("{} ORDER BY CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 WHEN 'low' THEN 4 END, t.due_date ASC NULLS LAST, t.created_at DESC LIMIT $1", query_str))
+                .bind(limit)
+                .fetch_all(&data.db_pool).await
+        }
+    };
 
-    if assigned_to_me {
-        query_str.push_str(&format!(" AND t.assigned_to = ${}", bind_count));
-        bind_values.push(Box::new(user_id));
-        bind_count += 1;
-    }
-
-    if let Some(status) = status_filter {
-        query_str.push_str(&format!(" AND t.status = ${}", bind_count));
-        bind_values.push(Box::new(status.to_string()));
-        bind_count += 1;
-    }
-
-    if let Some(priority) = priority_filter {
-        query_str.push_str(&format!(" AND t.priority = ${}", bind_count));
-        bind_values.push(Box::new(priority.to_string()));
-        bind_count += 1;
-    }
-
-    if let Some(task_type) = task_type_filter {
-        query_str.push_str(&format!(" AND t.task_type = ${}", bind_count));
-        bind_values.push(Box::new(task_type.to_string()));
-        bind_count += 1;
-    }
-
-    query_str.push_str(
-        r#"
-        ORDER BY 
-            CASE t.priority
-                WHEN 'urgent' THEN 1
-                WHEN 'high' THEN 2
-                WHEN 'normal' THEN 3
-                WHEN 'low' THEN 4
-            END,
-            t.due_date ASC NULLS LAST,
-            t.created_at DESC
-        LIMIT $"#
-    );
-    query_str.push_str(&bind_count.to_string());
-
-    // Execute query with dynamic binding
-    let mut query = sqlx::query(&query_str);
-    for value in bind_values {
-        // This is a simplified approach - in production, use proper type handling
-        query = query.bind(value);
-    }
-    query = query.bind(limit);
-
-    let tasks_result = query.fetch_all(&data.db_pool).await;
+    let tasks_result = query_result;
 
     let tasks = match tasks_result {
         Ok(rows) => {
@@ -304,7 +354,7 @@ pub async fn create_task(
             )
             .bind(assigned_to)
             .bind(format!("New Task: {}", title))
-            .bind(description.unwrap_or_else(|| title.to_string()))
+            .bind(description.unwrap_or(title))
             .bind(priority)
             .bind(format!("/dashboard/tasks/{}", task_id))
             .bind(now)

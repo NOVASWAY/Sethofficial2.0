@@ -7,6 +7,7 @@ import { patientAPI } from "@/lib/api-client"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
+import { usePatientEnhanced, type Patient } from "@/contexts/patient-context-enhanced"
 import { useKeyboardShortcuts, COMMON_SHORTCUTS } from '@/hooks/use-keyboard-shortcuts'
 import { Skeleton, PatientListSkeleton } from "@/components/ui/loading"
 import { Pagination } from "@/components/ui/pagination"
@@ -47,78 +48,6 @@ interface PatientManagementProps {
   role: string
 }
 
-interface Patient {
-  id: string
-  firstName: string
-  lastName: string
-  dateOfBirth: string
-  gender: string
-  phone: string
-  location: string
-  emergencyContact: string
-  emergencyPhone: string
-  bloodType: string
-  allergies: string[]
-  medicalHistory: string
-  registrationDate: string
-  lastVisit: string
-  status: "Active" | "Inactive"
-}
-
-const mockPatients: Patient[] = [
-  {
-    id: "P001",
-    firstName: "John",
-    lastName: "Doe",
-    dateOfBirth: "1985-03-15",
-    gender: "Male",
-    phone: "+1 (555) 123-4567",
-    location: "123 Main St, Anytown, ST 12345",
-    emergencyContact: "Jane Doe",
-    emergencyPhone: "+1 (555) 987-6543",
-    bloodType: "O+",
-    allergies: ["Penicillin", "Peanuts"],
-    medicalHistory: "Hypertension, managed with medication",
-    registrationDate: "2023-01-15",
-    lastVisit: "2024-01-20",
-    status: "Active",
-  },
-  {
-    id: "P002",
-    firstName: "Sarah",
-    lastName: "Johnson",
-    dateOfBirth: "1992-07-22",
-    gender: "Female",
-    phone: "+1 (555) 234-5678",
-    location: "456 Oak Ave, Somewhere, ST 67890",
-    emergencyContact: "Mike Johnson",
-    emergencyPhone: "+1 (555) 876-5432",
-    bloodType: "A-",
-    allergies: ["Shellfish"],
-    medicalHistory: "No significant medical history",
-    registrationDate: "2023-03-10",
-    lastVisit: "2024-01-18",
-    status: "Active",
-  },
-  {
-    id: "P003",
-    firstName: "Michael",
-    lastName: "Brown",
-    dateOfBirth: "1978-11-08",
-    gender: "Male",
-    phone: "+1 (555) 345-6789",
-    location: "789 Pine Rd, Elsewhere, ST 13579",
-    emergencyContact: "Lisa Brown",
-    emergencyPhone: "+1 (555) 765-4321",
-    bloodType: "B+",
-    allergies: [],
-    medicalHistory: "Diabetes Type 2, regular monitoring required",
-    registrationDate: "2022-11-20",
-    lastVisit: "2024-01-15",
-    status: "Active",
-  },
-]
-
 export function PatientManagement({ role }: PatientManagementProps) {
   const { toast } = useToast()
   const [patients, setPatients] = useState<Patient[]>([])
@@ -130,7 +59,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  
+
   // Debounce search term to reduce API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -143,21 +72,22 @@ export function PatientManagement({ role }: PatientManagementProps) {
   // Transform API response to Patient interface (memoized)
   const transformPatient = useCallback((p: any): Patient => ({
     id: p.id || p.patient_number || `P-${p.id?.slice(0, 8)}`,
-    firstName: p.first_name || p.firstName || '',
-    lastName: p.last_name || p.lastName || '',
-    dateOfBirth: p.date_of_birth || p.dateOfBirth || '',
+    patient_number: p.patient_number || p.id,
+    first_name: p.first_name || p.firstName || '',
+    last_name: p.last_name || p.lastName || '',
+    date_of_birth: p.date_of_birth || p.dateOfBirth || '',
     gender: p.gender || 'Unknown',
     phone: p.phone_number || p.phone || '',
     location: p.address || p.location || '',
-    emergencyContact: p.emergency_contact_name || p.emergencyContact || '',
-    emergencyPhone: p.emergency_contact_phone || p.emergencyPhone || '',
-    bloodType: p.blood_type || p.bloodType || 'Unknown',
-    allergies: Array.isArray(p.allergies) ? p.allergies : 
-              (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
-    medicalHistory: p.medical_history || p.medicalHistory || '',
-    registrationDate: p.registration_date || p.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-    lastVisit: p.last_visit || p.lastVisit || p.registration_date || new Date().toISOString().split('T')[0],
-    status: (p.status === 'active' || p.status === 'Active') ? 'Active' as const : 'Inactive' as const,
+    emergency_contact: p.emergency_contact_name || p.emergencyContact || '',
+    emergency_phone: p.emergency_contact_phone || p.emergencyPhone || '',
+    blood_type: p.blood_type || p.bloodType || 'Unknown',
+    allergies: Array.isArray(p.allergies) ? p.allergies :
+      (p.allergies ? p.allergies.split(',').map((a: string) => a.trim()) : []),
+    medical_history: p.medical_history || p.medicalHistory || '',
+    created_at: p.created_at || p.registration_date || new Date().toISOString(),
+    updated_at: p.updated_at || p.last_visit || new Date().toISOString(),
+    status: (p.status === 'active' || p.status === 'Active') ? 'active' : 'inactive',
   }), [])
 
   // Fetch patients from API with caching and debounced search
@@ -165,11 +95,11 @@ export function PatientManagement({ role }: PatientManagementProps) {
     const fetchPatients = async () => {
       try {
         setLoading(true)
-        
+
         // Use cached API call if available
         const cacheKey = patientsCacheKey
         let result: any
-        
+
         if (debouncedSearchTerm) {
           // Use search API if search term exists
           try {
@@ -189,14 +119,14 @@ export function PatientManagement({ role }: PatientManagementProps) {
             console.warn("Search API failed, falling back to getAll:", searchError)
           }
         }
-        
+
         // Fallback to getAll with pagination
         result = await withCache(
           cacheKey,
           () => patientAPI.getAll({ page, per_page: 50 }),
           5 * 60 * 1000 // Cache for 5 minutes
         )
-        
+
         if (result && Array.isArray(result.data)) {
           // Transform API response to match Patient interface
           const transformed = result.data.map(transformPatient)
@@ -211,8 +141,8 @@ export function PatientManagement({ role }: PatientManagementProps) {
           setPatients(transformed)
           setTotalPages(1)
         } else {
-          // Fallback to mock data if API returns unexpected format
-          setPatients(mockPatients)
+          // Fallback to empty if API returns unexpected format
+          setPatients([])
           toast({
             title: "Info",
             description: "Using sample data. Patient API may not be available.",
@@ -226,8 +156,8 @@ export function PatientManagement({ role }: PatientManagementProps) {
           description: "Failed to load patients. Using sample data.",
           variant: "destructive"
         })
-        // Fallback to mock data on error
-        setPatients(mockPatients)
+        // Fallback to empty entries on error
+        setPatients([])
       } finally {
         setLoading(false)
       }
@@ -245,20 +175,20 @@ export function PatientManagement({ role }: PatientManagementProps) {
       // Show all patients while user is typing (before debounce)
       return patients
     }
-    
+
     // After debounce, if API search was used, return patients as-is
     // Otherwise, apply client-side filter
     if (debouncedSearchTerm) {
       return patients.filter(
         (patient) =>
-          patient.firstName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-          patient.lastName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          patient.first_name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          patient.last_name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
           patient.id.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
           patient.phone.includes(debouncedSearchTerm) ||
-          patient.location.toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
+          (patient.location?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()),
       )
     }
-    
+
     return patients
   }, [patients, searchTerm, debouncedSearchTerm])
 
@@ -268,7 +198,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
       // Invalidate cache before refreshing
       dashboardCache.invalidate(patientsCacheKey)
       dashboardCache.invalidatePattern('dashboard:patients:.*')
-      
+
       const result = await patientAPI.getAll({ page, per_page: 50 })
 
       if (result && Array.isArray(result.data)) {
@@ -357,7 +287,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
           <p className="text-muted-foreground">Manage patient records and registrations</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
             variant="outline"
             onClick={handleRefresh}
             disabled={loading}
@@ -417,7 +347,7 @@ export function PatientManagement({ role }: PatientManagementProps) {
               <Heart className="w-5 h-5 text-accent" />
               <div>
                 <p className="text-sm font-medium">Active</p>
-                <p className="text-2xl font-bold">{patients.filter((p) => p.status === "Active").length}</p>
+                <p className="text-2xl font-bold">{patients.filter((p) => p.status === "active").length}</p>
               </div>
             </div>
           </CardContent>
@@ -459,46 +389,46 @@ export function PatientManagement({ role }: PatientManagementProps) {
                 </TableRow>
               ) : (
                 filteredPatients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell className="font-medium">{patient.id}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">
-                        {patient.firstName} {patient.lastName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{patient.gender}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-1">
-                        <Phone className="w-3 h-3" />
-                        <span className="text-sm">{patient.phone}</span>
+                  <TableRow key={patient.id}>
+                    <TableCell className="font-medium">{patient.id}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">
+                          {patient.first_name} {patient.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{patient.gender}</p>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="w-3 h-3" />
-                        <span className="text-sm">{patient.location}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-1">
+                          <Phone className="w-3 h-3" />
+                          <span className="text-sm">{patient.phone}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="w-3 h-3" />
+                          <span className="text-sm">{patient.location}</span>
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{new Date(patient.lastVisit).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Badge variant={patient.status === "Active" ? "default" : "secondary"}>{patient.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewPatient(patient)}>
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {canRegisterPatients && (
-                        <Button variant="ghost" size="sm" onClick={() => handleEditPatient(patient)}>
-                          <Edit className="w-4 h-4" />
+                    </TableCell>
+                    <TableCell>{new Date(patient.updated_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={patient.status === "active" ? "default" : "secondary"}>{patient.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewPatient(patient)}>
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )))}
+                        {canRegisterPatients && (
+                          <Button variant="ghost" size="sm" onClick={() => handleEditPatient(patient)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )))}
             </TableBody>
           </Table>
         </CardContent>
@@ -530,6 +460,8 @@ export function PatientManagement({ role }: PatientManagementProps) {
 }
 
 function NewPatientForm({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast()
+  const { addPatient } = usePatientEnhanced()
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -546,20 +478,20 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
       // Validate form data
       const validation = validateForm(formData, validationSchemas.patient)
-      
+
       if (!validation.isValid) {
         // Show validation errors
         console.error("Validation errors:", validation.errors)
         return
       }
-      
+
       // Generate patient ID
       const patientId = `P${String(Date.now()).slice(-6)}`
-      
+
       // Create new patient object
       const newPatient = {
         id: patientId,
@@ -567,7 +499,7 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
-      
+
       // Create patient via API
       try {
         // Send age directly, no conversion needed
@@ -581,23 +513,23 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
           emergency_contact_name: formData.emergencyContact,
           emergency_contact_phone: formData.emergencyPhone,
           blood_type: formData.bloodType || null,
-          allergies: formData.allergies ? formData.allergies.split(',').map(a => a.trim()) : [],
+          allergies: formData.allergies ? formData.allergies.split(',').map((a: string) => a.trim()) : [],
           medical_history: formData.medicalHistory || null,
         }
 
         await patientAPI.create(patientData)
-        
+
         // Invalidate patient cache after creating new patient
         dashboardCache.invalidatePattern('dashboard:patients:.*')
-        
+
         toast({
           title: "Patient Registered",
           description: "Patient has been registered successfully.",
         })
-        
+
         // Close form on success
         onClose()
-        
+
         // Refresh patients list
         window.location.reload()
       } catch (error) {
@@ -608,7 +540,7 @@ function NewPatientForm({ onClose }: { onClose: () => void }) {
           variant: "destructive"
         })
       }
-      
+
     } catch (error) {
       console.error("Error creating patient:", error)
     }
@@ -793,7 +725,7 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
                   <User className="w-8 h-8 text-primary" />
                   <div>
                     <h3 className="font-semibold">
-                      {patient.firstName} {patient.lastName}
+                      {patient.first_name} {patient.last_name}
                     </h3>
                     <p className="text-sm text-muted-foreground">Patient ID: {patient.id}</p>
                   </div>
@@ -807,7 +739,7 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
                   <div>
                     <h3 className="font-semibold">Age & Gender</h3>
                     <p className="text-sm text-muted-foreground">
-                      {new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear()} years, {patient.gender}
+                      {new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years, {patient.gender}
                     </p>
                   </div>
                 </div>
@@ -817,15 +749,15 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Registration Date</Label>
-              <p className="text-sm">{new Date(patient.registrationDate).toLocaleDateString()}</p>
+              <p className="text-sm">{new Date(patient.created_at).toLocaleDateString()}</p>
             </div>
             <div className="space-y-2">
               <Label>Last Visit</Label>
-              <p className="text-sm">{new Date(patient.lastVisit).toLocaleDateString()}</p>
+              <p className="text-sm">{new Date(patient.updated_at).toLocaleDateString()}</p>
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
-              <Badge variant={patient.status === "Active" ? "default" : "secondary"}>{patient.status}</Badge>
+              <Badge variant={patient.status === "active" ? "default" : "secondary"}>{patient.status}</Badge>
             </div>
           </div>
         </TabsContent>
@@ -850,10 +782,10 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
               <h4 className="font-medium mb-2">Emergency Contact</h4>
               <div className="space-y-2">
                 <p className="text-sm">
-                  <strong>Name:</strong> {patient.emergencyContact}
+                  <strong>Name:</strong> {patient.emergency_contact}
                 </p>
                 <p className="text-sm">
-                  <strong>Phone:</strong> {patient.emergencyPhone}
+                  <strong>Phone:</strong> {patient.emergency_phone}
                 </p>
               </div>
             </div>
@@ -867,7 +799,7 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
                 <Heart className="w-5 h-5 text-destructive" />
                 <div>
                   <Label>Blood Type</Label>
-                  <p className="text-sm font-medium">{patient.bloodType}</p>
+                  <p className="text-sm font-medium">{patient.blood_type}</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
@@ -875,7 +807,7 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
                 <div className="flex-1">
                   <Label>Allergies</Label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {patient.allergies.length > 0 ? (
+                    {patient.allergies && patient.allergies.length > 0 ? (
                       patient.allergies.map((allergy, index) => (
                         <Badge key={index} variant="destructive">
                           {allergy}
@@ -891,7 +823,7 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
                 <FileText className="w-5 h-5 text-primary mt-1" />
                 <div className="flex-1">
                   <Label>Medical History</Label>
-                  <p className="text-sm mt-1">{patient.medicalHistory || "No significant medical history"}</p>
+                  <p className="text-sm mt-1">{patient.medical_history || "No significant medical history"}</p>
                 </div>
               </div>
             </div>
@@ -904,14 +836,14 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
 
 function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const { toast } = useToast()
-  
-  // Use age from patient if available, otherwise calculate from dateOfBirth
-  const getAge = (patient: Patient): string => {
+  const { updatePatient } = usePatientEnhanced()
+
+  const getAge = (patient: Patient) => {
     if ((patient as any).age !== undefined) {
       return (patient as any).age.toString()
     }
-    if (patient.dateOfBirth) {
-      const birthDate = new Date(patient.dateOfBirth)
+    if (patient.date_of_birth) {
+      const birthDate = new Date(patient.date_of_birth)
       const today = new Date()
       let age = today.getFullYear() - birthDate.getFullYear()
       const monthDiff = today.getMonth() - birthDate.getMonth()
@@ -920,30 +852,30 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
       }
       return age.toString()
     }
-    return ''
+    return ""
   }
-  
+
   const [formData, setFormData] = useState({
-    firstName: patient.firstName,
-    lastName: patient.lastName,
-    age: getAge(patient), // Use age directly or calculated from dateOfBirth
+    firstName: patient.first_name,
+    lastName: patient.last_name,
+    age: getAge(patient),
     gender: patient.gender,
     phone: patient.phone,
-    location: patient.location,
-    emergencyContact: patient.emergencyContact,
-    emergencyPhone: patient.emergencyPhone,
-    bloodType: patient.bloodType,
-    allergies: patient.allergies.join(", "),
-    medicalHistory: patient.medicalHistory,
+    location: patient.location || '',
+    emergencyContact: patient.emergency_contact || '',
+    emergencyPhone: patient.emergency_phone || '',
+    bloodType: patient.blood_type || '',
+    allergies: patient.allergies ? patient.allergies.join(", ") : "",
+    medicalHistory: patient.medical_history || '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
       // Validate form data
       const validation = validateForm(formData, validationSchemas.patient)
-      
+
       if (!validation.isValid) {
         console.error("Validation errors:", validation.errors)
         toast({
@@ -954,7 +886,6 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
         return
       }
 
-      // Send age directly, no conversion needed
       // Update patient via API
       const patientData = {
         first_name: formData.firstName,
@@ -965,71 +896,20 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
         address: formData.location,
         emergency_contact_name: formData.emergencyContact,
         emergency_contact_phone: formData.emergencyPhone,
-        blood_type: formData.bloodType || null,
+        blood_type: formData.bloodType || undefined,
         allergies: formData.allergies ? formData.allergies.split(',').map(a => a.trim()) : [],
-        medical_history: formData.medicalHistory || null,
+        medical_history: formData.medicalHistory || undefined,
       }
 
-      // Optimistic update: Update patient in list immediately
-      const originalPatient = patients.find(p => p.id === patient.id)
-      if (originalPatient) {
-        const optimisticUpdate: Patient = {
-          ...originalPatient,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          dateOfBirth: patient.dateOfBirth, // Keep existing dateOfBirth for display
-          gender: formData.gender as 'Male' | 'Female' | 'Other',
-          phone: formData.phone,
-          location: formData.location,
-          emergencyContact: formData.emergencyContact,
-          emergencyPhone: formData.emergencyPhone,
-          bloodType: formData.bloodType || 'Unknown',
-          allergies: formData.allergies ? formData.allergies.split(',').map(a => a.trim()) : [],
-          medicalHistory: formData.medicalHistory || '',
-        }
-        
-        // Update optimistically
-        setPatients(prev => prev.map(p => 
-          p.id === patient.id ? optimisticUpdate : p
-        ))
-      }
-      
-      try {
-        const result = await patientAPI.update(patient.id, patientData)
-        
-        // Replace with real updated data
-        if (result) {
-          setPatients(prev => prev.map(p => 
-            p.id === patient.id ? transformPatient(result) : p
-          ))
-        }
-        
-        // Invalidate patient cache after updating
-        dashboardCache.invalidatePattern('dashboard:patients:.*')
-        
-        toast({
-          title: "Patient Updated",
-          description: "Patient information has been updated successfully.",
-        })
-        
-        // Close form on success
-        onClose()
-      } catch (error) {
-        // Revert optimistic update on error
-        if (originalPatient) {
-          setPatients(prev => prev.map(p => 
-            p.id === patient.id ? originalPatient : p
-          ))
-        }
-        
-        console.error("Error updating patient:", error)
-        toast({
-          title: "Error",
-          description: "Failed to update patient. Please try again.",
-          variant: "destructive"
-        })
-        throw error
-      }
+      await updatePatient(patient.id, patientData)
+
+      toast({
+        title: "Patient Updated",
+        description: "Patient information has been updated successfully.",
+      })
+
+      // Close form on success
+      onClose()
     } catch (error) {
       console.error("Error updating patient:", error)
       toast({
@@ -1200,3 +1080,5 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
     </form>
   )
 }
+
+export default PatientManagement

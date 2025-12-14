@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,9 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Receipt, CreditCard, Smartphone, Shield, DollarSign, 
-  FileText, Printer, Send, CheckCircle2, AlertCircle, Calculator, Plus, Trash2, Sparkles
+import {
+  Receipt, CreditCard, Smartphone, Shield, DollarSign,
+  FileText, Printer, Send, CheckCircle2, AlertCircle, Calculator, Plus, Trash2, Sparkles, Stethoscope
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { defaultServices, type Service } from './service-catalog'
@@ -21,8 +20,9 @@ import { useWorkflow } from '@/contexts/workflow-context'
 import { useInvoices } from '@/contexts/invoice-context'
 import { useMpesa } from '@/hooks/use-mpesa'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { PrintableInvoice } from '@/components/printable-invoice'
-import { invoiceAPI, shaClaimAPI } from '@/lib/api-client'
+import { invoiceAPI, shaClaimAPI, patientAPI } from '@/lib/api-client'
 import { icd11Diagnoses, type Diagnosis as ICD11Diagnosis } from '@/lib/icd11-diagnoses'
 
 interface InvoiceItem {
@@ -47,23 +47,38 @@ interface PaymentAllocation {
 
 export function BillingModule() {
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   const { pendingConsultation, setPendingConsultation } = useWorkflow()
   const { addInvoice, addPayment } = useInvoices()
-  const { 
-    isProcessing: mpesaProcessing, 
-    currentTransaction, 
+  const {
+    isProcessing: mpesaProcessing,
+    currentTransaction,
     transactionStatus,
-    initiatePayment, 
-    pollTransactionStatus, 
+    initiatePayment,
+    pollTransactionStatus,
     clearTransaction,
     validatePhoneNumber,
     formatAmount,
     getStatusColor,
     getStatusIcon
   } = useMpesa()
-  const [paymentType, setPaymentType] = useState<'sha' | 'cash' | 'mpesa' | 'mixed'>('cash')
+  const [paymentType, setPaymentType] = useState<'sha' | 'cash' | 'mpesa' | 'mixed' | 'card' | 'bank_transfer' | 'cheque'>('cash')
+  const [insuranceType, setInsuranceType] = useState<'NHIF' | 'SHA' | 'Cash' | 'Private' | 'Mixed'>('Cash')
   const [loading, setLoading] = useState(false)
-  
+  const [lastGeneratedInvoice, setLastGeneratedInvoice] = useState<any>(null)
+  const [showPrintDialog, setShowPrintDialog] = useState(false)
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState(false)
+
+  // Initialize autoPrintEnabled from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('autoPrintReceipts')
+      if (stored) {
+        setAutoPrintEnabled(stored === 'true')
+      }
+    }
+  }, [])
+
   const [invoiceData, setInvoiceData] = useState({
     patient_id: '',
     patient_name: '',
@@ -124,6 +139,78 @@ export function BillingModule() {
       setPendingConsultation(null)
     }
   }, [pendingConsultation, setPendingConsultation, toast])
+
+  // Load invoice from URL parameter (for pharmacy dispensed medications)
+  useEffect(() => {
+    const invoiceId = searchParams?.get('invoiceId')
+    if (invoiceId && !pendingConsultation) {
+      // Load invoice data
+      invoiceAPI.getById(invoiceId)
+        .then((invoiceResponse) => {
+          const invoice = invoiceResponse?.data || invoiceResponse
+          if (invoice) {
+            // Set patient data
+            setInvoiceData({
+              patient_id: invoice.patient_id || '',
+              patient_name: invoice.patient_name || 'Unknown Patient',
+              consultation_id: invoice.consultation_id || '',
+              sha_number: invoiceData.sha_number,
+              notes: invoice.notes || '',
+            })
+
+            // Load patient insurance if patient_id is available
+            if (invoice.patient_id) {
+              patientAPI.getById(invoice.patient_id)
+                .then((patientData) => {
+                  const patientInsurance = patientData?.insurance_type || patientData?.insuranceType
+                  if (patientInsurance) {
+                    const insuranceMap: Record<string, 'NHIF' | 'SHA' | 'Cash' | 'Private' | 'Mixed'> = {
+                      'nhif': 'NHIF', 'NHIF': 'NHIF',
+                      'sha': 'SHA', 'SHA': 'SHA',
+                      'private': 'Private', 'Private': 'Private',
+                      'mixed': 'Mixed', 'Mixed': 'Mixed',
+                      'cash': 'Cash', 'Cash': 'Cash',
+                    }
+                    const mappedInsurance = insuranceMap[patientInsurance] || 'Cash'
+                    setInsuranceType(mappedInsurance)
+                  }
+                })
+                .catch(() => {
+                  // Silently fail
+                })
+            }
+
+            // Load invoice items
+            const invoiceItems = Array.isArray(invoice.items)
+              ? invoice.items.map((item: any) => ({
+                id: item.id || crypto.randomUUID(),
+                type: 'medication' as const,
+                description: item.description || item.medicine_name || 'Medication',
+                quantity: item.quantity || 1,
+                unit_price: item.unit_price || 0,
+                total_price: item.total_price || item.total || 0,
+                sha_covered: false,
+                sha_amount: 0,
+                patient_amount: item.total_price || item.total || 0,
+                diagnosis_code: undefined,
+                diagnosis_description: undefined,
+              }))
+              : []
+
+            if (invoiceItems.length > 0) {
+              setItems(invoiceItems)
+              toast({
+                title: 'Medication Invoice Loaded',
+                description: `${invoiceItems.length} medication(s) loaded from pharmacy`,
+              })
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to load invoice:', error)
+        })
+    }
+  }, [searchParams, pendingConsultation, toast])
 
   const [paymentAllocations, setPaymentAllocations] = useState<PaymentAllocation[]>([])
   const [mpesaCode, setMpesaCode] = useState('')
@@ -226,11 +313,11 @@ export function BillingModule() {
 
   const totals = calculateTotals()
 
-  const handlePaymentTypeChange = (type: 'sha' | 'cash' | 'mpesa' | 'mixed') => {
+  const handlePaymentTypeChange = (type: 'sha' | 'cash' | 'mpesa' | 'mixed' | 'card' | 'bank_transfer' | 'cheque') => {
     setPaymentType(type)
     setPaymentAllocations([])
     clearTransaction() // Clear any existing M-Pesa transaction
-    
+
     // Auto-calculate default allocations
     if (type === 'sha') {
       setPaymentAllocations([{ type: 'sha', amount: totals.total }])
@@ -238,6 +325,12 @@ export function BillingModule() {
       setPaymentAllocations([{ type: 'cash', amount: totals.total }])
     } else if (type === 'mpesa') {
       setPaymentAllocations([{ type: 'mpesa', amount: totals.total }])
+    } else if (type === 'card') {
+      setPaymentAllocations([{ type: 'cash', amount: totals.total }]) // Card processed as cash allocation
+    } else if (type === 'bank_transfer') {
+      setPaymentAllocations([{ type: 'cash', amount: totals.total }]) // Bank transfer processed as cash allocation
+    } else if (type === 'cheque') {
+      setPaymentAllocations([{ type: 'cash', amount: totals.total }]) // Cheque processed as cash allocation
     } else if (type === 'mixed') {
       setPaymentAllocations([
         { type: 'sha', amount: totals.shaTotal },
@@ -269,7 +362,7 @@ export function BillingModule() {
 
     // Generate invoice ID for reference
     const invoiceId = `INV-${Date.now()}`
-    
+
     const stkPushRequest = {
       phone_number: phoneValidation.formatted,
       amount: Math.round(totals.total * 100), // Convert to cents
@@ -279,7 +372,7 @@ export function BillingModule() {
     }
 
     const success = await initiatePayment(stkPushRequest)
-    
+
     if (success) {
       // Start polling for status updates
       setTimeout(() => {
@@ -324,7 +417,7 @@ export function BillingModule() {
           setLoading(false)
           return
         }
-        
+
         if (currentTransaction.status !== 'Completed') {
           toast({
             variant: 'error',
@@ -359,7 +452,8 @@ export function BillingModule() {
         balance: 0,
         paymentMethod: paymentType === 'mpesa' ? 'cash' : paymentType as any,
         paymentStatus: 'paid',
-        invoiceType: paymentType === 'mixed' ? 'mixed' : (paymentType === 'mpesa' ? 'cash' : paymentType),
+        invoiceType: paymentType === 'mixed' ? 'mixed' :
+          (paymentType === 'sha' ? 'sha' : 'cash'),
         notes: invoiceData.notes,
         shaClaimNumber: paymentType === 'sha' || paymentType === 'mixed' ? invoiceData.sha_number : undefined,
         mpesaTransactionCode: currentTransaction?.mpesa_receipt_number || mpesaCode,
@@ -432,11 +526,11 @@ export function BillingModule() {
         'July', 'August', 'September', 'October', 'November', 'December']
       const month = monthNames[now.getMonth()]
       const year = now.getFullYear()
-      
+
       // Generate claim number from invoice number
       const invoiceDatePart = invoiceNumber.split('-')[1] || now.toISOString().slice(0, 10).replace(/-/g, '')
       const claimNumber = `SHA-${invoiceDatePart}-${Math.floor(Math.random() * 1000)}`
-      
+
       // Prepare claim payload matching backend expectations
       const claimPayload = {
         claimNumber: claimNumber,
@@ -451,7 +545,7 @@ export function BillingModule() {
 
       // Call the SHA claim API
       const response = await shaClaimAPI.create(claimPayload)
-      
+
       if (response.success) {
         toast({
           title: 'SHA Claim Created',
@@ -490,7 +584,7 @@ export function BillingModule() {
     }
     toast({
       title: newValue ? 'Auto-Print Enabled' : 'Auto-Print Disabled',
-      description: newValue 
+      description: newValue
         ? 'Receipts will automatically print after invoice generation'
         : 'You will be prompted to print receipts manually',
     })
@@ -519,6 +613,33 @@ export function BillingModule() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Insurance Type Display/Selector */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <Label className="text-sm font-semibold text-blue-900 mb-2 block">Insurance Type</Label>
+                <Select
+                  value={insuranceType}
+                  onValueChange={(value: any) => setInsuranceType(value)}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash (Self-Pay)</SelectItem>
+                    <SelectItem value="NHIF">NHIF</SelectItem>
+                    <SelectItem value="SHA">SHA (Social Health Authority)</SelectItem>
+                    <SelectItem value="Private">Private Insurance</SelectItem>
+                    <SelectItem value="Mixed">Mixed (SHA + Cash)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-blue-700 mt-2">
+                  {insuranceType === 'SHA' && '✓ Full coverage by SHA'}
+                  {insuranceType === 'NHIF' && '✓ 80% coverage by NHIF, 20% patient pays'}
+                  {insuranceType === 'Private' && '✓ 90% coverage by insurance, 10% patient pays'}
+                  {insuranceType === 'Mixed' && '✓ 70% coverage, 30% patient pays'}
+                  {insuranceType === 'Cash' && '✓ Patient pays full amount'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Patient</Label>
@@ -568,18 +689,18 @@ export function BillingModule() {
                           const categoryServices = defaultServices
                             .filter(s => s.isActive && s.category === category)
                           if (categoryServices.length === 0) return null
-                          
+
                           return (
                             <div key={category}>
                               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
-                                {category === 'laboratory' ? 'Lab Tests' : 
-                                 category === 'consultation' ? 'Consultations' :
-                                 category === 'procedure' ? 'Procedures' :
-                                 category === 'imaging' ? 'Imaging' : 'Other'}
+                                {category === 'laboratory' ? 'Lab Tests' :
+                                  category === 'consultation' ? 'Consultations' :
+                                    category === 'procedure' ? 'Procedures' :
+                                      category === 'imaging' ? 'Imaging' : 'Other'}
                               </div>
                               {categoryServices.map((service) => {
-                                const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice 
-                                  ? service.shaPrice 
+                                const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice
+                                  ? service.shaPrice
                                   : service.price
                                 return (
                                   <SelectItem key={service.id} value={service.id}>
@@ -612,7 +733,7 @@ export function BillingModule() {
                     </Button>
                   </div>
                 </div>
-                {selectedServiceId && (
+                {selectedServiceId && (<>
                   <Alert className="bg-blue-50 border-blue-200">
                     <Calculator className="h-4 w-4 text-blue-600" />
                     <AlertDescription className="text-sm">
@@ -620,8 +741,8 @@ export function BillingModule() {
                         const service = defaultServices.find(s => s.id === selectedServiceId)
                         if (!service) return null
                         const qty = parseInt(serviceQuantity) || 1
-                        const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice 
-                          ? service.shaPrice 
+                        const price = (paymentType === 'sha' || paymentType === 'mixed') && service.shaPrice
+                          ? service.shaPrice
                           : service.price
                         const total = price * qty
                         return (
@@ -654,7 +775,7 @@ export function BillingModule() {
                           Diagnosis {(paymentType === 'sha' || paymentType === 'mixed') ? '(Required for SHA)' : '(Optional)'}
                         </Label>
                       </div>
-                      
+
                       {serviceDiagnosis ? (
                         <div className="p-2 bg-white rounded border border-amber-200">
                           <div className="flex items-center justify-between">
@@ -714,7 +835,7 @@ export function BillingModule() {
                       )}
                     </div>
                   )}
-                )}
+                </>)}
               </div>
 
               {/* Invoice Items List */}
@@ -770,7 +891,7 @@ export function BillingModule() {
               </div>
 
               <Separator className="my-4" />
-              
+
               {/* Auto-Calculated Totals Preview */}
               {items.length > 0 && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
@@ -846,38 +967,60 @@ export function BillingModule() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm font-semibold">Select Payment Method</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose how the patient will pay for this invoice
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <Button
                   variant={paymentType === 'cash' ? 'default' : 'outline'}
                   onClick={() => handlePaymentTypeChange('cash')}
-                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  className="flex flex-col items-center gap-2 h-auto py-3 sm:py-4"
                 >
-                  <DollarSign className="h-6 w-6" />
-                  <span>Cash</span>
+                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-xs sm:text-sm">Cash</span>
                 </Button>
                 <Button
                   variant={paymentType === 'mpesa' ? 'default' : 'outline'}
                   onClick={() => handlePaymentTypeChange('mpesa')}
-                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  className="flex flex-col items-center gap-2 h-auto py-3 sm:py-4"
                 >
-                  <Smartphone className="h-6 w-6" />
-                  <span>M-Pesa</span>
+                  <Smartphone className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-xs sm:text-sm">M-Pesa</span>
                 </Button>
                 <Button
                   variant={paymentType === 'sha' ? 'default' : 'outline'}
                   onClick={() => handlePaymentTypeChange('sha')}
-                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  className="flex flex-col items-center gap-2 h-auto py-3 sm:py-4"
                 >
-                  <Shield className="h-6 w-6" />
-                  <span>SHA</span>
+                  <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-xs sm:text-sm">SHA</span>
                 </Button>
                 <Button
                   variant={paymentType === 'mixed' ? 'default' : 'outline'}
                   onClick={() => handlePaymentTypeChange('mixed')}
-                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  className="flex flex-col items-center gap-2 h-auto py-3 sm:py-4"
                 >
-                  <Calculator className="h-6 w-6" />
-                  <span>Mixed</span>
+                  <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-xs sm:text-sm">Mixed</span>
+                </Button>
+                <Button
+                  variant={paymentType === 'card' ? 'default' : 'outline'}
+                  onClick={() => handlePaymentTypeChange('card' as any)}
+                  className="flex flex-col items-center gap-2 h-auto py-3 sm:py-4"
+                >
+                  <CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-xs sm:text-sm">Card</span>
+                </Button>
+                <Button
+                  variant={paymentType === 'bank_transfer' ? 'default' : 'outline'}
+                  onClick={() => handlePaymentTypeChange('bank_transfer' as any)}
+                  className="flex flex-col items-center gap-2 h-auto py-3 sm:py-4"
+                >
+                  <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="text-xs sm:text-sm">Bank</span>
                 </Button>
               </div>
 
@@ -924,7 +1067,7 @@ export function BillingModule() {
                       M-Pesa Payment: {formatAmount(totals.total * 100)}
                     </AlertDescription>
                   </Alert>
-                  
+
                   {!currentTransaction ? (
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -939,8 +1082,8 @@ export function BillingModule() {
                           Enter the phone number registered with M-Pesa
                         </p>
                       </div>
-                      
-                      <Button 
+
+                      <Button
                         onClick={handleMpesaPayment}
                         disabled={mpesaProcessing || !mpesaPhone || totals.total <= 0}
                         className="w-full"
@@ -967,7 +1110,7 @@ export function BillingModule() {
                             {getStatusIcon(currentTransaction.status)} {currentTransaction.status}
                           </span>
                         </div>
-                        
+
                         <div className="space-y-1 text-sm text-muted-foreground">
                           <div>Amount: {formatAmount(currentTransaction.amount)}</div>
                           <div>Phone: {currentTransaction.phone_number}</div>
@@ -976,7 +1119,7 @@ export function BillingModule() {
                             <div>Receipt: {currentTransaction.mpesa_receipt_number}</div>
                           )}
                         </div>
-                        
+
                         {currentTransaction.status === 'Pending' && (
                           <div className="mt-3">
                             <div className="flex items-center text-sm text-yellow-600">
@@ -986,18 +1129,18 @@ export function BillingModule() {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           onClick={() => pollTransactionStatus(currentTransaction.checkout_request_id)}
                           disabled={mpesaProcessing}
                           className="flex-1"
                         >
                           {mpesaProcessing ? 'Checking...' : 'Check Status'}
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           onClick={clearTransaction}
                           disabled={mpesaProcessing}
                         >
@@ -1006,6 +1149,110 @@ export function BillingModule() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {paymentType === 'card' && (
+                <div className="space-y-4">
+                  <Alert>
+                    <CreditCard className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <p className="font-semibold">Card Payment</p>
+                        <p>Total Amount: KES {totals.total.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Process payment via credit/debit card
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="space-y-2">
+                    <Label>Card Number</Label>
+                    <Input
+                      placeholder="1234 5678 9012 3456"
+                      maxLength={19}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label>Expiry</Label>
+                      <Input placeholder="MM/YY" maxLength={5} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>CVV</Label>
+                      <Input placeholder="123" maxLength={4} type="password" />
+                    </div>
+                  </div>
+                  <Button className="w-full">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Process Card Payment
+                  </Button>
+                </div>
+              )}
+
+              {paymentType === 'bank_transfer' && (
+                <div className="space-y-4">
+                  <Alert>
+                    <FileText className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <p className="font-semibold">Bank Transfer</p>
+                        <p>Total Amount: KES {totals.total.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Record bank transfer payment details
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="space-y-2">
+                    <Label>Bank Name</Label>
+                    <Input placeholder="e.g., Equity Bank, KCB" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Transaction Reference</Label>
+                    <Input placeholder="Bank transaction reference number" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Account Number (Optional)</Label>
+                    <Input placeholder="Patient's bank account number" />
+                  </div>
+                  <Button className="w-full">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Record Bank Transfer
+                  </Button>
+                </div>
+              )}
+
+              {paymentType === 'cheque' && (
+                <div className="space-y-4">
+                  <Alert>
+                    <FileText className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <p className="font-semibold">Cheque Payment</p>
+                        <p>Total Amount: KES {totals.total.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Record cheque payment details
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="space-y-2">
+                    <Label>Cheque Number</Label>
+                    <Input placeholder="Cheque number" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Bank Name</Label>
+                    <Input placeholder="Issuing bank name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Cheque Date</Label>
+                    <Input type="date" />
+                  </div>
+                  <Button className="w-full">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Record Cheque Payment
+                  </Button>
                 </div>
               )}
 
@@ -1039,7 +1286,7 @@ export function BillingModule() {
 
                   <div className="space-y-2">
                     <Label>Patient Payment Method</Label>
-                    <Select 
+                    <Select
                       onValueChange={(value) => {
                         const allocation = paymentAllocations.find(p => p.type === 'cash' || p.type === 'mpesa')
                         if (allocation) {
@@ -1074,8 +1321,8 @@ export function BillingModule() {
                               disabled={mpesaProcessing}
                             />
                           </div>
-                          
-                          <Button 
+
+                          <Button
                             onClick={handleMpesaPayment}
                             disabled={mpesaProcessing || !mpesaPhone || totals.patientTotal <= 0}
                             className="w-full"
@@ -1102,7 +1349,7 @@ export function BillingModule() {
                               {getStatusIcon(currentTransaction.status)} {currentTransaction.status}
                             </span>
                           </div>
-                          
+
                           <div className="text-xs text-muted-foreground space-y-1">
                             <div>Amount: {formatAmount(currentTransaction.amount)}</div>
                             <div>Phone: {currentTransaction.phone_number}</div>
@@ -1110,10 +1357,10 @@ export function BillingModule() {
                               <div>Receipt: {currentTransaction.mpesa_receipt_number}</div>
                             )}
                           </div>
-                          
+
                           <div className="flex gap-2 mt-2">
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => pollTransactionStatus(currentTransaction.checkout_request_id)}
                               disabled={mpesaProcessing}
@@ -1121,8 +1368,8 @@ export function BillingModule() {
                             >
                               Check
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={clearTransaction}
                               disabled={mpesaProcessing}
@@ -1144,7 +1391,7 @@ export function BillingModule() {
                 <Textarea
                   placeholder="Additional notes..."
                   value={invoiceData.notes}
-                  onChange={(e) => setInvoiceData({...invoiceData, notes: e.target.value})}
+                  onChange={(e) => setInvoiceData({ ...invoiceData, notes: e.target.value })}
                   rows={3}
                 />
               </div>
@@ -1166,12 +1413,12 @@ export function BillingModule() {
 
       {/* Print Receipt Dialog */}
       {showPrintDialog && lastGeneratedInvoice && (
-        <PrintableInvoice 
-          invoice={lastGeneratedInvoice} 
+        <PrintableInvoice
+          invoice={lastGeneratedInvoice}
           onClose={() => {
             setShowPrintDialog(false)
             setLastGeneratedInvoice(null)
-          }} 
+          }}
         />
       )}
 

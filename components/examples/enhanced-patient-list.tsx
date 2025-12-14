@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { 
-  PatientListSkeleton, 
-  Loading, 
+import {
+  PatientListSkeleton,
+  Loading,
   LoadingButton,
-  FormLoadingOverlay 
+  FormLoadingOverlay
 } from '@/components/ui/loading'
 import { ErrorDisplay, NetworkError, ServerError } from '@/components/ui/error-display'
 import { useAsyncOperation, useDataFetching } from '@/hooks/use-async-operation'
@@ -17,6 +17,7 @@ import { useErrorHandler } from '@/hooks/use-error-handler'
 import { patientAPI } from '@/lib/api-client'
 import { AppError } from '@/lib/error-handler'
 import { Search, UserPlus, RefreshCw, AlertCircle } from 'lucide-react'
+import { withErrorBoundary } from '@/components/error-boundary'
 
 interface Patient {
   id: string
@@ -34,16 +35,17 @@ interface EnhancedPatientListProps {
   onAddPatient?: () => void
 }
 
-export function EnhancedPatientList({ 
-  onPatientSelect, 
-  onAddPatient 
+export function EnhancedPatientList({
+  onPatientSelect,
+  onAddPatient
 }: EnhancedPatientListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
-  
+
   // Using the enhanced async operation hook
-  const { state, fetchData, reset } = useDataFetching<Patient[]>()
-  
+  // Using the enhanced async operation hook
+  const { data, loading, error, fetchData, reset } = useDataFetching<Patient[]>()
+
   // Using the error handler hook for additional error management
   const { error: additionalError, clearError } = useErrorHandler()
 
@@ -54,7 +56,7 @@ export function EnhancedPatientList({
 
   const loadPatients = async () => {
     await fetchData(
-      () => patientAPI.getAll(),
+      () => patientAPI.getAll().then(res => res.data),
       'EnhancedPatientList.loadPatients'
     )
   }
@@ -86,7 +88,7 @@ export function EnhancedPatientList({
   }
 
   // Filter patients based on search term (client-side fallback)
-  const filteredPatients = state.data?.filter(patient => 
+  const filteredPatients = data?.filter(patient =>
     patient.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     patient.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     patient.phone.includes(searchTerm) ||
@@ -99,11 +101,11 @@ export function EnhancedPatientList({
     const birthDate = new Date(dateOfBirth)
     let age = today.getFullYear() - birthDate.getFullYear()
     const monthDiff = today.getMonth() - birthDate.getMonth()
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--
     }
-    
+
     return age
   }
 
@@ -134,7 +136,7 @@ export function EnhancedPatientList({
               />
             </div>
             <LoadingButton
-              loading={state.loading}
+              loading={loading}
               onClick={handleSearch}
               loadingText="Searching..."
             >
@@ -143,7 +145,7 @@ export function EnhancedPatientList({
             <Button
               variant="outline"
               onClick={handleRefresh}
-              disabled={state.loading}
+              disabled={loading}
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -154,9 +156,9 @@ export function EnhancedPatientList({
           </div>
 
           {/* Error Display */}
-          {state.error && (
+          {error && (
             <ErrorDisplay
-              error={state.error}
+              error={error}
               onRetry={handleRefresh}
               variant="inline"
             />
@@ -179,17 +181,17 @@ export function EnhancedPatientList({
         <CardHeader>
           <CardTitle>Patients</CardTitle>
           <CardDescription>
-            {state.loading 
-              ? 'Loading patients...' 
+            {loading
+              ? 'Loading patients...'
               : `${filteredPatients.length} patient${filteredPatients.length !== 1 ? 's' : ''} found`
             }
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <FormLoadingOverlay loading={state.loading}>
-            {state.loading ? (
+          <FormLoadingOverlay loading={loading}>
+            {loading ? (
               <PatientListSkeleton count={5} />
-            ) : state.error ? (
+            ) : error ? (
               <div className="text-center py-8">
                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground mb-4">
@@ -225,9 +227,8 @@ export function EnhancedPatientList({
                 {filteredPatients.map((patient) => (
                   <div
                     key={patient.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors hover:bg-muted/50 ${
-                      selectedPatient?.id === patient.id ? 'bg-primary/10 border-primary' : ''
-                    }`}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors hover:bg-muted/50 ${selectedPatient?.id === patient.id ? 'bg-primary/10 border-primary' : ''
+                      }`}
                     onClick={() => handlePatientSelect(patient)}
                   >
                     <div className="flex items-center justify-between">

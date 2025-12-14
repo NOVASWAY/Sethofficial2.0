@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -26,17 +26,31 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle2,
+  Wallet,
 } from "lucide-react"
+import { calculateGrowthRate } from '@/lib/utils'
 import { useToast } from "@/hooks/use-toast"
 import { useInvoices } from "@/contexts/invoice-context"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DashboardSkeleton } from "@/components/ui/loading"
 
 // Mock financial data structure - now calculated from real invoices below
 
 export function FinancialOverview() {
   const [period, setPeriod] = useState("thisMonth")
   const [viewType, setViewType] = useState("overview")
+  const [isMounted, setIsMounted] = useState(false)
   const { toast } = useToast()
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
+
+  // Ensure component is mounted to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  if (!isMounted) {
+    return <DashboardSkeleton />
+  }
 
   // Calculate real financial data from invoices
   const financialData = useMemo(() => {
@@ -68,6 +82,7 @@ export function FinancialOverview() {
     const cashRevenue = getRevenueByMethod('cash', startDateStr, endDateStr)
     const mpesaRevenue = getRevenueByMethod('mpesa', startDateStr, endDateStr)
     const shaRevenue = getRevenueByMethod('sha', startDateStr, endDateStr)
+    const nhifRevenue = getRevenueByMethod('nhif', startDateStr, endDateStr)
     const mixedRevenue = getRevenueByMethod('mixed', startDateStr, endDateStr)
 
     const filteredInvoices = invoices.filter(inv => {
@@ -87,10 +102,10 @@ export function FinancialOverview() {
       const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0)
       const monthStartStr = monthStart.toISOString().split('T')[0]
       const monthEndStr = monthEnd.toISOString().split('T')[0]
-      
+
       const monthRevenue = getTotalRevenue(monthStartStr, monthEndStr)
       const monthExpenses = monthRevenue * 0.5
-      
+
       monthlyData.push({
         month: monthStart.toLocaleString('default', { month: 'short' }),
         revenue: monthRevenue,
@@ -111,6 +126,7 @@ export function FinancialOverview() {
         cash: cashRevenue,
         mpesa: mpesaRevenue,
         sha: shaRevenue,
+        nhif: nhifRevenue,
         mixed: mixedRevenue,
       },
       expenses: {
@@ -133,13 +149,13 @@ export function FinancialOverview() {
       patients: (() => {
         const uniquePatientIds = new Set(filteredInvoices.map(inv => inv.patientId))
         const totalPatients = uniquePatientIds.size
-        
+
         // Calculate new vs returning patients
         // A patient is "new" if their first invoice ever is within the current period
         // A patient is "returning" if they have invoices before the current period
         let newPatients = 0
         let returningPatients = 0
-        
+
         for (const patientId of uniquePatientIds) {
           // Check if this patient has any invoices before the current period
           const hasPreviousInvoices = invoices.some(inv => {
@@ -147,14 +163,14 @@ export function FinancialOverview() {
             const invDate = new Date(inv.date)
             return invDate < startDate
           })
-          
+
           if (hasPreviousInvoices) {
             returningPatients++
           } else {
             newPatients++
           }
         }
-        
+
         return {
           total: totalPatients,
           newThisMonth: newPatients,
@@ -195,8 +211,9 @@ export function FinancialOverview() {
     { name: "Cash", value: financialData.revenue.cash, color: "#10b981" },
     { name: "M-Pesa", value: financialData.revenue.mpesa, color: "#3b82f6" },
     { name: "SHA", value: financialData.revenue.sha, color: "#8b5cf6" },
+    { name: "NHIF", value: financialData.revenue.nhif, color: "#ec4899" },
     { name: "Mixed", value: financialData.revenue.mixed, color: "#f59e0b" },
-  ]
+  ].map(item => ({ label: item.name, value: item.value, color: item.color }))
 
   // Calculate expense breakdown for pie chart
   const expenseBreakdown = [
@@ -205,7 +222,7 @@ export function FinancialOverview() {
     { name: "Utilities", value: financialData.expenses.utilities, color: "#eab308" },
     { name: "Maintenance", value: financialData.expenses.maintenance, color: "#06b6d4" },
     { name: "Other", value: financialData.expenses.other, color: "#6b7280" },
-  ]
+  ].map(item => ({ label: item.name, value: item.value, color: item.color }))
 
   return (
     <div className="space-y-6">
@@ -294,10 +311,11 @@ export function FinancialOverview() {
               </CardHeader>
               <CardContent>
                 <BarChart
-                  data={financialData.monthly}
-                  categories={["revenue", "expenses", "profit"]}
-                  index="month"
-                  colors={["#10b981", "#ef4444", "#3b82f6"]}
+                  data={financialData.monthly.map(m => ({
+                    label: m.month,
+                    value: m.revenue,
+                    color: "#10b981"
+                  }))}
                 />
               </CardContent>
             </Card>
@@ -493,10 +511,11 @@ export function FinancialOverview() {
             </CardHeader>
             <CardContent>
               <BarChart
-                data={financialData.monthly}
-                categories={["revenue", "expenses", "profit"]}
-                index="month"
-                colors={["#10b981", "#ef4444", "#3b82f6"]}
+                data={financialData.monthly.map(m => ({
+                  label: m.month,
+                  value: m.revenue,
+                  color: "#10b981"
+                }))}
               />
             </CardContent>
           </Card>
@@ -541,14 +560,8 @@ export function FinancialOverview() {
         </CardHeader>
         <CardContent>
           <DataExport
-            data={financialData}
+            data={financialData.monthly}
             filename={`financial-report-${period}`}
-            onExport={() => {
-              toast({
-                title: "Export Successful",
-                description: "Financial report has been downloaded",
-              })
-            }}
           />
         </CardContent>
       </Card>
@@ -556,3 +569,4 @@ export function FinancialOverview() {
   )
 }
 
+export default FinancialOverview

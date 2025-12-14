@@ -28,7 +28,7 @@ export function InventoryReports() {
   const lowStockValue = medicines
     .filter(med => med.currentStock <= med.minStock)
     .reduce((sum, med) => sum + (med.currentStock * med.unitPrice), 0)
-  
+
   // Category breakdown
   const categoryBreakdown = medicines.reduce((acc, med) => {
     const category = med.category
@@ -48,11 +48,11 @@ export function InventoryReports() {
   })
 
   const movementsByType = movementsInRange.reduce((acc, mov) => {
-    if (!acc[mov.type]) {
-      acc[mov.type] = { count: 0, quantity: 0 }
+    if (!acc[mov.movementType]) {
+      acc[mov.movementType] = { count: 0, quantity: 0 }
     }
-    acc[mov.type].count++
-    acc[mov.type].quantity += mov.quantity
+    acc[mov.movementType].count++
+    acc[mov.movementType].quantity += mov.quantity
     return acc
   }, {} as Record<string, { count: number; quantity: number }>)
 
@@ -98,7 +98,7 @@ export function InventoryReports() {
       })
       reportData += `\n\nDETAILED MOVEMENTS\n`
       movementsInRange.forEach(mov => {
-        reportData += `${new Date(mov.timestamp).toLocaleString()} - ${mov.type}: ${mov.quantity} units of ${mov.medicineId} - ${mov.reason}\n`
+        reportData += `${new Date(mov.timestamp).toLocaleString()} - ${mov.movementType}: ${mov.quantity} units of ${mov.medicineId} - ${mov.reason}\n`
       })
       filename = `stock-movements-${dateRange.startDate}-to-${dateRange.endDate}.txt`
     } else if (reportType === 'expiry') {
@@ -230,10 +230,10 @@ export function InventoryReports() {
                         .sort((a, b) => (b.currentStock * b.unitPrice) - (a.currentStock * a.unitPrice))
                         .map(med => {
                           const value = med.currentStock * med.unitPrice
-                          const stockStatus = 
+                          const stockStatus =
                             med.currentStock === 0 ? 'out' :
-                            med.currentStock <= med.minStock ? 'low' : 'ok'
-                          
+                              med.currentStock <= med.minStock ? 'low' : 'ok'
+
                           return (
                             <tr key={med.id} className="border-b">
                               <td className="p-2">{med.name}</td>
@@ -323,11 +323,11 @@ export function InventoryReports() {
                         <td className="p-2 text-sm">{new Date(mov.timestamp).toLocaleString()}</td>
                         <td className="p-2">
                           <Badge className={
-                            mov.type === 'dispensing' ? 'bg-blue-100 text-blue-800' :
-                            mov.type === 'adjustment' ? 'bg-purple-100 text-purple-800' :
-                            'bg-gray-100 text-gray-800'
+                            mov.movementType === 'dispensing' ? 'bg-blue-100 text-blue-800' :
+                              mov.movementType === 'adjustment' ? 'bg-purple-100 text-purple-800' :
+                                'bg-gray-100 text-gray-800'
                           }>
-                            {mov.type}
+                            {mov.movementType}
                           </Badge>
                         </td>
                         <td className="p-2 text-sm">{medicines.find(m => m.id === mov.medicineId)?.name || mov.medicineId}</td>
@@ -373,7 +373,7 @@ export function InventoryReports() {
                 <div className="space-y-3">
                   {medicines.map(med => {
                     if (!med.batches || med.batches.length === 0) return null
-                    
+
                     const alertBatches = med.batches.filter(b => getExpiryStatus(b.expiryDate) !== 'normal')
                     if (alertBatches.length === 0) return null
 
@@ -393,8 +393,8 @@ export function InventoryReports() {
                                   <span className="text-muted-foreground">Expires: {batch.expiryDate}</span>
                                   <Badge className={
                                     status === 'expired' ? 'bg-red-100 text-red-800' :
-                                    status === 'critical' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-yellow-100 text-yellow-800'
+                                      status === 'critical' ? 'bg-orange-100 text-orange-800' :
+                                        'bg-yellow-100 text-yellow-800'
                                   }>
                                     {status}
                                   </Badge>

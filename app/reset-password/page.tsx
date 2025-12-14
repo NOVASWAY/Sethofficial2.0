@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     setError(null)
 
     try {
-      const response = await authAPI.verifyPasswordResetToken(tokenValue)
+      const response: any = await authAPI.verifyPasswordResetToken(tokenValue)
       if (response.success && response.data?.valid) {
         setTokenValid(true)
       } else {
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
     setError(null)
 
     try {
-      const response = await authAPI.resetPassword(token, password)
+      const response: any = await authAPI.resetPassword(token, password)
       if (response.success) {
         setSuccess(true)
         setTimeout(() => {

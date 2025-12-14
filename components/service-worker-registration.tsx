@@ -8,9 +8,15 @@ import { registerServiceWorker } from '@/lib/service-worker'
  */
 export function ServiceWorkerRegistration() {
   useEffect(() => {
-    registerServiceWorker().catch((error) => {
-      console.warn('Service Worker registration failed:', error)
-    })
+    // Unregister service workers to resolve "white screen" / hard refresh issues
+    // caused by stale caching in development/rapid iteration.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister()
+        }
+      })
+    }
   }, [])
 
   return null

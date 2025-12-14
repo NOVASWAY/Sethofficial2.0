@@ -43,7 +43,7 @@ async function apiCall<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
-  
+
   const headers = {
     'Content-Type': 'application/json',
     ...getAuthorizationHeader(),
@@ -94,22 +94,22 @@ export const authAPI = {
    * POST /auth/login
    */
   login: async (username: string, password: string) => {
-    const response = await apiCall<{ 
-      success: boolean; 
-      data: { 
-        token?: string; 
-        user: any; 
+    const response = await apiCall<{
+      success: boolean;
+      data: {
+        token?: string;
+        user: any;
         refresh_token?: string;
         mfa_required?: boolean;
         mfa_session_token?: string;
-      }; 
-      message?: string; 
-      error?: string 
+      };
+      message?: string;
+      error?: string
     }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
-    
+
     // Check if response has success: false (shouldn't happen if response.ok, but just in case)
     if (!response.success || !response.data) {
       throw new APIError(
@@ -118,7 +118,7 @@ export const authAPI = {
         'LOGIN_FAILED'
       )
     }
-    
+
     return response.data
   },
 
@@ -211,12 +211,15 @@ export const mfaAPI = {
    */
   getStatus: async () => {
     return apiCall<{
-      mfa_enabled: boolean;
-      mfa_method: string | null;
-      totp_secret_configured: boolean;
-      phone_number: string | null;
-      email_verified: boolean;
-      recovery_codes_count: number;
+      success: boolean;
+      data: {
+        mfa_enabled: boolean;
+        mfa_method: string | null;
+        totp_secret_configured: boolean;
+        phone_number: string | null;
+        email_verified: boolean;
+        recovery_codes_count: number;
+      }
     }>('/mfa/status')
   },
 
@@ -226,9 +229,13 @@ export const mfaAPI = {
    */
   setupTotp: async () => {
     return apiCall<{
-      secret: string;
-      qr_code_url: string;
-      backup_codes: string[];
+      success: boolean;
+      data: {
+        secret: string;
+        qr_code_url: string;
+        backup_codes: string[];
+      };
+      message?: string;
     }>('/mfa/setup/totp', {
       method: 'POST',
     })
@@ -240,9 +247,13 @@ export const mfaAPI = {
    */
   verify: async (sessionToken: string, code: string, method: string = 'totp') => {
     return apiCall<{
-      user: any;
-      token: string;
-      refresh_token: string;
+      success: boolean;
+      data: {
+        user: any;
+        token: string;
+        refresh_token: string;
+      };
+      message?: string;
     }>('/mfa/verify', {
       method: 'POST',
       body: JSON.stringify({
@@ -269,9 +280,12 @@ export const mfaAPI = {
    */
   getSession: async (sessionToken: string) => {
     return apiCall<{
-      session_token: string;
-      mfa_verified: boolean;
-      expires_at: string;
+      success: boolean;
+      data: {
+        session_token: string;
+        mfa_verified: boolean;
+        expires_at: string;
+      }
     }>(`/mfa/session/${sessionToken}`)
   },
 }
@@ -285,9 +299,10 @@ export const patientAPI = {
    * Get all patients
    * GET /patients
    */
-  getAll: async () => {
-    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any }>('/patients')
-    return response.data || []
+  getAll: async (params?: { page?: number; per_page?: number }) => {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any; pagination?: any }>(`/patients${query}`)
+    return response
   },
 
   /**
@@ -348,7 +363,7 @@ export const patientAPI = {
    * POST /api/patients/import
    */
   bulkImport: async (patients: any[]) => {
-    const response = await apiCall<{ 
+    const response = await apiCall<{
       success: boolean
       data: {
         imported: number
@@ -369,7 +384,7 @@ export const patientAPI = {
    * POST /api/patients/import/batch
    */
   batchImport: async (patients: any[], batchSize: number = 100) => {
-    const response = await apiCall<{ 
+    const response = await apiCall<{
       success: boolean
       data: {
         total_records: number
@@ -392,9 +407,9 @@ export const patientAPI = {
       error?: string
     }>('/patients/import/batch', {
       method: 'POST',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         patients,
-        batch_size: batchSize 
+        batch_size: batchSize
       }),
     })
     return response.data
@@ -405,7 +420,7 @@ export const patientAPI = {
    * GET /api/patients/import/history
    */
   getImportHistory: async (page: number = 1, perPage: number = 20) => {
-    const response = await apiCall<{ 
+    const response = await apiCall<{
       success: boolean
       data: {
         sessions: any[]
@@ -667,10 +682,11 @@ export const pharmacyAPI = {
    * Receive new stock
    * POST /medicines/:id/receive
    */
-  receiveStock: async (id: string, stockData: any) => {
-    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/medicines/${id}/receive`, {
+  receiveStock: async (stockData: { medicine_id: string;[key: string]: any }) => {
+    const { medicine_id, ...data } = stockData
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/medicines/${medicine_id}/receive`, {
       method: 'POST',
-      body: JSON.stringify(stockData),
+      body: JSON.stringify(data),
     })
     return response.data
   },
@@ -702,6 +718,17 @@ export const pharmacyAPI = {
   getStockAlerts: async (params?: { days?: number }) => {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/inventory/alerts${query}`)
+    return response.data
+  },
+
+  /**
+   * Get stock movements
+   * GET /inventory/movements
+   */
+  getStockMovements: async (medicineId: string, params?: { page?: number; per_page?: number }) => {
+    const queryParams = { ...params, medicine_id: medicineId }
+    const query = `?${new URLSearchParams(queryParams as any).toString()}`
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/inventory/movements${query}`)
     return response.data
   },
 }
@@ -890,6 +917,18 @@ export const appointmentAPI = {
   },
 
   /**
+   * Cancel appointment
+   * POST /appointments/:id/cancel
+   */
+  cancel: async (id: string, reason: string) => {
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/appointments/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    })
+    return response.data
+  },
+
+  /**
    * Delete appointment
    * DELETE /appointments/:id
    */
@@ -927,7 +966,7 @@ export const shaClaimAPI = {
    * POST /api/sha-claims
    */
   create: async (claimData: any) => {
-    const response = await apiCall<{ 
+    const response = await apiCall<{
       success: boolean
       data: any
       message?: string
@@ -1634,6 +1673,7 @@ export interface UpdateLabTestOrder {
 export interface LabTestResult {
   id: string
   order_id: string
+  patient_name?: string
   result_number: string
   test_type: string
   test_code?: string
@@ -1903,18 +1943,18 @@ export const uploadAPI = {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('user_id', userId)
-    
+
     const response = await fetch(`${API_BASE_URL}/upload/avatar`, {
       method: 'POST',
       headers: getAuthorizationHeader(),
       body: formData,
     })
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
       throw new APIError(error.error || error.message || 'Upload failed', response.status)
     }
-    
+
     return await response.json()
   },
 
@@ -1930,18 +1970,18 @@ export const uploadAPI = {
     if (metadata.document_type) {
       formData.append('document_type', metadata.document_type)
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/upload/document`, {
       method: 'POST',
       headers: getAuthorizationHeader(),
       body: formData,
     })
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
       throw new APIError(error.error || error.message || 'Upload failed', response.status)
     }
-    
+
     return await response.json()
   },
 
@@ -2067,6 +2107,10 @@ export const apiClient = {
   getToken: () => {
     return localStorage.getItem('auth_token')
   },
+  get: <T>(endpoint: string, options?: RequestInit) => apiCall<T>(endpoint, { ...options, method: 'GET' }),
+  post: <T>(endpoint: string, data?: any, options?: RequestInit) => apiCall<T>(endpoint, { ...options, method: 'POST', body: JSON.stringify(data) }),
+  put: <T>(endpoint: string, data?: any, options?: RequestInit) => apiCall<T>(endpoint, { ...options, method: 'PUT', body: JSON.stringify(data) }),
+  delete: <T>(endpoint: string, options?: RequestInit) => apiCall<T>(endpoint, { ...options, method: 'DELETE' }),
 }
 
 // Export all APIs
@@ -2100,10 +2144,10 @@ export const notificationsAPI = {
     const params = new URLSearchParams()
     if (options?.unreadOnly) params.append('unread_only', 'true')
     if (options?.limit) params.append('limit', options.limit.toString())
-    
+
     const queryString = params.toString()
     const endpoint = `/notifications${queryString ? `?${queryString}` : ''}`
-    
+
     const response = await apiCall<{ success: boolean; data: InternalNotification[]; message?: string; error?: string }>(endpoint)
     return response.data || []
   },
@@ -2211,10 +2255,10 @@ export const tasksAPI = {
     if (options?.priority) params.append('priority', options.priority)
     if (options?.taskType) params.append('task_type', options.taskType)
     if (options?.limit) params.append('limit', options.limit.toString())
-    
+
     const queryString = params.toString()
     const endpoint = `/tasks${queryString ? `?${queryString}` : ''}`
-    
+
     const response = await apiCall<{ success: boolean; data: Task[]; message?: string; error?: string }>(endpoint)
     return response.data || []
   },
@@ -2325,10 +2369,10 @@ export const announcementsAPI = {
     const params = new URLSearchParams()
     if (options?.includeAcknowledged) params.append('include_acknowledged', 'true')
     if (options?.limit) params.append('limit', options.limit.toString())
-    
+
     const queryString = params.toString()
     const endpoint = `/announcements${queryString ? `?${queryString}` : ''}`
-    
+
     const response = await apiCall<{ success: boolean; data: Announcement[]; message?: string; error?: string }>(endpoint)
     return response.data || []
   },
@@ -2416,5 +2460,5 @@ export default {
 }
 
 // Export error class
-export { APIError }
+export { apiCall, APIError }
 

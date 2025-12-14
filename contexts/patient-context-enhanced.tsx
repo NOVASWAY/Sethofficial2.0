@@ -12,6 +12,7 @@ export interface Patient {
   date_of_birth: string
   gender: string
   phone: string
+  address?: string
   location?: string
   emergency_contact?: string
   emergency_phone?: string
@@ -19,7 +20,9 @@ export interface Patient {
   allergies?: string[]
   medical_history?: string
   insurance_type?: string
+  insurance_provider?: string
   insurance_number?: string
+  status: 'active' | 'inactive' | 'archived'
   created_at: string
   updated_at: string
 }
@@ -28,24 +31,24 @@ interface PatientContextType {
   patients: Patient[]
   loading: boolean
   error: string | null
-  
+
   // CRUD Operations
   addPatient: (patient: Omit<Patient, 'id' | 'created_at' | 'updated_at'>) => Promise<Patient>
   updatePatient: (id: string, updates: Partial<Patient>) => Promise<Patient>
   deletePatient: (id: string) => Promise<void>
-  
+
   // Search & Query
   searchPatients: (query: string) => Promise<Patient[]>
   getPatientById: (id: string) => Patient | undefined
   getPatientByNumber: (number: string) => Patient | undefined
-  
+
   // Bulk Operations
   importPatients: (patients: Omit<Patient, 'id' | 'created_at' | 'updated_at'>[]) => Promise<Patient[]>
   exportPatients: () => string
-  
+
   // Persistence
   loadPatients: () => Promise<void>
-  
+
   // Statistics
   getTotalPatients: () => number
   getActivePatients: () => number
@@ -58,18 +61,13 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Load patients from API on mount
-  useEffect(() => {
-    loadPatients()
-  }, [loadPatients])
-
-  // Load patients from backend API
-  const loadPatients = async () => {
+  // Load patients from backend API (defined first with useCallback)
+  const loadPatients = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const response = await patientAPI.getAll()
-      setPatients(response)
+      setPatients(response.data || [])
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load patients'
       setError(errorMessage)
@@ -77,17 +75,22 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  // Load patients from API on mount
+  useEffect(() => {
+    loadPatients()
+  }, [loadPatients])
 
   // Add Patient (memoized)
   const addPatient = useCallback(async (patientData: Omit<Patient, 'id' | 'created_at' | 'updated_at'>): Promise<Patient> => {
     try {
       setError(null)
       const response = await patientAPI.create(patientData)
-      
+
       // Reload patients to get the updated list
       await loadPatients()
-      
+
       return response
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add patient'
@@ -101,10 +104,10 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
     try {
       setError(null)
       const response = await patientAPI.update(id, updates)
-      
+
       // Reload patients to get the updated list
       await loadPatients()
-      
+
       return response
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update patient'
@@ -118,7 +121,7 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
     try {
       setError(null)
       await patientAPI.delete(id)
-      
+
       // Reload patients to get the updated list
       await loadPatients()
     } catch (err) {
@@ -162,24 +165,24 @@ export function PatientProviderEnhanced({ children }: { children: ReactNode }) {
       setError(null)
       // bulkImport now returns response.data, which contains { imported, failed, errors }
       const importResult = await patientAPI.bulkImport(patientsData)
-      
+
       if (!importResult) {
         throw new Error('Import failed - no response from server')
       }
-      
+
       // Log import results
       if (importResult.errors && importResult.errors.length > 0) {
         console.warn('Some patients failed to import:', importResult.errors)
       }
-      
+
       // Reload patients from backend to get the updated list with actual IDs
       await loadPatients()
-      
+
       // Return the imported patients from the reloaded list
       // Match by patient_number since we just imported them
       const importedNumbers = patientsData.map(p => p.patient_number)
       const imported = patients.filter(p => importedNumbers.includes(p.patient_number))
-      
+
       return imported
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to import patients'

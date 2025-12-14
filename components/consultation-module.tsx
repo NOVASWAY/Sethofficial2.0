@@ -10,8 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { 
-  Stethoscope, Activity, FileText, Pill, Calendar, User, 
+import {
+  Stethoscope, Activity, FileText, Pill, Calendar, User,
   Heart, Thermometer, Scale, Ruler, Plus, X, Save, ArrowRight,
   FlaskConical
 } from 'lucide-react'
@@ -67,7 +67,7 @@ export function ConsultationModule() {
   const { toast } = useToast()
   const router = useRouter()
   const { user } = useAuth()
-  
+
   // Get search params from URL (using window.location as fallback for Next.js compatibility)
   const getSearchParams = (): URLSearchParams | null => {
     if (typeof window !== 'undefined') {
@@ -121,7 +121,7 @@ export function ConsultationModule() {
   const [icd11SearchTerm, setIcd11SearchTerm] = useState('')
   const [showIcd11Suggestions, setShowIcd11Suggestions] = useState(false)
   const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null)
-  
+
   const [consultationData, setConsultationData] = useState({
     patient_id: '',
     patient_name: '',
@@ -170,7 +170,7 @@ export function ConsultationModule() {
     // Try to get patient ID from URL params first
     const searchParams = getSearchParams()
     const patientIdFromUrl = searchParams?.get('patient_id') || searchParams?.get('patientId')
-    
+
     // If not in URL, try to get from consultationData (if already set)
     const patientId = patientIdFromUrl || consultationData.patient_id
 
@@ -182,7 +182,7 @@ export function ConsultationModule() {
     try {
       setLoadingPatient(true)
       const patientData = await patientAPI.getById(patientId)
-      
+
       if (patientData && patientData.id) {
         // Calculate age from date of birth
         let age: number | null = null
@@ -223,7 +223,7 @@ export function ConsultationModule() {
   const loadMedicines = async () => {
     try {
       const medicinesData = await pharmacyAPI.getMedicines({ page: 1, per_page: 200 })
-      
+
       if (medicinesData && medicinesData.data && Array.isArray(medicinesData.data)) {
         const transformed = medicinesData.data.map((med: any) => ({
           id: med.id,
@@ -246,7 +246,7 @@ export function ConsultationModule() {
     try {
       setLoading(true)
       const servicesData = await serviceCatalogAPI.getAll()
-      
+
       if (servicesData && Array.isArray(servicesData)) {
         // Transform API response to match Service interface
         const transformed = servicesData.map((service: any) => ({
@@ -376,8 +376,8 @@ export function ConsultationModule() {
     setConsultationData(prev => ({
       ...prev,
       diagnosis: diagnosis.name,
-      icd_11_codes: prev.icd_11_codes 
-        ? `${prev.icd_11_codes}, ${diagnosis.code}` 
+      icd_11_codes: prev.icd_11_codes
+        ? `${prev.icd_11_codes}, ${diagnosis.code}`
         : diagnosis.code
     }))
     setIcd11SearchTerm('')
@@ -407,10 +407,10 @@ export function ConsultationModule() {
     }
 
     // Check stock availability if medicine is from catalog
-    const selectedMedicine = newPrescription.medication_id 
+    const selectedMedicine = newPrescription.medication_id
       ? medicines.find(m => m.id === newPrescription.medication_id)
       : null
-    
+
     if (selectedMedicine && selectedMedicine.current_stock !== undefined) {
       if (selectedMedicine.current_stock <= 0) {
         toast({
@@ -525,6 +525,19 @@ export function ConsultationModule() {
         return
       }
 
+      // ZERO TRUST GUARD: Ensure only clinicians/doctors/admins can finalize consultations
+      const allowedRoles = ['clinician', 'doctor', 'admin']
+      if (user && !allowedRoles.includes(user.role)) {
+        toast({
+          variant: 'destructive',
+          title: 'Action Denied',
+          description: `Your role (${user.role}) is not authorized to finalize consultations and bill patients. Please refer to a clinician.`,
+          duration: 8000
+        })
+        setLoading(false)
+        return
+      }
+
       const consultationNumber = generateConsultationNumber()
 
       // Prepare consultation data for workflow
@@ -610,7 +623,7 @@ export function ConsultationModule() {
       let consultationId: string | null = null
       try {
         const apiResponse = await consultationAPI.create(consultationPayload)
-        
+
         // Update workflow data with API response ID if available
         if (apiResponse && apiResponse.id) {
           consultationId = apiResponse.id
@@ -701,7 +714,7 @@ export function ConsultationModule() {
             doctor_id: consultationData.clinician_id || user?.id || '',
             consultation_id: consultationId, // Link to consultation
             medicines: medicinesArray,
-            instructions: prescriptions.length === 1 
+            instructions: prescriptions.length === 1
               ? (prescriptions[0].instructions || `Take ${prescriptions[0].medication_name} ${prescriptions[0].dosage} ${prescriptions[0].frequency} for ${prescriptions[0].duration_days} days`)
               : `Multiple medications prescribed. See individual medication instructions.`,
             status: "active"
@@ -729,7 +742,7 @@ export function ConsultationModule() {
                 console.warn('Failed to log prescription activity:', error)
               }
             }
-            
+
             toast({
               title: 'Prescriptions Created Successfully',
               description: `${prescriptions.length} medication(s) have been saved as a prescription and linked to this consultation.`,
@@ -740,7 +753,7 @@ export function ConsultationModule() {
           toast({
             variant: 'error',
             title: 'Prescription Creation Failed',
-            description: prescriptionError instanceof Error 
+            description: prescriptionError instanceof Error
               ? `Consultation was saved, but prescriptions failed to save: ${prescriptionError.message}. Please create them manually from the prescriptions page.`
               : 'Consultation was saved, but prescriptions failed to save. Please create them manually from the prescriptions page.',
           })
@@ -808,712 +821,711 @@ export function ConsultationModule() {
         {/* Main Consultation Area - 2 columns */}
         <div className="lg:col-span-2 space-y-6">
 
-      {/* Patient Info Banner */}
-      <Card className="bg-primary/5">
-        <CardContent className="pt-6">
-          {loadingPatient ? (
-            <div className="text-center py-4">
-              <p className="text-muted-foreground">Loading patient information...</p>
-            </div>
-          ) : patientInfo ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-muted-foreground">Patient</Label>
-                <p className="font-semibold">{patientInfo.name || 'Not specified'}</p>
-                <p className="text-sm text-muted-foreground">{patientInfo.patientNumber || consultationData.patient_id || 'No patient number'}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Age / Gender</Label>
-                <p className="font-semibold">
-                  {patientInfo.age !== null ? `${patientInfo.age} years` : 'Age not available'} / {patientInfo.gender || 'Unknown'}
-                </p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Insurance</Label>
-                <Badge variant="outline">
-                  {patientInfo.insuranceType ? patientInfo.insuranceType.toUpperCase() : 'Not specified'}
-                </Badge>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Visit Date</Label>
-                <p className="font-semibold">{new Date().toLocaleDateString()}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-muted-foreground">Patient</Label>
-                <p className="font-semibold text-muted-foreground">No patient selected</p>
-                <p className="text-sm text-muted-foreground">
-                  {consultationData.patient_id ? `ID: ${consultationData.patient_id}` : 'Please select a patient'}
-                </p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Age / Gender</Label>
-                <p className="font-semibold text-muted-foreground">Not available</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Insurance</Label>
-                <Badge variant="outline">Not specified</Badge>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Visit Date</Label>
-                <p className="font-semibold">{new Date().toLocaleDateString()}</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="vitals">
-            <Activity className="mr-2 h-4 w-4" />
-            Vitals
-          </TabsTrigger>
-          <TabsTrigger value="examination">
-            <Stethoscope className="mr-2 h-4 w-4" />
-            Examination
-          </TabsTrigger>
-          <TabsTrigger value="diagnosis">
-            <FileText className="mr-2 h-4 w-4" />
-            Diagnosis
-          </TabsTrigger>
-          <TabsTrigger value="prescriptions">
-            <Pill className="mr-2 h-4 w-4" />
-            Prescriptions
-          </TabsTrigger>
-          <TabsTrigger value="lab-tests">
-            <FlaskConical className="mr-2 h-4 w-4" />
-            Lab Tests
-          </TabsTrigger>
-          <TabsTrigger value="services">
-            <Heart className="mr-2 h-4 w-4" />
-            Services
-          </TabsTrigger>
-          <TabsTrigger value="notes">
-            <FileText className="mr-2 h-4 w-4" />
-            Notes
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Vital Signs Tab */}
-        <TabsContent value="vitals" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Vital Signs</CardTitle>
-              <CardDescription>Record patient vital signs</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="temperature">
-                    <Thermometer className="inline h-4 w-4 mr-1" />
-                    Temperature (°C)
-                  </Label>
-                  <Input
-                    id="temperature"
-                    type="number"
-                    step="0.1"
-                    placeholder="36.5"
-                    value={vitalSigns.temperature || ''}
-                    onChange={(e) => handleVitalSignsChange('temperature', parseFloat(e.target.value))}
-                  />
+          {/* Patient Info Banner */}
+          <Card className="bg-primary/5">
+            <CardContent className="pt-6">
+              {loadingPatient ? (
+                <div className="text-center py-4">
+                  <p className="text-muted-foreground">Loading patient information...</p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="blood_pressure">
-                    <Heart className="inline h-4 w-4 mr-1" />
-                    Blood Pressure (mmHg)
-                  </Label>
-                  <Input
-                    id="blood_pressure"
-                    placeholder="120/80"
-                    value={vitalSigns.blood_pressure}
-                    onChange={(e) => handleVitalSignsChange('blood_pressure', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pulse">
-                    <Activity className="inline h-4 w-4 mr-1" />
-                    Pulse (bpm)
-                  </Label>
-                  <Input
-                    id="pulse"
-                    type="number"
-                    placeholder="72"
-                    value={vitalSigns.pulse || ''}
-                    onChange={(e) => handleVitalSignsChange('pulse', parseInt(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="weight">
-                    <Scale className="inline h-4 w-4 mr-1" />
-                    Weight (kg)
-                  </Label>
-                  <Input
-                    id="weight"
-                    type="number"
-                    step="0.1"
-                    placeholder="70"
-                    value={vitalSigns.weight || ''}
-                    onChange={(e) => handleVitalSignsChange('weight', parseFloat(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="height">
-                    <Ruler className="inline h-4 w-4 mr-1" />
-                    Height (cm)
-                  </Label>
-                  <Input
-                    id="height"
-                    type="number"
-                    placeholder="170"
-                    value={vitalSigns.height || ''}
-                    onChange={(e) => handleVitalSignsChange('height', parseFloat(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>BMI</Label>
-                  <div className="flex items-center h-10 px-3 border rounded-md bg-muted">
-                    <span className="font-semibold">{calculateBMI()}</span>
+              ) : patientInfo ? (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Patient</Label>
+                    <p className="font-semibold">{patientInfo.name || 'Not specified'}</p>
+                    <p className="text-sm text-muted-foreground">{patientInfo.patientNumber || consultationData.patient_id || 'No patient number'}</p>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="respiratory_rate">Respiratory Rate (bpm)</Label>
-                  <Input
-                    id="respiratory_rate"
-                    type="number"
-                    placeholder="16"
-                    value={vitalSigns.respiratory_rate || ''}
-                    onChange={(e) => handleVitalSignsChange('respiratory_rate', parseInt(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="oxygen_saturation">SpO2 (%)</Label>
-                  <Input
-                    id="oxygen_saturation"
-                    type="number"
-                    step="0.1"
-                    placeholder="98"
-                    value={vitalSigns.oxygen_saturation || ''}
-                    onChange={(e) => handleVitalSignsChange('oxygen_saturation', parseFloat(e.target.value))}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Examination Tab */}
-        <TabsContent value="examination" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Clinical Examination</CardTitle>
-              <CardDescription>Record examination findings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="chief_complaint">Chief Complaint *</Label>
-                <Textarea
-                  id="chief_complaint"
-                  name="chief_complaint"
-                  placeholder="What brings the patient in today?"
-                  value={consultationData.chief_complaint}
-                  onChange={handleConsultationChange}
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="physical_examination">Physical Examination</Label>
-                <Textarea
-                  id="physical_examination"
-                  name="physical_examination"
-                  placeholder="General appearance, systems examination..."
-                  value={consultationData.physical_examination}
-                  onChange={handleConsultationChange}
-                  rows={6}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Diagnosis Tab */}
-        <TabsContent value="diagnosis" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Diagnosis & Treatment Plan</CardTitle>
-              <CardDescription>Record diagnosis and treatment recommendations</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="diagnosis">Diagnosis *</Label>
-                <Textarea
-                  id="diagnosis"
-                  name="diagnosis"
-                  placeholder="Clinical diagnosis..."
-                  value={consultationData.diagnosis}
-                  onChange={handleConsultationChange}
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="icd_11_codes">ICD-11 Codes</Label>
-                <div className="relative">
-                  <Input
-                    id="icd_11_codes"
-                    name="icd_11_codes"
-                    placeholder="Search ICD-11 codes (e.g., 1A00, Malaria, or type diagnosis)..."
-                    value={icd11SearchTerm || consultationData.icd_11_codes}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setIcd11SearchTerm(value)
-                      // Also allow manual entry
-                      if (!filteredICD11Codes.find(d => d.code === value || d.name === value)) {
-                        setConsultationData(prev => ({ ...prev, icd_11_codes: value }))
-                      }
-                    }}
-                    onFocus={() => {
-                      if (consultationData.diagnosis || icd11SearchTerm) {
-                        setShowIcd11Suggestions(true)
-                      }
-                    }}
-                    onBlur={() => {
-                      // Delay hiding suggestions to allow click
-                      setTimeout(() => setShowIcd11Suggestions(false), 200)
-                    }}
-                  />
-                  {(showIcd11Suggestions || icd11SearchTerm) && filteredICD11Codes.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
-                      <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
-                        ICD-11 Suggestions
-                      </div>
-                      {filteredICD11Codes.map((diagnosis) => (
-                        <div
-                          key={diagnosis.code}
-                          className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
-                          onClick={() => handleICD11Select(diagnosis)}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium text-sm">{diagnosis.code}</p>
-                              <p className="text-sm">{diagnosis.name}</p>
-                              {diagnosis.common && (
-                                <Badge variant="outline" className="text-xs mt-1">Common</Badge>
-                              )}
-                            </div>
-                            <Badge variant="secondary" className="text-xs">
-                              {diagnosis.category}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {consultationData.icd_11_codes && (
-                  <p className="text-xs text-muted-foreground">
-                    Selected codes: {consultationData.icd_11_codes}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="treatment_plan">Treatment Plan</Label>
-                <Textarea
-                  id="treatment_plan"
-                  name="treatment_plan"
-                  placeholder="Treatment recommendations, lifestyle advice..."
-                  value={consultationData.treatment_plan}
-                  onChange={handleConsultationChange}
-                  rows={4}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="follow_up_date">Follow-up Date</Label>
-                <Input
-                  id="follow_up_date"
-                  name="follow_up_date"
-                  type="date"
-                  value={consultationData.follow_up_date}
-                  onChange={handleConsultationChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes</Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  placeholder="Any additional observations or instructions..."
-                  value={consultationData.notes}
-                  onChange={handleConsultationChange}
-                  rows={3}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Prescriptions Tab */}
-        <TabsContent value="prescriptions" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Prescriptions</CardTitle>
-              <CardDescription>Add medications to prescribe</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Medication Name *</Label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Search or type medication name..."
-                      value={medicineSearchTerm || newPrescription.medication_name}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        setMedicineSearchTerm(value)
-                        // Allow manual entry if not selecting from dropdown
-                        if (!medicines.find(m => m.name.toLowerCase() === value.toLowerCase())) {
-                          setNewPrescription({...newPrescription, medication_name: value, medication_id: ''})
-                        }
-                      }}
-                      onFocus={() => {
-                        // Show dropdown when focused
-                        if (medicineSearchTerm && filteredMedicines.length > 0) {
-                          // Dropdown will show via Select component
-                        }
-                      }}
-                    />
-                    {medicineSearchTerm && filteredMedicines.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
-                        {filteredMedicines.map((medicine) => (
-                          <div
-                            key={medicine.id}
-                            className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
-                            onClick={() => {
-                              handleMedicineSelect(medicine.id)
-                            }}
-                          >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="font-medium">{medicine.name}</p>
-                                {medicine.generic_name && (
-                                  <p className="text-sm text-muted-foreground">{medicine.generic_name}</p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                  {medicine.strength} {medicine.dosage_form}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                {medicine.current_stock !== undefined && (
-                                  <Badge 
-                                    variant={medicine.current_stock === 0 ? "destructive" : medicine.current_stock < 10 ? "default" : "outline"}
-                                    className="text-xs"
-                                  >
-                                    {medicine.current_stock === 0 ? 'Out of Stock' : 
-                                     medicine.current_stock < 10 ? `Low Stock (${medicine.current_stock})` : 
-                                     `In Stock (${medicine.current_stock})`}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {newPrescription.medication_id && (
-                    <p className="text-xs text-muted-foreground">
-                      Selected from catalog. Stock: {
-                        medicines.find(m => m.id === newPrescription.medication_id)?.current_stock ?? 'Unknown'
-                      } units
+                  <div>
+                    <Label className="text-muted-foreground">Age / Gender</Label>
+                    <p className="font-semibold">
+                      {patientInfo.age !== null ? `${patientInfo.age} years` : 'Age not available'} / {patientInfo.gender || 'Unknown'}
                     </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Dosage *</Label>
-                  <Input
-                    placeholder="e.g., 500mg"
-                    value={newPrescription.dosage}
-                    onChange={(e) => setNewPrescription({...newPrescription, dosage: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Frequency *</Label>
-                  <Select 
-                    value={newPrescription.frequency}
-                    onValueChange={(value) => setNewPrescription({...newPrescription, frequency: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Once daily">Once daily</SelectItem>
-                      <SelectItem value="Twice daily">Twice daily</SelectItem>
-                      <SelectItem value="Three times daily">Three times daily</SelectItem>
-                      <SelectItem value="Four times daily">Four times daily</SelectItem>
-                      <SelectItem value="Every 8 hours">Every 8 hours</SelectItem>
-                      <SelectItem value="As needed">As needed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Duration (days)</Label>
-                  <Input
-                    type="number"
-                    value={newPrescription.duration_days}
-                    onChange={(e) => setNewPrescription({...newPrescription, duration_days: parseInt(e.target.value)})}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Instructions</Label>
-                  <Textarea
-                    placeholder="Special instructions..."
-                    value={newPrescription.instructions}
-                    onChange={(e) => setNewPrescription({...newPrescription, instructions: e.target.value})}
-                    rows={2}
-                  />
-                </div>
-              </div>
-              <Button onClick={addPrescription} className="w-full">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Prescription
-              </Button>
-
-              {prescriptions.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-2">
-                    <Label>Prescribed Medications ({prescriptions.length})</Label>
-                    {prescriptions.map((rx, index) => (
-                      <Card key={index}>
-                        <CardContent className="pt-4">
-                          <div className="flex justify-between items-start">
-                            <div className="space-y-1">
-                              <p className="font-semibold">{rx.medication_name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {rx.dosage} - {rx.frequency} for {rx.duration_days} days
-                              </p>
-                              {rx.instructions && (
-                                <p className="text-sm italic">{rx.instructions}</p>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removePrescription(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
                   </div>
-                </>
+                  <div>
+                    <Label className="text-muted-foreground">Insurance</Label>
+                    <Badge variant="outline">
+                      {patientInfo.insuranceType ? patientInfo.insuranceType.toUpperCase() : 'Not specified'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Visit Date</Label>
+                    <p className="font-semibold">{new Date().toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Patient</Label>
+                    <p className="font-semibold text-muted-foreground">No patient selected</p>
+                    <p className="text-sm text-muted-foreground">
+                      {consultationData.patient_id ? `ID: ${consultationData.patient_id}` : 'Please select a patient'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Age / Gender</Label>
+                    <p className="font-semibold text-muted-foreground">Not available</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Insurance</Label>
+                    <Badge variant="outline">Not specified</Badge>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Visit Date</Label>
+                    <p className="font-semibold">{new Date().toLocaleDateString()}</p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Lab Tests Tab */}
-        <TabsContent value="lab-tests" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lab Test Orders</CardTitle>
-              <CardDescription>Order laboratory tests for this patient</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Test Type *</Label>
-                  <Select
-                    value={newLabOrder.test_type}
-                    onValueChange={(value) => setNewLabOrder({...newLabOrder, test_type: value, test_name: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select test type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CBC">Complete Blood Count (CBC)</SelectItem>
-                      <SelectItem value="Urinalysis">Urinalysis</SelectItem>
-                      <SelectItem value="Blood Glucose">Blood Glucose</SelectItem>
-                      <SelectItem value="Lipid Profile">Lipid Profile</SelectItem>
-                      <SelectItem value="Liver Function">Liver Function Test</SelectItem>
-                      <SelectItem value="Kidney Function">Kidney Function Test</SelectItem>
-                      <SelectItem value="Thyroid Function">Thyroid Function Test</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Test Name *</Label>
-                  <Input
-                    placeholder="e.g., Complete Blood Count"
-                    value={newLabOrder.test_name}
-                    onChange={(e) => setNewLabOrder({...newLabOrder, test_name: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Priority</Label>
-                  <Select
-                    value={newLabOrder.priority}
-                    onValueChange={(value: 'routine' | 'urgent' | 'stat') => setNewLabOrder({...newLabOrder, priority: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="routine">Routine</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                      <SelectItem value="stat">STAT</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Sample Type</Label>
-                  <Select
-                    value={newLabOrder.sample_type}
-                    onValueChange={(value) => setNewLabOrder({...newLabOrder, sample_type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select sample type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="blood">Blood</SelectItem>
-                      <SelectItem value="urine">Urine</SelectItem>
-                      <SelectItem value="stool">Stool</SelectItem>
-                      <SelectItem value="sputum">Sputum</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Clinical Indication</Label>
-                  <Textarea
-                    placeholder="Reason for ordering this test..."
-                    value={newLabOrder.clinical_indication}
-                    onChange={(e) => setNewLabOrder({...newLabOrder, clinical_indication: e.target.value})}
-                    rows={2}
-                  />
-                </div>
-              </div>
-              <Button onClick={addLabOrder} className="w-full">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Lab Test Order
-              </Button>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-7">
+              <TabsTrigger value="vitals">
+                <Activity className="mr-2 h-4 w-4" />
+                Vitals
+              </TabsTrigger>
+              <TabsTrigger value="examination">
+                <Stethoscope className="mr-2 h-4 w-4" />
+                Examination
+              </TabsTrigger>
+              <TabsTrigger value="diagnosis">
+                <FileText className="mr-2 h-4 w-4" />
+                Diagnosis
+              </TabsTrigger>
+              <TabsTrigger value="prescriptions">
+                <Pill className="mr-2 h-4 w-4" />
+                Prescriptions
+              </TabsTrigger>
+              <TabsTrigger value="lab-tests">
+                <FlaskConical className="mr-2 h-4 w-4" />
+                Lab Tests
+              </TabsTrigger>
+              <TabsTrigger value="services">
+                <Heart className="mr-2 h-4 w-4" />
+                Services
+              </TabsTrigger>
+              <TabsTrigger value="notes">
+                <FileText className="mr-2 h-4 w-4" />
+                Notes
+              </TabsTrigger>
+            </TabsList>
 
-              {labOrders.length > 0 && (
-                <>
-                  <Separator />
+            {/* Vital Signs Tab */}
+            <TabsContent value="vitals" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vital Signs</CardTitle>
+                  <CardDescription>Record patient vital signs</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="temperature">
+                        <Thermometer className="inline h-4 w-4 mr-1" />
+                        Temperature (°C)
+                      </Label>
+                      <Input
+                        id="temperature"
+                        type="number"
+                        step="0.1"
+                        placeholder="36.5"
+                        value={vitalSigns.temperature || ''}
+                        onChange={(e) => handleVitalSignsChange('temperature', parseFloat(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="blood_pressure">
+                        <Heart className="inline h-4 w-4 mr-1" />
+                        Blood Pressure (mmHg)
+                      </Label>
+                      <Input
+                        id="blood_pressure"
+                        placeholder="120/80"
+                        value={vitalSigns.blood_pressure}
+                        onChange={(e) => handleVitalSignsChange('blood_pressure', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pulse">
+                        <Activity className="inline h-4 w-4 mr-1" />
+                        Pulse (bpm)
+                      </Label>
+                      <Input
+                        id="pulse"
+                        type="number"
+                        placeholder="72"
+                        value={vitalSigns.pulse || ''}
+                        onChange={(e) => handleVitalSignsChange('pulse', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="weight">
+                        <Scale className="inline h-4 w-4 mr-1" />
+                        Weight (kg)
+                      </Label>
+                      <Input
+                        id="weight"
+                        type="number"
+                        step="0.1"
+                        placeholder="70"
+                        value={vitalSigns.weight || ''}
+                        onChange={(e) => handleVitalSignsChange('weight', parseFloat(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="height">
+                        <Ruler className="inline h-4 w-4 mr-1" />
+                        Height (cm)
+                      </Label>
+                      <Input
+                        id="height"
+                        type="number"
+                        placeholder="170"
+                        value={vitalSigns.height || ''}
+                        onChange={(e) => handleVitalSignsChange('height', parseFloat(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>BMI</Label>
+                      <div className="flex items-center h-10 px-3 border rounded-md bg-muted">
+                        <span className="font-semibold">{calculateBMI()}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="respiratory_rate">Respiratory Rate (bpm)</Label>
+                      <Input
+                        id="respiratory_rate"
+                        type="number"
+                        placeholder="16"
+                        value={vitalSigns.respiratory_rate || ''}
+                        onChange={(e) => handleVitalSignsChange('respiratory_rate', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="oxygen_saturation">SpO2 (%)</Label>
+                      <Input
+                        id="oxygen_saturation"
+                        type="number"
+                        step="0.1"
+                        placeholder="98"
+                        value={vitalSigns.oxygen_saturation || ''}
+                        onChange={(e) => handleVitalSignsChange('oxygen_saturation', parseFloat(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Examination Tab */}
+            <TabsContent value="examination" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Clinical Examination</CardTitle>
+                  <CardDescription>Record examination findings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Ordered Lab Tests ({labOrders.length})</Label>
-                    {labOrders.map((order, index) => (
-                      <Card key={index}>
-                        <CardContent className="pt-4">
-                          <div className="flex justify-between items-start">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-semibold">{order.test_name}</p>
-                                <Badge variant={order.priority === 'stat' ? 'destructive' : order.priority === 'urgent' ? 'default' : 'secondary'}>
-                                  {order.priority.toUpperCase()}
+                    <Label htmlFor="chief_complaint">Chief Complaint *</Label>
+                    <Textarea
+                      id="chief_complaint"
+                      name="chief_complaint"
+                      placeholder="What brings the patient in today?"
+                      value={consultationData.chief_complaint}
+                      onChange={handleConsultationChange}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="physical_examination">Physical Examination</Label>
+                    <Textarea
+                      id="physical_examination"
+                      name="physical_examination"
+                      placeholder="General appearance, systems examination..."
+                      value={consultationData.physical_examination}
+                      onChange={handleConsultationChange}
+                      rows={6}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Diagnosis Tab */}
+            <TabsContent value="diagnosis" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Diagnosis & Treatment Plan</CardTitle>
+                  <CardDescription>Record diagnosis and treatment recommendations</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="diagnosis">Diagnosis *</Label>
+                    <Textarea
+                      id="diagnosis"
+                      name="diagnosis"
+                      placeholder="Clinical diagnosis..."
+                      value={consultationData.diagnosis}
+                      onChange={handleConsultationChange}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="icd_11_codes">ICD-11 Codes</Label>
+                    <div className="relative">
+                      <Input
+                        id="icd_11_codes"
+                        name="icd_11_codes"
+                        placeholder="Search ICD-11 codes (e.g., 1A00, Malaria, or type diagnosis)..."
+                        value={icd11SearchTerm || consultationData.icd_11_codes}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setIcd11SearchTerm(value)
+                          // Also allow manual entry
+                          if (!filteredICD11Codes.find(d => d.code === value || d.name === value)) {
+                            setConsultationData(prev => ({ ...prev, icd_11_codes: value }))
+                          }
+                        }}
+                        onFocus={() => {
+                          if (consultationData.diagnosis || icd11SearchTerm) {
+                            setShowIcd11Suggestions(true)
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay hiding suggestions to allow click
+                          setTimeout(() => setShowIcd11Suggestions(false), 200)
+                        }}
+                      />
+                      {(showIcd11Suggestions || icd11SearchTerm) && filteredICD11Codes.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+                          <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+                            ICD-11 Suggestions
+                          </div>
+                          {filteredICD11Codes.map((diagnosis) => (
+                            <div
+                              key={diagnosis.code}
+                              className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
+                              onClick={() => handleICD11Select(diagnosis)}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-medium text-sm">{diagnosis.code}</p>
+                                  <p className="text-sm">{diagnosis.name}</p>
+                                  {diagnosis.common && (
+                                    <Badge variant="outline" className="text-xs mt-1">Common</Badge>
+                                  )}
+                                </div>
+                                <Badge variant="secondary" className="text-xs">
+                                  {diagnosis.category}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                Type: {order.test_type}
-                                {order.sample_type && ` • Sample: ${order.sample_type}`}
-                              </p>
-                              {order.clinical_indication && (
-                                <p className="text-sm italic">{order.clinical_indication}</p>
-                              )}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeLabOrder(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {consultationData.icd_11_codes && (
+                      <p className="text-xs text-muted-foreground">
+                        Selected codes: {consultationData.icd_11_codes}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="treatment_plan">Treatment Plan</Label>
+                    <Textarea
+                      id="treatment_plan"
+                      name="treatment_plan"
+                      placeholder="Treatment recommendations, lifestyle advice..."
+                      value={consultationData.treatment_plan}
+                      onChange={handleConsultationChange}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="follow_up_date">Follow-up Date</Label>
+                    <Input
+                      id="follow_up_date"
+                      name="follow_up_date"
+                      type="date"
+                      value={consultationData.follow_up_date}
+                      onChange={handleConsultationChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Additional Notes</Label>
+                    <Textarea
+                      id="notes"
+                      name="notes"
+                      placeholder="Any additional observations or instructions..."
+                      value={consultationData.notes}
+                      onChange={handleConsultationChange}
+                      rows={3}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Prescriptions Tab */}
+            <TabsContent value="prescriptions" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Prescriptions</CardTitle>
+                  <CardDescription>Add medications to prescribe</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Medication Name *</Label>
+                      <div className="relative">
+                        <Input
+                          placeholder="Search or type medication name..."
+                          value={medicineSearchTerm || newPrescription.medication_name}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setMedicineSearchTerm(value)
+                            // Allow manual entry if not selecting from dropdown
+                            if (!medicines.find(m => m.name.toLowerCase() === value.toLowerCase())) {
+                              setNewPrescription({ ...newPrescription, medication_name: value, medication_id: '' })
+                            }
+                          }}
+                          onFocus={() => {
+                            // Show dropdown when focused
+                            if (medicineSearchTerm && filteredMedicines.length > 0) {
+                              // Dropdown will show via Select component
+                            }
+                          }}
+                        />
+                        {medicineSearchTerm && filteredMedicines.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+                            {filteredMedicines.map((medicine) => (
+                              <div
+                                key={medicine.id}
+                                className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
+                                onClick={() => {
+                                  handleMedicineSelect(medicine.id)
+                                }}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium">{medicine.name}</p>
+                                    {medicine.generic_name && (
+                                      <p className="text-sm text-muted-foreground">{medicine.generic_name}</p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground">
+                                      {medicine.strength} {medicine.dosage_form}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    {medicine.current_stock !== undefined && (
+                                      <Badge
+                                        variant={medicine.current_stock === 0 ? "destructive" : medicine.current_stock < 10 ? "default" : "outline"}
+                                        className="text-xs"
+                                      >
+                                        {medicine.current_stock === 0 ? 'Out of Stock' :
+                                          medicine.current_stock < 10 ? `Low Stock (${medicine.current_stock})` :
+                                            `In Stock (${medicine.current_stock})`}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {newPrescription.medication_id && (
+                        <p className="text-xs text-muted-foreground">
+                          Selected from catalog. Stock: {
+                            medicines.find(m => m.id === newPrescription.medication_id)?.current_stock ?? 'Unknown'
+                          } units
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Dosage *</Label>
+                      <Input
+                        placeholder="e.g., 500mg"
+                        value={newPrescription.dosage}
+                        onChange={(e) => setNewPrescription({ ...newPrescription, dosage: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Frequency *</Label>
+                      <Select
+                        value={newPrescription.frequency}
+                        onValueChange={(value) => setNewPrescription({ ...newPrescription, frequency: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Once daily">Once daily</SelectItem>
+                          <SelectItem value="Twice daily">Twice daily</SelectItem>
+                          <SelectItem value="Three times daily">Three times daily</SelectItem>
+                          <SelectItem value="Four times daily">Four times daily</SelectItem>
+                          <SelectItem value="Every 8 hours">Every 8 hours</SelectItem>
+                          <SelectItem value="As needed">As needed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Duration (days)</Label>
+                      <Input
+                        type="number"
+                        value={newPrescription.duration_days}
+                        onChange={(e) => setNewPrescription({ ...newPrescription, duration_days: parseInt(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Instructions</Label>
+                      <Textarea
+                        placeholder="Special instructions..."
+                        value={newPrescription.instructions}
+                        onChange={(e) => setNewPrescription({ ...newPrescription, instructions: e.target.value })}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={addPrescription} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Prescription
+                  </Button>
+
+                  {prescriptions.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-2">
+                        <Label>Prescribed Medications ({prescriptions.length})</Label>
+                        {prescriptions.map((rx, index) => (
+                          <Card key={index}>
+                            <CardContent className="pt-4">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">{rx.medication_name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {rx.dosage} - {rx.frequency} for {rx.duration_days} days
+                                  </p>
+                                  {rx.instructions && (
+                                    <p className="text-sm italic">{rx.instructions}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removePrescription(index)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Lab Tests Tab */}
+            <TabsContent value="lab-tests" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lab Test Orders</CardTitle>
+                  <CardDescription>Order laboratory tests for this patient</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Test Type *</Label>
+                      <Select
+                        value={newLabOrder.test_type}
+                        onValueChange={(value) => setNewLabOrder({ ...newLabOrder, test_type: value, test_name: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select test type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CBC">Complete Blood Count (CBC)</SelectItem>
+                          <SelectItem value="Urinalysis">Urinalysis</SelectItem>
+                          <SelectItem value="Blood Glucose">Blood Glucose</SelectItem>
+                          <SelectItem value="Lipid Profile">Lipid Profile</SelectItem>
+                          <SelectItem value="Liver Function">Liver Function Test</SelectItem>
+                          <SelectItem value="Kidney Function">Kidney Function Test</SelectItem>
+                          <SelectItem value="Thyroid Function">Thyroid Function Test</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Test Name *</Label>
+                      <Input
+                        placeholder="e.g., Complete Blood Count"
+                        value={newLabOrder.test_name}
+                        onChange={(e) => setNewLabOrder({ ...newLabOrder, test_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Priority</Label>
+                      <Select
+                        value={newLabOrder.priority}
+                        onValueChange={(value: 'routine' | 'urgent' | 'stat') => setNewLabOrder({ ...newLabOrder, priority: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="routine">Routine</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                          <SelectItem value="stat">STAT</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sample Type</Label>
+                      <Select
+                        value={newLabOrder.sample_type}
+                        onValueChange={(value) => setNewLabOrder({ ...newLabOrder, sample_type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select sample type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="blood">Blood</SelectItem>
+                          <SelectItem value="urine">Urine</SelectItem>
+                          <SelectItem value="stool">Stool</SelectItem>
+                          <SelectItem value="sputum">Sputum</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Clinical Indication</Label>
+                      <Textarea
+                        placeholder="Reason for ordering this test..."
+                        value={newLabOrder.clinical_indication}
+                        onChange={(e) => setNewLabOrder({ ...newLabOrder, clinical_indication: e.target.value })}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={addLabOrder} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Lab Test Order
+                  </Button>
+
+                  {labOrders.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-2">
+                        <Label>Ordered Lab Tests ({labOrders.length})</Label>
+                        {labOrders.map((order, index) => (
+                          <Card key={index}>
+                            <CardContent className="pt-4">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold">{order.test_name}</p>
+                                    <Badge variant={order.priority === 'stat' ? 'destructive' : order.priority === 'urgent' ? 'default' : 'secondary'}>
+                                      {order.priority.toUpperCase()}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    Type: {order.test_type}
+                                    {order.sample_type && ` • Sample: ${order.sample_type}`}
+                                  </p>
+                                  {order.clinical_indication && (
+                                    <p className="text-sm italic">{order.clinical_indication}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeLabOrder(index)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Services Tab */}
+            <TabsContent value="services" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Services & Procedures</CardTitle>
+                  <CardDescription>Select services to bill for this consultation</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3">
+                    {services.map((service) => (
+                      <Card
+                        key={service.id}
+                        className={`cursor-pointer transition-colors ${selectedServices.includes(service.id) ? 'border-primary bg-primary/5' : ''
+                          }`}
+                        onClick={() => toggleService(service.id)}
+                      >
+                        <CardContent className="pt-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold">{service.service_name}</p>
+                                {service.sha_approved && (
+                                  <Badge variant="outline" className="text-xs">SHA Approved</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{service.service_code}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">KES {service.unit_price.toFixed(2)}</p>
+                              <Badge variant={service.category === 'consultation' ? 'default' : 'secondary'}>
+                                {service.category}
+                              </Badge>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
                     ))}
                   </div>
-                </>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="notes" className="space-y-4">
+              {currentConsultationId ? (
+                <NotesPanel
+                  resourceType="consultation"
+                  resourceId={currentConsultationId}
+                  title="Consultation Notes"
+                  showAddButton={true}
+                />
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Save the consultation first to add notes.
+                    </p>
+                  </CardContent>
+                </Card>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Services Tab */}
-        <TabsContent value="services" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Services & Procedures</CardTitle>
-              <CardDescription>Select services to bill for this consultation</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-3">
-                {services.map((service) => (
-                  <Card
-                    key={service.id}
-                    className={`cursor-pointer transition-colors ${
-                      selectedServices.includes(service.id) ? 'border-primary bg-primary/5' : ''
-                    }`}
-                    onClick={() => toggleService(service.id)}
-                  >
-                    <CardContent className="pt-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold">{service.service_name}</p>
-                            {service.sha_approved && (
-                              <Badge variant="outline" className="text-xs">SHA Approved</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{service.service_code}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">KES {service.unit_price.toFixed(2)}</p>
-                          <Badge variant={service.category === 'consultation' ? 'default' : 'secondary'}>
-                            {service.category}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="notes" className="space-y-4">
-          {currentConsultationId ? (
-            <NotesPanel
-              resourceType="consultation"
-              resourceId={currentConsultationId}
-              title="Consultation Notes"
-              showAddButton={true}
-            />
-          ) : (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Save the consultation first to add notes.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Patient History Sidebar - 1 column */}
         <div className="lg:col-span-1">
           <div className="sticky top-6">
-            <PatientHistoryPanel 
-              patientId={patientInfo?.id || consultationData.patient_id || "PAT-2025-0001"} 
-              compact={true} 
+            <PatientHistoryPanel
+              patientId={patientInfo?.id || consultationData.patient_id || "PAT-2025-0001"}
+              compact={true}
             />
           </div>
         </div>
@@ -1522,3 +1534,4 @@ export function ConsultationModule() {
   )
 }
 
+export default ConsultationModule

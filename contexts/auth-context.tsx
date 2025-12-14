@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { User, AuthState, LoginCredentials, authenticateUser, getStoredUser, storeAuthToken, removeAuthToken } from '@/lib/auth'
 
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>
+  login: (credentials: LoginCredentials) => Promise<any>
   logout: () => void
   checkAuth: () => void
 }
@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
     error: null
   })
-  
+
   const router = useRouter()
 
   // Define checkAuth first since it's used in useEffect - memoized to prevent recreation
@@ -46,10 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     setAuthState(prev => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
       const result = await authenticateUser(credentials)
-      
+
       // Check if MFA is required
       if (result && 'mfaRequired' in result && result.mfaRequired) {
         // Return result with MFA info - don't redirect yet
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }))
         return result
       }
-      
+
       if (result && result.user && result.token) {
         storeAuthToken(result.token)
         setAuthState({
@@ -128,8 +128,8 @@ export function useAuth() {
       login: async () => {
         throw new Error('AuthProvider not available')
       },
-      logout: () => {},
-      checkAuth: () => {}
+      logout: () => { },
+      checkAuth: () => { }
     }
   }
   return context

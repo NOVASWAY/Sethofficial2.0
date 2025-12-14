@@ -3,7 +3,8 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ThemeToggleSimple } from "@/components/theme-toggle-simple"
@@ -36,6 +37,7 @@ import {
   AlertTriangle,
   Truck,
   FileText,
+  ChevronDown,
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -82,42 +84,75 @@ const roleConfig = {
   },
 }
 
+// Organized navigation items by category for better UX
 const navigationItems = [
-  { id: "dashboard", labelKey: "navigation.dashboard", icon: Home, path: "/dashboard", permissions: ["all"] },
-  { id: "registration", label: "Patient Registration", icon: UserPlus, path: "/registration", permissions: ["patients"] },
-  { id: "consultation", label: "Consultation", icon: Stethoscope, path: "/consultation", permissions: ["visits"] },
-  { id: "billing", label: "Billing & Invoicing", icon: Receipt, path: "/billing", permissions: ["invoices"] },
-  { id: "pharmacy-dispensing", label: "Pharmacy Dispensing", icon: Pill, path: "/pharmacy-dispensing", permissions: ["pharmacy"] },
-  { id: "appointments", label: "Appointments", icon: Calendar, path: "/appointments", permissions: ["appointments"] },
-  { id: "queue", label: "Patient Queue", icon: Users, path: "/queue", permissions: ["visits", "patients", "appointments"] }, // Allow receptionists to see queue
-  { id: "patients", label: "Patient Records", icon: Users, path: "/patients", permissions: ["patients"] },
-  { id: "visits", label: "Visit History", icon: ClipboardList, path: "/visits", permissions: ["visits"] },
+  // === CORE OPERATIONS ===
+  { id: "dashboard", labelKey: "navigation.dashboard", icon: Home, path: "/dashboard", permissions: ["all"], category: "core" },
+  { id: "queue", label: "Patient Queue", icon: Users, path: "/queue", permissions: ["visits", "patients", "appointments"], category: "core" },
+
+  // === PATIENT MANAGEMENT ===
+  { id: "registration", label: "Patient Registration", icon: UserPlus, path: "/registration", permissions: ["patients"], category: "patients" },
+  { id: "patients", label: "Patient Records", icon: Users, path: "/patients", permissions: ["patients"], category: "patients" },
+  { id: "visits", label: "Visit History", icon: ClipboardList, path: "/visits", permissions: ["visits"], category: "patients" },
+  { id: "appointments", label: "Appointments", icon: Calendar, path: "/appointments", permissions: ["appointments"], category: "patients" },
+
+  // === CLINICAL SERVICES ===
+  { id: "consultation", label: "Consultation", icon: Stethoscope, path: "/consultation", permissions: ["visits"], category: "clinical" },
   {
     id: "prescriptions",
     label: "Prescriptions",
     icon: ClipboardList,
     path: "/prescriptions",
     permissions: ["prescriptions"],
+    category: "clinical",
   },
-  { id: "invoices", label: "Invoice Records", icon: Receipt, path: "/invoices", permissions: ["invoices"] },
-  { id: "pharmacy", label: "Pharmacy Management", icon: Pill, path: "/pharmacy", permissions: ["pharmacy"] },
-  { id: "lab-dashboard", label: "Lab Dashboard", icon: FlaskConical, path: "/lab", permissions: ["lab", "lab_orders", "lab_results"] },
-  { id: "lab-queue", label: "Lab Queue", icon: FlaskConical, path: "/lab/queue", permissions: ["lab", "lab_orders"] },
-  { id: "lab-results", label: "Lab Results", icon: FileText, path: "/lab/results", permissions: ["lab", "lab_results"] },
-  { id: "inventory", label: "Stock Management", icon: Package, path: "/inventory", permissions: ["inventory"] },
-  { id: "stock-receiving", label: "Stock Receiving", icon: Truck, path: "/stock-receiving", permissions: ["inventory", "pharmacy"] }, // Allow pharmacists to receive stock
-  { id: "expiry-alerts", label: "Expiry Alerts", icon: AlertTriangle, path: "/expiry-alerts", permissions: ["pharmacy", "inventory"] },
-  { id: "services", label: "Service Catalog", icon: DollarSign, path: "/services", permissions: ["invoices", "settings"] },
-  { id: "medicines", label: "Medicine Catalog", icon: Pill, path: "/medicines", permissions: ["pharmacy", "settings"] },
-  { id: "financial-overview", label: "Financial Overview", icon: DollarSign, path: "/financial-overview", permissions: ["reports", "invoices"] },
-  { id: "financial", label: "Financial Dashboard", icon: BarChart3, path: "/financial", permissions: ["reports", "invoices"] },
-  { id: "inventory-reports", label: "Inventory Reports", icon: Package, path: "/inventory-reports", permissions: ["reports", "inventory"] },
-  { id: "sha-tracking", label: "SHA Claim Tracking", icon: Shield, path: "/sha-tracking", permissions: ["reports", "invoices"] },
-  { id: "reports", label: "Reports & Analytics", icon: BarChart3, path: "/reports", permissions: ["reports"] },
-  { id: "audit-logs", label: "Audit Logs", icon: Shield, path: "/audit-logs", permissions: ["users", "settings"] },
-  { id: "users", label: "User Management", icon: Users, path: "/users", permissions: ["users"] },
-  { id: "settings", label: "Settings", icon: Settings, path: "/settings", permissions: ["settings"] },
+  { id: "lab-dashboard", label: "Lab Dashboard", icon: FlaskConical, path: "/lab", permissions: ["lab", "lab_orders", "lab_results"], category: "clinical" },
+  { id: "lab-queue", label: "Lab Queue", icon: FlaskConical, path: "/lab/queue", permissions: ["lab", "lab_orders"], category: "clinical" },
+  { id: "lab-results", label: "Lab Results", icon: FileText, path: "/lab/results", permissions: ["lab", "lab_results"], category: "clinical" },
+
+  // === PHARMACY ===
+  { id: "pharmacy-dispensing", label: "Pharmacy Dispensing", icon: Pill, path: "/pharmacy-dispensing", permissions: ["pharmacy"], category: "pharmacy" },
+  { id: "pharmacy", label: "Pharmacy Management", icon: Pill, path: "/pharmacy", permissions: ["pharmacy"], category: "pharmacy" },
+
+  // === BILLING & FINANCIAL ===
+  { id: "billing", label: "Billing & Invoicing", icon: Receipt, path: "/billing", permissions: ["invoices"], category: "billing" },
+  { id: "invoices", label: "Invoice Records", icon: Receipt, path: "/invoices", permissions: ["invoices"], category: "billing" },
+  { id: "financial-overview", label: "Financial Overview", icon: DollarSign, path: "/financial-overview", permissions: ["reports", "invoices"], category: "billing" },
+  { id: "sha-tracking", label: "SHA Claim Tracking", icon: Shield, path: "/sha-tracking", permissions: ["reports", "invoices"], category: "billing" },
+
+  // === INVENTORY ===
+  { id: "inventory", label: "Stock Management", icon: Package, path: "/inventory", permissions: ["inventory"], category: "inventory" },
+  { id: "stock-receiving", label: "Stock Receiving", icon: Truck, path: "/stock-receiving", permissions: ["inventory", "pharmacy"], category: "inventory" },
+  { id: "stock-reconciliation", label: "Stock Reconciliation", icon: Package, path: "/stock-reconciliation", permissions: ["inventory", "pharmacy"], category: "inventory" },
+  { id: "expiry-alerts", label: "Expiry Alerts", icon: AlertTriangle, path: "/expiry-alerts", permissions: ["pharmacy", "inventory"], category: "inventory" },
+
+  // === CATALOGS & SETTINGS ===
+  { id: "services", label: "Service Catalog", icon: DollarSign, path: "/services", permissions: ["invoices", "settings"], category: "catalog" },
+  { id: "medicines", label: "Medicine Catalog", icon: Pill, path: "/medicines", permissions: ["pharmacy", "settings"], category: "catalog" },
+
+  // === REPORTS & ANALYTICS ===
+  { id: "reports", label: "Reports & Analytics", icon: BarChart3, path: "/reports", permissions: ["reports"], category: "reports" },
+  { id: "inventory-reports", label: "Inventory Reports", icon: Package, path: "/inventory-reports", permissions: ["reports", "inventory"], category: "reports" },
+
+  // === ADMINISTRATION ===
+  { id: "workflow", label: "Workflow Management", icon: FileText, path: "/workflow", permissions: ["all"], category: "admin" },
+  { id: "users", label: "User Management", icon: Users, path: "/users", permissions: ["users"], category: "admin" },
+  { id: "audit-logs", label: "Audit Logs", icon: Shield, path: "/audit-logs", permissions: ["users", "settings"], category: "admin" },
+  { id: "settings", label: "Settings", icon: Settings, path: "/settings", permissions: ["settings"], category: "admin" },
 ]
+
+// Category labels for grouping
+const categoryLabels: Record<string, string> = {
+  core: "Core Operations",
+  patients: "Patient Management",
+  clinical: "Clinical Services",
+  pharmacy: "Pharmacy",
+  billing: "Billing & Financial",
+  inventory: "Inventory",
+  catalog: "Catalogs",
+  reports: "Reports & Analytics",
+  admin: "Administration",
+}
 
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const router = useRouter()
@@ -130,16 +165,47 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const currentRole = roleConfig[role as keyof typeof roleConfig]
   const RoleIcon = currentRole?.icon || User
 
+  // Ensure currentRole exists to prevent errors
+  if (!currentRole) {
+    console.error('⚠️ Unknown role:', role, 'Available roles:', Object.keys(roleConfig))
+  }
+
+  // Use user-specific permissions if available, otherwise fall back to role defaults
+  const activePermissions = user?.permissions && user.permissions.length > 0
+    ? user.permissions
+    : (currentRole?.permissions || [])
+
   const filteredNavigation = navigationItems.filter(
     (item) =>
       item.permissions.includes("all") ||
-      item.permissions.some((permission) => currentRole?.permissions.includes(permission)),
+      item.permissions.some((permission) => activePermissions.includes(permission)),
   )
 
   // Set mounted state
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Set active item based on current pathname
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname
+      const pathParts = pathname.split('/')
+      const currentPage = pathParts[pathParts.length - 1] || 'dashboard'
+
+      // Find matching navigation item
+      const matchingItem = navigationItems.find(item => {
+        if (item.id === 'dashboard' && (currentPage === role || currentPage === '')) {
+          return true
+        }
+        return item.id === currentPage
+      })
+
+      if (matchingItem) {
+        setActiveItem(matchingItem.id)
+      }
+    }
+  }, [role])
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -185,6 +251,52 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         </div>
       </div>
     )
+  }
+
+  // STRICT ROUTE GUARD: Check if user has permission for the current path
+  if (typeof window !== 'undefined') {
+    const pathname = window.location.pathname
+    const pathParts = pathname.split('/')
+    // pathParts: ["", "dashboard", "role", "feature"]
+    const currentFeature = pathParts[3] // e.g., "inventory", "prescriptions"
+
+    if (currentFeature) {
+      // Find the navigation item that matches this feature
+      const navItem = navigationItems.find(item => {
+        // Handle special mappings
+        if (item.id === "lab-dashboard") return currentFeature === "lab" && !pathParts[4]
+        if (item.id === "lab-queue") return currentFeature === "lab" && pathParts[4] === "queue"
+        if (item.id === "lab-results") return currentFeature === "lab" && pathParts[4] === "results"
+        return item.id === currentFeature
+      })
+
+      // If we found a nav item for this route, check permissions
+      if (navItem) {
+        const hasPermission = navItem.permissions.includes("all") ||
+          navItem.permissions.some(p => activePermissions.includes(p))
+
+        if (!hasPermission) {
+          // User is trying to access a route they don't have permission for
+          return (
+            <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+              <div className="max-w-md w-full text-center space-y-4">
+                <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center">
+                  <Shield className="w-8 h-8 text-destructive" />
+                </div>
+                <h1 className="text-2xl font-bold">Access Denied</h1>
+                <p className="text-muted-foreground">
+                  You do not have permission to access the <strong>{navItem.label}</strong> module.
+                  This incident may be logged.
+                </p>
+                <Button onClick={() => router.push(`/dashboard/${role}`)} variant="default">
+                  Return to Dashboard
+                </Button>
+              </div>
+            </div>
+          )
+        }
+      }
+    }
   }
 
   return (
@@ -278,11 +390,24 @@ function SidebarContent({
 }: SidebarContentProps) {
   const router = useRouter()
   const { t } = useTranslation()
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['core', 'patients'])) // Default expanded categories
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(category)) {
+        newSet.delete(category)
+      } else {
+        newSet.add(category)
+      }
+      return newSet
+    })
+  }
 
   return (
     <div className="flex h-full flex-col">
       {/* Sidebar header */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
+      <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border shrink-0">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <Heart className="w-5 h-5 text-primary-foreground" />
@@ -297,7 +422,7 @@ function SidebarContent({
       </div>
 
       {/* User info */}
-      <div className="p-4 border-b border-sidebar-border">
+      <div className="p-4 border-b border-sidebar-border shrink-0">
         <Card className="p-3 bg-sidebar-accent">
           <div className="flex items-center space-x-3">
             <div className={`w-10 h-10 ${currentRole?.color} rounded-lg flex items-center justify-center`}>
@@ -311,31 +436,94 @@ function SidebarContent({
         </Card>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-        {filteredNavigation.map((item) => {
-          const Icon = item.icon
-          const isActive = activeItem === item.id
-          return (
-            <Button
-              key={item.id}
-              variant={isActive ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => {
-                setActiveItem(item.id)
-                if (item.id !== "dashboard") {
-                  router.push(`/dashboard/${role}/${item.id}`)
-                } else {
-                  router.push(`/dashboard/${role}`)
-                }
-                onClose?.()
-              }}
-            >
-              <Icon className="w-4 h-4 mr-3" />
-              {item.labelKey ? t(item.labelKey) : item.label}
-            </Button>
-          )
-        })}
+      {/* Navigation - Organized by Categories */}
+      <nav className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-4">
+        {Object.entries(
+          filteredNavigation.reduce<Record<string, typeof filteredNavigation>>((acc, item) => {
+            const category = (item as any).category || 'other'
+            if (!acc[category]) {
+              acc[category] = []
+            }
+            acc[category].push(item)
+            return acc
+          }, {})
+        )
+          .filter(([_, items]) => items.length > 0) // Only show categories with items
+          .sort(([a], [b]) => {
+            // Sort categories in a logical order
+            const order = ['core', 'patients', 'clinical', 'pharmacy', 'billing', 'inventory', 'catalog', 'reports', 'admin', 'other']
+            return (order.indexOf(a) === -1 ? 999 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 999 : order.indexOf(b))
+          })
+          .map(([category, items]) => {
+            const isExpanded = expandedCategories.has(category)
+            return (
+              <div key={category} className="space-y-1">
+                {/* Category Header - Collapsible */}
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(category)}
+                  className="w-full px-2 sm:px-3 py-1.5 border-b border-sidebar-border/50 flex items-center justify-between hover:bg-sidebar-accent/50 rounded-t-md transition-colors"
+                >
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    {categoryLabels[category] || category}
+                  </h3>
+                  <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Category Items - Collapsible */}
+                {isExpanded && (
+                  <div className="space-y-0.5 sm:space-y-1 pt-1 pb-1">
+                    {items.map((item) => {
+                      const Icon = item.icon
+                      const isActive = activeItem === item.id
+
+                      // Handle special route mappings
+                      let routePath = item.id
+                      if (item.id === "dashboard") {
+                        routePath = ""
+                      } else if (item.id === "lab-dashboard") {
+                        routePath = "lab"
+                      } else if (item.id === "lab-queue") {
+                        routePath = "lab/queue"
+                      } else if (item.id === "lab-results") {
+                        routePath = "lab/results"
+                      }
+
+                      const targetPath = routePath === ""
+                        ? `/dashboard/${role}`
+                        : `/dashboard/${role}/${routePath}`
+
+                      const handleClick = (e: React.MouseEvent) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+
+                        setActiveItem(item.id)
+                        onClose?.()
+
+                        // Use window.location for reliable navigation
+                        window.location.href = targetPath
+                      }
+
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={handleClick}
+                          className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors w-full text-left ${isActive
+                            ? 'bg-secondary text-secondary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                        >
+                          <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">{item.labelKey ? t(item.labelKey) : item.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
       </nav>
 
       {/* Logout */}

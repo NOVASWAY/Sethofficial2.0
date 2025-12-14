@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Bell, AlertCircle, Info, AlertTriangle, CheckCircle, X, Pin, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useToast } from '@/hooks/use-toast'
+// import { ScrollArea } from '@/components/ui/scroll-area' // Disabled to fix infinite loop
+import { toast as toastFn } from '@/hooks/use-toast'
 import { announcementsAPI, type Announcement } from '@/lib/api-client'
 import { formatDistanceToNow, format } from 'date-fns'
 
@@ -24,9 +24,12 @@ export function AnnouncementsPanel({
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
+  const isMountedRef = useRef(true)
+  const hadInitialLoadRef = useRef(false)
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = useCallback(async () => {
+    if (!isMountedRef.current) return
+    
     setLoading(true)
     try {
       const [anns, count] = await Promise.all([
@@ -36,27 +39,60 @@ export function AnnouncementsPanel({
         }),
         announcementsAPI.getUnreadCount(),
       ])
-      setAnnouncements(anns)
-      setUnreadCount(count)
+      
+      if (!isMountedRef.current) return
+      
+      // Ensure anns is an array
+      const announcementsList = Array.isArray(anns) ? anns : []
+      setAnnouncements(announcementsList)
+      setUnreadCount(typeof count === 'number' ? count : 0)
+      hadInitialLoadRef.current = true
     } catch (error) {
+      if (!isMountedRef.current) return
+      
       console.error('Failed to load announcements:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load announcements',
-      })
+      setAnnouncements([])
+      setUnreadCount(0)
+      
+      // Only show toast if we've had a successful load before (manual refresh scenario)
+      if (hadInitialLoadRef.current && isMountedRef.current) {
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            toastFn({
+              variant: 'destructive',
+              title: 'Error',
+              description: 'Failed to refresh announcements',
+            })
+          }
+        }, 0)
+      }
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
     }
-  }
+  }, [showUnreadOnly, limit])
 
   useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isMountedRef.current) return
+    
     loadAnnouncements()
     
     // Poll for new announcements every 60 seconds
-    const interval = setInterval(loadAnnouncements, 60000)
+    const interval = setInterval(() => {
+      if (isMountedRef.current) {
+        loadAnnouncements()
+      }
+    }, 60000)
     return () => clearInterval(interval)
-  }, [showUnreadOnly, limit])
+  }, [loadAnnouncements])
 
   const handleAcknowledge = async (announcementId: string) => {
     try {
@@ -68,13 +104,13 @@ export function AnnouncementsPanel({
         )
       )
       setUnreadCount(prev => Math.max(0, prev - 1))
-      toast({
+      toastFn({
         title: 'Success',
         description: 'Announcement acknowledged',
       })
     } catch (error) {
       console.error('Failed to acknowledge announcement:', error)
-      toast({
+      toastFn({
         variant: 'destructive',
         title: 'Error',
         description: 'Failed to acknowledge announcement',
@@ -139,7 +175,7 @@ export function AnnouncementsPanel({
         </div>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[400px]">
+        <div className="h-[400px] overflow-y-auto">
           {loading && announcements.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
               Loading announcements...
@@ -239,7 +275,7 @@ export function AnnouncementsPanel({
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   )

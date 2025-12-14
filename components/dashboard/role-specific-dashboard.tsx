@@ -10,13 +10,14 @@ import {
   Clock, FileText, Activity, TrendingUp, BarChart3, 
   User, UserCog, Stethoscope, Shield, Bell, Star,
   Plus, Search, Filter, Download, RefreshCw, Settings, Edit,
-  FlaskConical, CheckCircle2, AlertCircle, FileCheck
+  FlaskConical, CheckCircle2, AlertCircle, FileCheck, Eye, UserPlus
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { usePatient } from '@/contexts/patient-context'
 import { useInventory } from '@/contexts/inventory-context'
 import { useDataIsolation } from '@/hooks/use-data-isolation'
 import { useRouter } from 'next/navigation'
+import { pharmacyAPI } from '@/lib/api-client'
 
 interface RoleSpecificDashboardProps {
   role: string

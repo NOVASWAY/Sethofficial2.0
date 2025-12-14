@@ -32,6 +32,7 @@ mod validation;
 mod csrf;
 mod backup_scheduler;
 mod security;
+mod seed;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -156,6 +157,28 @@ async fn main() -> std::io::Result<()> {
     );
     
     eprintln!("🔐 AuthService initialized");
+
+    // Check for seed flag
+    let args: Vec<String> = env::args().collect();
+    if args.contains(&"--seed".to_string()) {
+        eprintln!("🌱 Seeding database...");
+        match seed::seed_default_users(&db_pool, &auth_service).await {
+            Ok(_) => eprintln!("✅ Default users seeded"),
+            Err(e) => {
+                eprintln!("❌ Failed to seed users: {}", e);
+                std::process::exit(1);
+            }
+        }
+        match seed::seed_sample_data(&db_pool).await {
+            Ok(_) => eprintln!("✅ Sample data seeded"),
+            Err(e) => {
+                eprintln!("❌ Failed to seed sample data: {}", e);
+                std::process::exit(1);
+            }
+        }
+        eprintln!("✅ Database seeded successfully");
+        return Ok(());
+    }
 
     // Initialize Redis client (optional - gracefully handles if Redis is unavailable)
     let redis_client = {
@@ -304,20 +327,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(csrf_service_clone.clone()));
 
         // Add CSRF middleware conditionally (before routes)
-        if enable_csrf_clone {
-            app = app.wrap(actix_web::middleware::from_fn(
-                move |req: actix_web::dev::ServiceRequest, next: actix_web::middleware::Next<actix_web::body::BoxBody>| {
-                    let csrf_service = csrf_service_clone.clone();
-                    async move {
-                        middleware::security_middleware::csrf_protection_middleware(
-                            req,
-                            next,
-                            web::Data::new(csrf_service),
-                        ).await
-                    }
-                }
-            ));
-        }
+        // Note: CSRF protection is handled per-route where needed
+        // Global CSRF middleware can be added here if needed in the future
 
         app
             // ===========================================

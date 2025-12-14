@@ -14,7 +14,7 @@ export interface ClinicSettings {
   currency: 'KSh' | 'USD' | 'EUR'
   timezone: string
   dateFormat: string
-  
+
   // Notifications
   emailNotifications: boolean
   smsNotifications: boolean
@@ -22,7 +22,7 @@ export interface ClinicSettings {
   lowStockAlerts: boolean
   expiryAlerts: boolean
   systemUpdates: boolean
-  
+
   // System
   autoBackup: boolean
   backupFrequency: 'daily' | 'weekly' | 'monthly'
@@ -53,13 +53,13 @@ interface SettingsContextType {
   settings: ClinicSettings
   userProfile: UserProfile | null
   securitySettings: SecuritySettings
-  
+
   updateSettings: (updates: Partial<ClinicSettings>) => void
   updateUserProfile: (updates: Partial<UserProfile>) => void
   updateSecuritySettings: (updates: Partial<SecuritySettings>) => void
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>
   updateProfilePicture: (avatarDataUrl: string | null) => void
-  
+
   // Backup/Restore
   exportBackup: () => string
   importBackup: (jsonData: string) => boolean
@@ -82,14 +82,14 @@ const defaultSettings: ClinicSettings = {
   currency: 'KSh',
   timezone: 'Africa/Nairobi',
   dateFormat: 'DD/MM/YYYY',
-  
+
   emailNotifications: true,
   smsNotifications: true,
   appointmentReminders: true,
   lowStockAlerts: true,
   expiryAlerts: true,
   systemUpdates: false,
-  
+
   autoBackup: true,
   backupFrequency: 'weekly',
   maintenanceMode: false,
@@ -126,7 +126,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setIsInitialized(true)
         return
       }
-      
+
       try {
         // Try to load from backend first
         const token = localStorage.getItem('auth_token')
@@ -136,7 +136,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             'Content-Type': 'application/json'
           }
         })
-        
+
         if (response.ok) {
           const data = await response.json()
           if (data.success && data.data) {
@@ -150,27 +150,30 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               email: backendSettings.general?.clinic_email || defaultSettings.email,
               currency: backendSettings.billing?.currency || defaultSettings.currency,
               timezone: backendSettings.general?.timezone || defaultSettings.timezone,
-              
+
               // Schedule settings
               workingHours: `${backendSettings.schedule?.business_hours_start || '08:00'} - ${backendSettings.schedule?.business_hours_end || '18:00'}`,
-              
+            }
+
+            const mappedSecurity: Partial<SecuritySettings> = {
               // Security settings
               sessionTimeout: parseInt(backendSettings.security?.session_timeout || '60'),
               passwordExpiry: parseInt(backendSettings.security?.password_expiry || '90'),
               loginAttempts: parseInt(backendSettings.security?.max_login_attempts || '5'),
             }
-            
+
             setSettings(prev => ({ ...prev, ...mappedSettings }))
+            setSecuritySettings(prev => ({ ...prev, ...mappedSecurity }))
             console.log('Settings loaded from backend')
           }
         } else {
           console.warn('Failed to load settings from backend, using localStorage fallback')
         }
-        
+
         // Fallback to localStorage for profile and security settings
         const savedProfile = localStorage.getItem(PROFILE_STORAGE_KEY)
         const savedSecurity = localStorage.getItem(SECURITY_STORAGE_KEY)
-        
+
         if (savedProfile) setUserProfile(JSON.parse(savedProfile))
         if (savedSecurity) setSecuritySettings(JSON.parse(savedSecurity))
       } catch (error) {
@@ -180,7 +183,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY)
           const savedProfile = localStorage.getItem(PROFILE_STORAGE_KEY)
           const savedSecurity = localStorage.getItem(SECURITY_STORAGE_KEY)
-          
+
           if (savedSettings) setSettings(JSON.parse(savedSettings))
           if (savedProfile) setUserProfile(JSON.parse(savedProfile))
           if (savedSecurity) setSecuritySettings(JSON.parse(savedSecurity))
@@ -191,7 +194,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setIsInitialized(true)
       }
     }
-    
+
     loadSettings()
   }, [])
 
@@ -232,32 +235,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       // Update local state immediately for UI responsiveness
       setSettings(prev => ({ ...prev, ...updates }))
-      
+
       // Map frontend settings to backend format
       const backendSettings: Record<string, any> = {}
-      
+
       // Map general settings
       if (updates.clinicName !== undefined) backendSettings.clinic_name = updates.clinicName
       if (updates.clinicAddress !== undefined) backendSettings.clinic_address = updates.clinicAddress
       if (updates.phone !== undefined) backendSettings.clinic_phone = updates.phone
       if (updates.email !== undefined) backendSettings.clinic_email = updates.email
       if (updates.timezone !== undefined) backendSettings.timezone = updates.timezone
-      
+
       // Map billing settings
       if (updates.currency !== undefined) backendSettings.currency = updates.currency
-      
+
       // Map schedule settings
       if (updates.workingHours !== undefined) {
         const [start, end] = updates.workingHours.split(' - ')
         backendSettings.business_hours_start = start
         backendSettings.business_hours_end = end
       }
-      
-      // Map security settings
-      if (updates.sessionTimeout !== undefined) backendSettings.session_timeout = updates.sessionTimeout.toString()
-      if (updates.passwordExpiry !== undefined) backendSettings.password_expiry = updates.passwordExpiry.toString()
-      if (updates.loginAttempts !== undefined) backendSettings.max_login_attempts = updates.loginAttempts.toString()
-      
+
+
+
       // Send to backend for persistence
       const response = await fetch('/api/v1/settings', {
         method: 'PUT',
@@ -267,12 +267,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({ settings: backendSettings })
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to save settings to server')
       }
-      
+
       console.log('Settings saved to backend successfully')
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -286,8 +286,28 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setUserProfile(prev => prev ? { ...prev, ...updates } : null)
   }
 
-  const updateSecuritySettings = (updates: Partial<SecuritySettings>) => {
-    setSecuritySettings(prev => ({ ...prev, ...updates }))
+  const updateSecuritySettings = async (updates: Partial<SecuritySettings>) => {
+    try {
+      setSecuritySettings(prev => ({ ...prev, ...updates }))
+
+      const backendSettings: Record<string, any> = {}
+      if (updates.sessionTimeout !== undefined) backendSettings.session_timeout = updates.sessionTimeout.toString()
+      if (updates.passwordExpiry !== undefined) backendSettings.password_expiry = updates.passwordExpiry.toString()
+      if (updates.loginAttempts !== undefined) backendSettings.max_login_attempts = updates.loginAttempts.toString()
+
+      if (Object.keys(backendSettings).length > 0) {
+        await fetch('/api/v1/settings', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          },
+          body: JSON.stringify({ settings: { security: backendSettings } })
+        })
+      }
+    } catch (error) {
+      console.error('Error updating security settings:', error)
+    }
   }
 
   const changePassword = async (oldPassword: string, newPassword: string): Promise<boolean> => {
@@ -310,7 +330,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') {
       return JSON.stringify({ settings, userProfile, securitySettings, timestamp: new Date().toISOString(), version: '1.0.0' }, null, 2)
     }
-    
+
     const backupData = {
       settings,
       userProfile,
@@ -335,10 +355,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const importBackup = (jsonData: string): boolean => {
     if (typeof window === 'undefined') return false
-    
+
     try {
       const backupData = JSON.parse(jsonData)
-      
+
       // Validate backup data structure
       if (!backupData.timestamp || !backupData.version) {
         throw new Error('Invalid backup file format')

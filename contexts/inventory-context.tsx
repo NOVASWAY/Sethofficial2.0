@@ -36,12 +36,12 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
-  
+
   // Add expiry data to medicines
   const medicinesWithExpiry = defaultMedicines.map((med, index) => {
     // Add sample batch data for demonstration
     const batches = []
-    
+
     // Add some expired batches for first 2 medicines
     if (index === 0) {
       batches.push({
@@ -51,7 +51,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         receivedDate: '2023-06-01',
       })
     }
-    
+
     if (index === 1) {
       batches.push({
         batchNumber: 'BATCH-2024-002',
@@ -60,7 +60,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         receivedDate: '2023-08-01',
       })
     }
-    
+
     // Add critical expiry (within 30 days) for next 2 medicines
     if (index === 2 || index === 3) {
       const criticalDate = new Date()
@@ -72,7 +72,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         receivedDate: '2024-06-01',
       })
     }
-    
+
     // Add warning expiry (within 90 days) for next 2 medicines
     if (index === 4 || index === 5) {
       const warningDate = new Date()
@@ -84,7 +84,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         receivedDate: '2024-08-01',
       })
     }
-    
+
     // Add normal expiry for others
     const normalDate = new Date()
     normalDate.setMonth(normalDate.getMonth() + 12) // 1 year from now
@@ -94,19 +94,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       quantity: med.currentStock - batches.reduce((sum, b) => sum + b.quantity, 0),
       receivedDate: '2025-01-01',
     })
-    
+
     // Find nearest expiry
     const nearestExpiry = batches.reduce((nearest, batch) => {
       return new Date(batch.expiryDate) < new Date(nearest) ? batch.expiryDate : nearest
     }, batches[0].expiryDate)
-    
+
     return {
       ...med,
       batches,
       nearestExpiry,
     }
   })
-  
+
   const [medicines, setMedicines] = useState<Medicine[]>([])
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
@@ -132,7 +132,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Failed to load inventory from API:', error)
         // Fallback to default medicines
-        setMedicines(medicinesWithExpiry)
+        setMedicines([])
       } finally {
         setIsInitialized(true)
       }
@@ -151,13 +151,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return medicine.currentStock >= requiredQuantity
   }
 
-  const updateStock = (
+  const updateStock = async (
     medicineId: string,
     quantity: number,
     movementType: StockMovement['movementType'],
     reason: string,
     referenceNumber?: string
-  ): boolean => {
+  ): Promise<boolean> => {
     const medicine = getMedicine(medicineId)
     if (!medicine) {
       toast({

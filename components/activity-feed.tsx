@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import { Activity, Clock, User, FileText, Pill, Receipt, Calendar, FlaskConical, Stethoscope, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
+// import { ScrollArea } from '@/components/ui/scroll-area' // Temporarily disabled to fix infinite loop
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { useToast } from '@/hooks/use-toast'
+import { toast as toastFn } from '@/hooks/use-toast'
 import { activityLogAPI } from '@/lib/api-client'
 import { formatDistanceToNow, format } from 'date-fns'
 
@@ -93,7 +93,7 @@ const MODULE_LABELS: Record<string, string> = {
   authentication: 'Authentication',
 }
 
-export function ActivityFeed({ 
+function ActivityFeedComponent({ 
   className, 
   limit = 50, 
   showFilters = true,
@@ -102,41 +102,117 @@ export function ActivityFeed({
   const [activities, setActivities] = useState<ActivityLogEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'patients' | 'consultations' | 'prescriptions' | 'invoices' | 'lab'>('all')
-  const { toast } = useToast()
+  const isMountedRef = useRef(true)
+  const hadInitialLoadRef = useRef(false)
+  const filterRef = useRef(filter)
 
-  const loadActivities = async () => {
+  // Keep filterRef in sync with filter
+  useEffect(() => {
+    filterRef.current = filter
+  }, [filter])
+
+  const loadActivities = useCallback(async () => {
+    if (!isMountedRef.current) return
+    
     setLoading(true)
     try {
       const response = await activityLogAPI.getRecent({
         limit,
       })
       
+      if (!isMountedRef.current) return // Check again after async operation
+      
+      let activitiesList: ActivityLogEntry[] = []
       if (response && Array.isArray(response)) {
-        setActivities(response)
+        activitiesList = response
       } else if (response && response.data && Array.isArray(response.data)) {
-        setActivities(response.data)
+        activitiesList = response.data
+      } else if (response && typeof response === 'object' && 'data' in response) {
+        // Handle case where response.data might be an object with an array
+        const data = (response as any).data
+        activitiesList = Array.isArray(data) ? data : []
+      }
+      
+      // Apply client-side filter if needed (backend might not support it)
+      // Use filterRef to get the latest filter value without causing dependency issues
+      const currentFilter = filterRef.current
+      if (currentFilter !== 'all') {
+        const filterMap: Record<string, string> = {
+          patients: 'patients',
+          consultations: 'consultations',
+          prescriptions: 'prescriptions',
+          invoices: 'invoices',
+          lab: 'lab_orders',
+        }
+        const moduleFilter = filterMap[currentFilter]
+        if (moduleFilter) {
+          activitiesList = activitiesList.filter(a => 
+            a.module === moduleFilter || a.module === currentFilter
+          )
+        }
+      }
+      
+      if (isMountedRef.current) {
+        setActivities(activitiesList)
+        hadInitialLoadRef.current = true
       }
     } catch (error) {
+      if (!isMountedRef.current) return
+      
       console.error('Failed to load activities:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load activity feed',
-      })
+      setActivities([])
+      
+      // Only show toast if we've had a successful load before (manual refresh scenario)
+      if (hadInitialLoadRef.current && isMountedRef.current) {
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            toastFn({
+              variant: 'destructive',
+              title: 'Error',
+              description: 'Failed to refresh activity feed',
+            })
+          }
+        }, 0)
+      }
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
     }
-  }
+  }, [limit]) // Removed filter from dependencies - using filterRef instead
 
   useEffect(() => {
-    loadActivities()
-    
-    if (realtime) {
-      // Poll for new activities every 30 seconds
-      const interval = setInterval(loadActivities, 30000)
-      return () => clearInterval(interval)
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
     }
-  }, [filter, limit, realtime])
+  }, [])
+
+  // Load activities when filter changes or on mount
+  useEffect(() => {
+    if (!isMountedRef.current) return
+    
+    loadActivities()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]) // filter triggers reload, loadActivities is stable (uses filterRef)
+  
+  // Set up polling separately to avoid recreating on every filter change
+  useEffect(() => {
+    if (!isMountedRef.current || !realtime) return
+    
+    // Poll for new activities every 30 seconds
+    const intervalId = setInterval(() => {
+      if (isMountedRef.current) {
+        loadActivities()
+      }
+    }, 30000)
+    
+    return () => {
+      clearInterval(intervalId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realtime]) // realtime controls polling, loadActivities is stable
 
   const getActionIcon = (action: string, module: string) => {
     const key = `${action}_${module}`.toLowerCase()
@@ -172,18 +248,24 @@ export function ActivityFeed({
     return `${actionText} ${entity}`
   }
 
-  const groupedActivities = activities.reduce((acc, activity) => {
-    const date = new Date(activity.created_at)
-    const dateKey = format(date, 'yyyy-MM-dd')
-    
-    if (!acc[dateKey]) {
-      acc[dateKey] = []
-    }
-    acc[dateKey].push(activity)
-    return acc
-  }, {} as Record<string, ActivityLogEntry[]>)
+  const groupedActivities = useMemo(() => {
+    return activities.reduce((acc, activity) => {
+      const date = new Date(activity.created_at)
+      const dateKey = format(date, 'yyyy-MM-dd')
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = []
+      }
+      acc[dateKey].push(activity)
+      return acc
+    }, {} as Record<string, ActivityLogEntry[]>)
+  }, [activities])
 
-  const getDateLabel = (dateKey: string) => {
+  const sortedActivityEntries = useMemo(() => {
+    return Object.entries(groupedActivities).sort(([a], [b]) => b.localeCompare(a))
+  }, [groupedActivities])
+
+  const getDateLabel = useCallback((dateKey: string) => {
     const date = new Date(dateKey)
     const today = new Date()
     const yesterday = new Date(today)
@@ -196,7 +278,11 @@ export function ActivityFeed({
     } else {
       return format(date, 'MMMM d, yyyy')
     }
-  }
+  }, [])
+
+  const handleFilterChange = useCallback((value: string) => {
+    setFilter(value as typeof filter)
+  }, [])
 
   return (
     <Card className={className}>
@@ -218,7 +304,7 @@ export function ActivityFeed({
       </CardHeader>
       <CardContent>
         {showFilters && (
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="mb-4">
+          <Tabs value={filter} onValueChange={handleFilterChange} className="mb-4">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="patients">Patients</TabsTrigger>
@@ -230,7 +316,7 @@ export function ActivityFeed({
           </Tabs>
         )}
 
-        <ScrollArea className="h-[600px]">
+        <div className="h-[600px] overflow-y-auto overflow-x-hidden pr-2">
           {loading && activities.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Loading activities...
@@ -242,9 +328,7 @@ export function ActivityFeed({
             </div>
           ) : (
             <div className="space-y-6">
-              {Object.entries(groupedActivities)
-                .sort(([a], [b]) => b.localeCompare(a))
-                .map(([dateKey, dayActivities]) => (
+              {sortedActivityEntries.map(([dateKey, dayActivities]) => (
                   <div key={dateKey} className="space-y-3">
                     <div className="sticky top-0 bg-background z-10 py-2 border-b">
                       <h3 className="text-sm font-semibold text-muted-foreground">
@@ -320,9 +404,12 @@ export function ActivityFeed({
                 ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   )
 }
+
+// Export memoized component to prevent unnecessary re-renders
+export const ActivityFeed = memo(ActivityFeedComponent)
 

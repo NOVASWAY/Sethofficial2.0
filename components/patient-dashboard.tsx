@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  User, Calendar, Receipt, Pill, Stethoscope, Activity, 
+import {
+  User, Calendar, Receipt, Pill, Stethoscope, Activity,
   TrendingUp, AlertCircle, CheckCircle2, Clock, FileText,
   ArrowLeft, Edit, Eye, FlaskConical
 } from 'lucide-react'
@@ -28,7 +28,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
   const { getPatientById } = usePatientEnhanced()
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
-  
+
   // Data states
   const [consultations, setConsultations] = useState<any[]>([])
   const [invoices, setInvoices] = useState<any[]>([])
@@ -36,7 +36,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
   const [appointments, setAppointments] = useState<any[]>([])
   const [labResults, setLabResults] = useState<any[]>([])
   const [selectedLabResult, setSelectedLabResult] = useState<string | null>(null)
-  
+
   // Statistics
   const [stats, setStats] = useState({
     totalVisits: 0,
@@ -82,7 +82,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
       const invoicesList = invoicesData?.data || []
       const prescriptionsList = prescriptionsData?.data || []
       const appointmentsList = appointmentsData?.data || []
-      const labResultsList = Array.isArray(labResultsData) ? labResultsData : (labResultsData?.data || [])
+      const labResultsList = Array.isArray(labResultsData) ? labResultsData : []
 
       setConsultations(consultationsList)
       setInvoices(invoicesList)
@@ -91,11 +91,11 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
       setLabResults(labResultsList)
 
       // Calculate statistics
-      const totalSpent = invoicesList.reduce((sum: number, inv: any) => 
+      const totalSpent = invoicesList.reduce((sum: number, inv: any) =>
         sum + parseFloat(inv.total_amount || inv.total || 0), 0
       )
 
-      const activePrescriptions = prescriptionsList.filter((p: any) => 
+      const activePrescriptions = prescriptionsList.filter((p: any) =>
         p.status === 'active' || p.status === 'pending'
       ).length
 
@@ -110,7 +110,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
         const dateB = new Date(b.visit_date || b.date || b.created_at || 0)
         return dateB.getTime() - dateA.getTime()
       })
-      const lastVisit = sortedConsultations.length > 0 
+      const lastVisit = sortedConsultations.length > 0
         ? new Date(sortedConsultations[0].visit_date || sortedConsultations[0].date || sortedConsultations[0].created_at)
         : null
 
@@ -441,7 +441,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
                   'mixed': 'Mixed',
                   'pending': 'Pending'
                 }
-                
+
                 return (
                   <Card key={invoice.id} className="border-l-4 border-l-green-500">
                     <CardContent className="p-4">
@@ -466,7 +466,7 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
                           </p>
                           {invoice.amount_paid && invoice.total_amount && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Paid: KSh {parseFloat(invoice.amount_paid || 0).toLocaleString()} / 
+                              Paid: KSh {parseFloat(invoice.amount_paid || 0).toLocaleString()} /
                               Balance: KSh {(parseFloat(invoice.total_amount) - parseFloat(invoice.amount_paid || 0)).toLocaleString()}
                             </p>
                           )}
@@ -545,8 +545,8 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Results
               </Button>
-              <LabResultViewer 
-                resultId={selectedLabResult} 
+              <LabResultViewer
+                resultId={selectedLabResult}
                 showActions={false}
                 onBack={() => setSelectedLabResult(null)}
               />
@@ -569,8 +569,8 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
                   ) : (
                     <div className="space-y-4">
                       {labResults.map((result: any) => (
-                        <Card 
-                          key={result.id} 
+                        <Card
+                          key={result.id}
                           className="border-l-4 border-l-blue-500 cursor-pointer hover:bg-accent transition-colors"
                           onClick={() => setSelectedLabResult(result.id)}
                         >
@@ -579,9 +579,9 @@ export function PatientDashboard({ patientId, onBack }: PatientDashboardProps) {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant={
-                                    result.status === 'reviewed' ? 'default' : 
-                                    result.status === 'verified' ? 'default' : 
-                                    'secondary'
+                                    result.status === 'reviewed' ? 'default' :
+                                      result.status === 'verified' ? 'default' :
+                                        'secondary'
                                   }>
                                     {result.status || 'pending'}
                                   </Badge>

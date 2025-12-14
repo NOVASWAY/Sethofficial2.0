@@ -1,8 +1,19 @@
 "use client"
 
+import { Suspense } from "react"
 import { useParams } from "next/navigation"
-import { ConsultationModule } from '@/components/consultation-module'
+import dynamic from "next/dynamic"
 import { DashboardLayout } from '@/components/dashboard-layout'
+import { CardSkeleton } from '@/components/ui/loading'
+
+// Lazy load consultation module for better performance
+const ConsultationModule = dynamic(
+  () => import('@/components/consultation-module'),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+)
 
 export default function ConsultationPage() {
   const params = useParams()
@@ -10,7 +21,9 @@ export default function ConsultationPage() {
 
   return (
     <DashboardLayout role={role}>
-      <ConsultationModule />
+      <Suspense fallback={<CardSkeleton />}>
+        <ConsultationModule />
+      </Suspense>
     </DashboardLayout>
   )
 }

@@ -316,7 +316,7 @@ pub async fn get_import_status(
     };
 
     // Get import session from database
-    let session_result = sqlx::query_as::<ImportSession>(
+    let session_result = sqlx::query_as::<_, ImportSession>(
         r#"
         SELECT * FROM import_sessions
         WHERE id = $1 AND user_id = $2
@@ -375,16 +375,17 @@ pub async fn get_import_history(
     let offset = (page - 1) * per_page;
 
     // Get total count
+    let user_id_clone = user_id.clone();
     let total_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM import_sessions WHERE user_id = $1"
     )
-    .bind(user_id)
+    .bind(&user_id_clone)
     .fetch_one(&state.db_pool)
     .await
     .unwrap_or(0);
 
     // Get sessions
-    let sessions_result = sqlx::query_as::<ImportSession>(
+    let sessions_result = sqlx::query_as::<_, ImportSession>(
         r#"
         SELECT * FROM import_sessions
         WHERE user_id = $1
@@ -434,7 +435,7 @@ pub async fn resume_import(
     let session_id = path.into_inner();
 
     // Get the import session
-    let session = sqlx::query_as::<ImportSession>(
+    let session = sqlx::query_as::<_, ImportSession>(
         r#"
         SELECT * FROM import_sessions
         WHERE id = $1 AND user_id = $2

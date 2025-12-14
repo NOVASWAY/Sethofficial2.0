@@ -21,7 +21,7 @@ export interface User {
   id: string
   username: string
   email?: string  // Optional - not required
-  role: 'receptionist' | 'nurse' | 'clinician' | 'pharmacist' | 'admin'
+  role: 'receptionist' | 'nurse' | 'clinician' | 'pharmacist' | 'admin' | 'doctor'
   name: string
   department?: string
   permissions?: string[]  // Optional - backend doesn't return this yet

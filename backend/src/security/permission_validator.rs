@@ -688,7 +688,7 @@ impl PermissionValidator {
         let request = AccessRequest {
             user_id: user.id,
             role: user.role.clone(),
-            department: user.department.clone(),
+            department: Some(user.department.clone()),
             resource: resource.to_string(),
             action: action.to_string(),
             entity_id: None,

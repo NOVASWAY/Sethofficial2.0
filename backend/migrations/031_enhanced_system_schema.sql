@@ -133,8 +133,8 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(i
 CREATE TABLE IF NOT EXISTS invoice_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
-    item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('service', 'medication', 'procedure')),
-    item_id UUID, -- Reference to service_id or medication_id
+    item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('service', 'medicine', 'procedure')),
+    item_id UUID, -- Reference to service_id or medicine_id
     description VARCHAR(200) NOT NULL,
     quantity INTEGER NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
@@ -142,6 +142,32 @@ CREATE TABLE IF NOT EXISTS invoice_items (
     sha_covered BOOLEAN DEFAULT false,
     sha_amount DECIMAL(10,2) DEFAULT 0,
     patient_amount DECIMAL(10,2)
+);
+
+-- Inventory management enhancements
+CREATE TABLE IF NOT EXISTS stock_adjustments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    medicine_id UUID NOT NULL REFERENCES medicines(id),
+    quantity INT NOT NULL,
+    adjustment_type VARCHAR(50) NOT NULL, -- 'restock', 'spoilage', 'theft', 'correction', 'dispensed'
+    reason TEXT,
+    performed_by UUID REFERENCES users(id),
+    reference_id UUID, -- e.g., prescription_id or purchase_order_id
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_adjustments_medicine_id ON stock_adjustments(medicine_id);
+CREATE INDEX IF NOT EXISTS idx_stock_adjustments_created_at ON stock_adjustments(created_at);
+
+-- Stock alerts table
+CREATE TABLE IF NOT EXISTS stock_alerts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    medicine_id UUID NOT NULL REFERENCES medicines(id),
+    alert_type VARCHAR(50) NOT NULL, -- 'low_stock', 'expiring_soon', 'expired'
+    message TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active', -- 'active', 'acknowledged', 'resolved'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Create payment allocations table (for mixed payments)

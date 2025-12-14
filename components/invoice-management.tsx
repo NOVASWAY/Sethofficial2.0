@@ -7,6 +7,7 @@ import { invoiceAPI, patientAPI } from "@/lib/api-client"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
+import { useKeyboardShortcuts, COMMON_SHORTCUTS } from '@/hooks/use-keyboard-shortcuts'
 import { ListSkeleton } from "@/components/ui/loading"
 import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
@@ -83,130 +84,7 @@ interface InvoiceService {
 }
 
 // No mock data - system starts empty
-const mockInvoices: Invoice[] = [
-  {
-    id: "INV-2024-001",
-    patientId: "P001",
-    patientName: "John Doe",
-    date: "2024-01-20",
-    dueDate: "2024-02-20",
-    type: "SHA",
-    status: "Paid",
-    subtotal: 15000,
-    tax: 2400,
-    total: 17400,
-    services: [
-      { id: "1", description: "General Consultation", quantity: 1, unitPrice: 5000, total: 5000 },
-      { id: "2", description: "Blood Pressure Check", quantity: 1, unitPrice: 2000, total: 2000 },
-      { id: "3", description: "Prescription Medication", quantity: 2, unitPrice: 4000, total: 8000 },
-    ],
-    shaDetails: {
-      memberNumber: "SHA123456789",
-      scheme: "SHA Comprehensive",
-      authorizationCode: "AUTH2024001",
-      preAuthorizationCode: "PRE-AUTH-2024-001",
-      icd11Code: "ICD11-6A00",
-      diagnosis: "Type 2 diabetes mellitus",
-      serviceCode: "SHA-08-004",
-      serviceDescription: "Diabetes consultation and management",
-      practitionerId: "PRAC-001",
-      practitionerName: "Dr. Sarah Mwangi",
-      facilityCode: "FAC-001",
-      claimStatus: "Approved",
-      submissionDate: "2024-01-15",
-    },
-    paymentDetails: {
-      method: "SHA Reimbursement",
-      transactionId: "TXN2024001",
-      paidDate: "2024-01-25",
-    },
-    notes: "Regular checkup covered under SHA scheme",
-  },
-  {
-    id: "INV-2024-002",
-    patientId: "P002",
-    patientName: "Sarah Johnson",
-    date: "2024-01-18",
-    dueDate: "2024-01-25",
-    type: "Cash",
-    status: "Pending",
-    subtotal: 8000,
-    tax: 1280,
-    total: 9280,
-    services: [
-      { id: "1", description: "Dental Cleaning", quantity: 1, unitPrice: 6000, total: 6000 },
-      { id: "2", description: "Fluoride Treatment", quantity: 1, unitPrice: 2000, total: 2000 },
-    ],
-    notes: "Cash payment - dental services",
-  },
-  {
-    id: "INV-2024-003",
-    patientId: "P003",
-    patientName: "Michael Brown",
-    date: "2024-01-15",
-    dueDate: "2024-01-22",
-    type: "Cash",
-    status: "Overdue",
-    subtotal: 12000,
-    tax: 1920,
-    total: 13920,
-    services: [
-      { id: "1", description: "Diabetes Consultation", quantity: 1, unitPrice: 7000, total: 7000 },
-      { id: "2", description: "HbA1c Test", quantity: 1, unitPrice: 3000, total: 3000 },
-      { id: "3", description: "Medication Refill", quantity: 1, unitPrice: 2000, total: 2000 },
-    ],
-    notes: "Follow-up for diabetes management",
-  },
-  {
-    id: "INV-2024-004",
-    patientId: "P004",
-    patientName: "Grace Wanjiku",
-    date: "2024-01-20",
-    dueDate: "2024-01-20",
-    type: "M-Pesa",
-    status: "Paid",
-    subtotal: 3500,
-    tax: 560,
-    total: 4060,
-    services: [
-      { id: "1", description: "Consultation", quantity: 1, unitPrice: 2000, total: 2000 },
-      { id: "2", description: "Pain Relief Medication", quantity: 1, unitPrice: 1500, total: 1500 },
-    ],
-    paymentDetails: {
-      method: "M-Pesa",
-      transactionId: "MP2024001",
-      paidDate: "2024-01-20",
-      mpesaCode: "QGH2K8M9",
-      phoneNumber: "+254712345678"
-    },
-    notes: "M-Pesa payment - pain management consultation",
-  },
-  {
-    id: "INV-2024-005",
-    patientId: "P005",
-    patientName: "Peter Kamau",
-    date: "2024-01-19",
-    dueDate: "2024-01-19",
-    type: "M-Pesa",
-    status: "Paid",
-    subtotal: 6000,
-    tax: 960,
-    total: 6960,
-    services: [
-      { id: "1", description: "General Consultation", quantity: 1, unitPrice: 3000, total: 3000 },
-      { id: "2", description: "Blood Test", quantity: 1, unitPrice: 1500, total: 1500 },
-      { id: "3", description: "Prescription Medication", quantity: 1, unitPrice: 1500, total: 1500 },
-    ],
-    paymentDetails: {
-      method: "M-Pesa",
-      transactionId: "MP2024002",
-      paidDate: "2024-01-19",
-      mpesaCode: "RJK4L7N2",
-      phoneNumber: "+254723456789"
-    },
-    notes: "M-Pesa payment - comprehensive health check",
-  },
-]
+
 
 export function InvoiceManagement({ role }: InvoiceManagementProps) {
   const { toast } = useToast()
@@ -220,16 +98,16 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  
+
   // Debounce search term
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
-  
+
   // Memoized cache key for invoices
   const invoicesCacheKey = useMemo(
     () => getCacheKey('invoices', { page, status: statusFilter, role }),
     [page, statusFilter, role]
   )
-  
+
   // Memoized transform function
   const transformInvoice = useCallback((inv: any): Invoice => ({
     id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
@@ -238,12 +116,12 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
     date: inv.date || inv.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
     dueDate: inv.due_date || inv.date || new Date().toISOString().split('T')[0],
     type: (inv.payment_method === 'sha' ? 'SHA' as const :
-           inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
-           inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
+      inv.payment_method === 'mpesa' ? 'M-Pesa' as const :
+        inv.payment_method === 'cash' ? 'Cash' as const : 'Cash' as const),
     status: (inv.payment_status === 'paid' ? 'Paid' as const :
-             inv.payment_status === 'pending' ? 'Pending' as const :
-             inv.payment_status === 'overdue' ? 'Overdue' as const :
-             inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
+      inv.payment_status === 'pending' ? 'Pending' as const :
+        inv.payment_status === 'overdue' ? 'Overdue' as const :
+          inv.payment_status === 'cancelled' ? 'Cancelled' as const : 'Pending' as const),
     subtotal: inv.subtotal || inv.total_amount - (inv.tax || 0),
     tax: inv.tax || 0,
     total: inv.total_amount || inv.total || 0,
@@ -283,12 +161,12 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
           page,
           per_page: 50
         }
-        
+
         // Map status filter to backend payment_status
         if (statusFilter !== "all") {
-          params.payment_status = statusFilter === "Paid" ? "paid" : 
-                                  statusFilter === "Pending" ? "pending" : 
-                                  statusFilter === "Overdue" ? "overdue" : "pending"
+          params.payment_status = statusFilter === "Paid" ? "paid" :
+            statusFilter === "Pending" ? "pending" :
+              statusFilter === "Overdue" ? "overdue" : "pending"
         }
 
         const result = await withCache(
@@ -296,14 +174,14 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
           () => invoiceAPI.getAll(params),
           5 * 60 * 1000 // Cache for 5 minutes
         )
-        
+
         if (result && Array.isArray(result.data)) {
           // Transform API response using memoized function
           const transformed = result.data.map(transformInvoice)
           setInvoices(transformed)
 
-          if (result.pagination) {
-            setTotalPages(result.pagination.total_pages || 1)
+          if (result.total_pages) {
+            setTotalPages(result.total_pages || 1)
           }
         }
       } catch (error) {
@@ -369,7 +247,7 @@ Payment Method: ${invoice.paymentDetails?.method || 'N/A'}
 ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N/A'}` : ''}
 =====================
     `.trim()
-    
+
     // Create a blob and download
     const blob = new Blob([invoiceData], { type: 'text/plain' })
     const url = window.URL.createObjectURL(blob)
@@ -407,13 +285,13 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
               per_page: 50
             }
             if (statusFilter !== "all") {
-              params.payment_status = statusFilter === "Paid" ? "paid" : 
-                                      statusFilter === "Pending" ? "pending" : 
-                                      statusFilter === "Overdue" ? "overdue" : "pending"
+              params.payment_status = statusFilter === "Paid" ? "paid" :
+                statusFilter === "Pending" ? "pending" :
+                  statusFilter === "Overdue" ? "overdue" : "pending"
             }
             // Invalidate cache before refreshing
             dashboardCache.invalidatePattern('dashboard:invoices:.*')
-            
+
             const result = await invoiceAPI.getAll(params)
             if (result && Array.isArray(result.data)) {
               const transformed = result.data.map(transformInvoice)
@@ -487,12 +365,12 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
     () => invoices.filter((inv) => inv.status === "Paid").reduce((sum, inv) => sum + inv.total, 0),
     [invoices]
   )
-  
+
   const pendingAmount = useMemo(
     () => invoices.filter((inv) => inv.status === "Pending").reduce((sum, inv) => sum + inv.total, 0),
     [invoices]
   )
-  
+
   const overdueAmount = useMemo(
     () => invoices.filter((inv) => inv.status === "Overdue").reduce((sum, inv) => sum + inv.total, 0),
     [invoices]
@@ -507,7 +385,7 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
           <p className="text-muted-foreground">Manage SHA and Cash invoices</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
             variant="outline"
             onClick={async () => {
               try {
@@ -517,13 +395,13 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
                   per_page: 50
                 }
                 if (statusFilter !== "all") {
-                  params.payment_status = statusFilter === "Paid" ? "paid" : 
-                                          statusFilter === "Pending" ? "pending" : 
-                                          statusFilter === "Overdue" ? "overdue" : "pending"
+                  params.payment_status = statusFilter === "Paid" ? "paid" :
+                    statusFilter === "Pending" ? "pending" :
+                      statusFilter === "Overdue" ? "overdue" : "pending"
                 }
                 // Invalidate cache before refreshing
                 dashboardCache.invalidatePattern('dashboard:invoices:.*')
-                
+
                 const result = await invoiceAPI.getAll(params)
                 if (result && Array.isArray(result.data)) {
                   const transformed = result.data.map(transformInvoice)
@@ -680,7 +558,7 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
                 </Button>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
@@ -768,45 +646,45 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
                 </TableRow>
               ) : (
                 filteredInvoices.map((invoice) => {
-                const StatusIcon = getStatusIcon(invoice.status)
-                return (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">{invoice.id}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{invoice.patientName}</p>
-                        <p className="text-sm text-muted-foreground">{invoice.patientId}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Badge variant={invoice.type === "SHA" ? "default" : "secondary"}>{invoice.type}</Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">KSh {invoice.total.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${getStatusColor(invoice.status)}`} />
-                        <span className="text-sm">{invoice.status}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleViewInvoice(invoice)} title="View Invoice">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        {canEditInvoices && (
-                          <Button variant="ghost" size="sm" onClick={() => handleEditInvoice(invoice)} title="Edit Invoice">
-                            <Edit className="w-4 h-4" />
+                  const StatusIcon = getStatusIcon(invoice.status)
+                  return (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-medium">{invoice.id}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{invoice.patientName}</p>
+                          <p className="text-sm text-muted-foreground">{invoice.patientId}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={invoice.type === "SHA" ? "default" : "secondary"}>{invoice.type}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">KSh {invoice.total.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${getStatusColor(invoice.status)}`} />
+                          <span className="text-sm">{invoice.status}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleViewInvoice(invoice)} title="View Invoice">
+                            <Eye className="w-4 h-4" />
                           </Button>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => handleDownloadInvoice(invoice)} title="Download Invoice">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              }))}
+                          {canEditInvoices && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEditInvoice(invoice)} title="Edit Invoice">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => handleDownloadInvoice(invoice)} title="Download Invoice">
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                }))}
             </TableBody>
           </Table>
         </CardContent>
@@ -846,6 +724,7 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
 }
 
 function NewInvoiceForm({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     patientId: "",
     patientName: "",
@@ -896,19 +775,19 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
       // Validate form data
       const validation = validateForm(formData, validationSchemas.invoice)
-      
+
       if (!validation.isValid) {
         console.error("Validation errors:", validation.errors)
         return
       }
-      
+
       // Generate invoice number
       const invoiceNumber = `INV${String(Date.now()).slice(-6)}`
-      
+
       // Create new invoice object
       const newInvoice = {
         id: invoiceNumber,
@@ -933,10 +812,10 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
-      
+
       // Create invoice via API
       try {
-        const invoiceData = {
+        const invoiceData: any = {
           patient_id: formData.patientId,
           date: new Date().toISOString().split('T')[0],
           items: formData.services.map(s => ({
@@ -971,15 +850,15 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
         }
 
         await invoiceAPI.create(invoiceData)
-        
+
         toast({
           title: "Invoice Created",
           description: "Invoice has been created successfully.",
         })
-        
+
         // Close form on success
         onClose()
-        
+
         // Refresh invoices list (trigger parent refresh)
         window.location.reload()
       } catch (error) {
@@ -990,7 +869,7 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
           variant: "destructive"
         })
       }
-      
+
     } catch (error) {
       console.error("Error creating invoice:", error)
     }
@@ -1209,7 +1088,7 @@ function NewInvoiceForm({ onClose }: { onClose: () => void }) {
               </div>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>SHA Compliance Note:</strong> All fields marked with * are required for SHA reimbursement. 
+                  <strong>SHA Compliance Note:</strong> All fields marked with * are required for SHA reimbursement.
                   Ensure ICD-11 codes are valid and service codes match SHA tariff structure.
                 </p>
               </div>
@@ -1543,12 +1422,12 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
             {invoice.shaDetails.claimStatus && (
               <div className="mt-4">
                 <p className="text-sm text-muted-foreground">Claim Status</p>
-                <Badge 
+                <Badge
                   className={
                     invoice.shaDetails.claimStatus === "Approved" ? "bg-green-500" :
-                    invoice.shaDetails.claimStatus === "Rejected" ? "bg-red-500" :
-                    invoice.shaDetails.claimStatus === "Submitted" ? "bg-blue-500" :
-                    "bg-yellow-500"
+                      invoice.shaDetails.claimStatus === "Rejected" ? "bg-red-500" :
+                        invoice.shaDetails.claimStatus === "Submitted" ? "bg-blue-500" :
+                          "bg-yellow-500"
                   }
                 >
                   {invoice.shaDetails.claimStatus}
@@ -1681,7 +1560,7 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
                 payment_date: new Date().toISOString().split('T')[0],
                 transaction_id: `TXN-${Date.now()}`,
               })
-              
+
               // Invalidate invoices cache after payment
               dashboardCache.invalidatePattern('dashboard:invoices:.*')
               toast({
@@ -1703,10 +1582,10 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
           </Button>
         )}
       </div>
-      
+
       {/* Print Dialog */}
       {showPrintDialog && (
-        <PrintableInvoice 
+        <PrintableInvoice
           invoice={{
             id: invoice.id,
             invoiceNumber: invoice.id,
@@ -1740,10 +1619,12 @@ function InvoiceDetailsView({ invoice }: { invoice: Invoice }) {
             updatedAt: invoice.date,
             consultationId: undefined,
             prescriptionId: undefined
-          }} 
-          onClose={() => setShowPrintDialog(false)} 
+          }}
+          onClose={() => setShowPrintDialog(false)}
         />
       )}
     </div>
   )
 }
+
+export default InvoiceManagement

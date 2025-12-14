@@ -80,12 +80,15 @@ export default function VisitsPage() {
     const fetchVisits = async () => {
       try {
         setLoading(true)
-        const result = await consultationAPI.getAll({ page: 1, per_page: 100 })
+        const result: any = await consultationAPI.getAll({ page: 1, per_page: 100 })
         
-        if (result && Array.isArray(result.data)) {
+        // Handle nested data structure: result.data.data contains the array
+        const consultationsArray = result?.data?.data || (Array.isArray(result?.data) ? result.data : (Array.isArray(result) ? result : []))
+        
+        if (consultationsArray && Array.isArray(consultationsArray) && consultationsArray.length > 0) {
           // Transform API response to match visit interface
-          const transformed = result.data.map((consult: ConsultationAPIResponse): Visit => ({
-            id: consult.id || `CONS-${consult.id?.slice(0, 8)}`,
+          const transformed = consultationsArray.map((consult: ConsultationAPIResponse): Visit => ({
+            id: consult.id || `CONS-${Math.random().toString(36).substr(2, 9)}`,
             patientName: consult.patient_name || `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'Unknown Patient',
             patientId: consult.patient_id || '',
             visitDate: consult.date || consult.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
@@ -96,7 +99,7 @@ export default function VisitsPage() {
             status: consult.status || (consult.diagnosis ? 'completed' : 'in-progress'),
             vitals: {
               bp: consult.vital_signs?.blood_pressure || consult.vital_signs?.bp || 'N/A',
-              pulse: consult.vital_signs?.pulse?.toString() || consult.vital_signs?.pulse || 'N/A',
+              pulse: consult.vital_signs?.pulse ? String(consult.vital_signs.pulse) : 'N/A',
               temp: consult.vital_signs?.temperature ? `${consult.vital_signs.temperature}°C` : 'N/A',
               weight: consult.vital_signs?.weight ? `${consult.vital_signs.weight}kg` : 'N/A',
             },
@@ -202,10 +205,13 @@ export default function VisitsPage() {
               onClick={async () => {
                 try {
                   setLoading(true)
-                  const result = await consultationAPI.getAll({ page: 1, per_page: 100 })
-                  if (result && Array.isArray(result.data)) {
-                    const transformed = result.data.map((consult: ConsultationAPIResponse): Visit => ({
-                      id: consult.id || `CONS-${consult.id?.slice(0, 8)}`,
+                  const result: any = await consultationAPI.getAll({ page: 1, per_page: 100 })
+                  // Handle nested data structure: result.data.data contains the array
+                  const consultationsArray = result?.data?.data || (Array.isArray(result?.data) ? result.data : (Array.isArray(result) ? result : []))
+                  
+                  if (consultationsArray && Array.isArray(consultationsArray) && consultationsArray.length > 0) {
+                    const transformed = consultationsArray.map((consult: ConsultationAPIResponse): Visit => ({
+                      id: consult.id || `CONS-${Math.random().toString(36).substr(2, 9)}`,
                       patientName: consult.patient_name || `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'Unknown Patient',
                       patientId: consult.patient_id || '',
                       visitDate: consult.date || consult.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
@@ -215,8 +221,8 @@ export default function VisitsPage() {
                       clinician: consult.doctor_name || consult.clinician_name || 'Unknown',
                       status: consult.status || (consult.diagnosis ? 'completed' : 'in-progress'),
                       vitals: {
-                        bp: consult.vital_signs?.blood_pressure || 'N/A',
-                        pulse: consult.vital_signs?.pulse?.toString() || 'N/A',
+                        bp: consult.vital_signs?.blood_pressure || consult.vital_signs?.bp || 'N/A',
+                        pulse: consult.vital_signs?.pulse ? String(consult.vital_signs.pulse) : 'N/A',
                         temp: consult.vital_signs?.temperature ? `${consult.vital_signs.temperature}°C` : 'N/A',
                         weight: consult.vital_signs?.weight ? `${consult.vital_signs.weight}kg` : 'N/A',
                       },
@@ -376,35 +382,59 @@ export default function VisitsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="all">
-            <Card>
-              <CardHeader>
-                <CardTitle>All Patient Visits</CardTitle>
-                <CardDescription>Complete visit history for all patients</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mockVisits.map((visit) => (
-                    <div key={visit.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div>
-                          <p className="font-medium">{visit.patientName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {visit.visitDate} - {visit.diagnosis}
-                          </p>
+          <TabsContent value="all" className="space-y-4">
+            {loading ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">Loading visits...</p>
+                </CardContent>
+              </Card>
+            ) : filteredVisits.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <p className="text-muted-foreground">No visits found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {filteredVisits.map((visit) => (
+                  <Card key={visit.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-4">
+                            <span className="font-medium">{visit.patientName}</span>
+                            <Badge variant="outline">{visit.patientId}</Badge>
+                            <span className="text-sm text-muted-foreground">
+                              {visit.visitDate} at {visit.visitTime}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">Chief Complaint:</span>
+                            <span className="text-sm text-muted-foreground ml-2">{visit.chiefComplaint}</span>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">Diagnosis:</span>
+                            <span className="text-sm text-muted-foreground ml-2">{visit.diagnosis}</span>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">Clinician:</span>
+                            <span className="text-sm text-muted-foreground ml-2">{visit.clinician}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge className={getStatusColor(visit.status)}>{visit.status}</Badge>
+                          <Button variant="outline" size="sm" onClick={() => handleViewDetails(visit.id)}>
+                            View Details
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge className={getStatusColor(visit.status)}>{visit.status}</Badge>
-                        <Button variant="outline" size="sm" onClick={() => handleViewDetails(visit.id)}>
-                          View
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -426,7 +456,7 @@ export default function VisitsPage() {
                 <SelectContent>
                   {patients.map((patient) => (
                     <SelectItem key={patient.id} value={patient.id}>
-                      {patient.first_name || patient.firstName} {patient.last_name || patient.lastName} ({patient.id || patient.patient_number})
+                      {String(patient.first_name || patient.firstName || '')} {String(patient.last_name || patient.lastName || '')} ({patient.id || patient.patient_number})
                     </SelectItem>
                   ))}
                   {patients.length === 0 && (

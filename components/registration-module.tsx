@@ -22,7 +22,7 @@ import { DateRangeFilter, type DateRange, isDateInRange } from '@/components/dat
 import { validatePhoneNumber } from '@/lib/import-validation'
 import { isPhoneMatch, isNameSimilar, normalizePhone } from '@/lib/duplicate-detection'
 import { consultationAPI, invoiceAPI, prescriptionAPI, activityLogAPI } from '@/lib/api-client'
-import { Receipt, Stethoscope, Pill, Calendar as CalendarIcon, FileText } from 'lucide-react'
+import { Receipt, Stethoscope, Pill, Calendar as CalendarIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 
@@ -53,7 +53,7 @@ export const VISIT_REASON_CATEGORIES: { value: VisitReasonCategory; label: strin
 // Helper function to categorize visit reason
 export const categorizeVisitReason = (reason: string): VisitReasonCategory => {
   const lowerReason = reason.toLowerCase()
-  
+
   if (lowerReason.includes('follow') || lowerReason.includes('review') || lowerReason.includes('recheck')) {
     return 'follow-up'
   }
@@ -72,7 +72,7 @@ export const categorizeVisitReason = (reason: string): VisitReasonCategory => {
   if (lowerReason.length > 0) {
     return 'new-complaint'
   }
-  
+
   return 'other'
 }
 
@@ -94,7 +94,7 @@ export function RegistrationModule() {
   const [searchFilter, setSearchFilter] = useState('')
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
   const [isWizardOpen, setIsWizardOpen] = useState(false)
-  
+
   // Sync context patients to local state with filtering
   useEffect(() => {
     const patientsArray = Array.isArray(patients) ? patients : []
@@ -102,7 +102,7 @@ export function RegistrationModule() {
 
     // Apply search filter
     if (searchFilter) {
-      filtered = filtered.filter(patient => 
+      filtered = filtered.filter(patient =>
         patient.first_name.toLowerCase().includes(searchFilter.toLowerCase()) ||
         patient.last_name.toLowerCase().includes(searchFilter.toLowerCase()) ||
         patient.phone.includes(searchFilter) ||
@@ -112,14 +112,14 @@ export function RegistrationModule() {
 
     // Apply date range filter
     if (dateRange.from || dateRange.to) {
-      filtered = filtered.filter(patient => 
+      filtered = filtered.filter(patient =>
         isDateInRange(patient.created_at, dateRange)
       )
     }
 
     setFilteredPatients(filtered)
   }, [patients, searchFilter, dateRange])
-  
+
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -159,9 +159,9 @@ export function RegistrationModule() {
             setReturningPatient(match)
             // Pre-fill form with existing data
             // Use age from patient if available, otherwise calculate from date_of_birth
-            const age = (match as any).age 
-              ? (match as any).age.toString() 
-              : match.date_of_birth 
+            const age = (match as any).age
+              ? (match as any).age.toString()
+              : match.date_of_birth
                 ? calculateAge(match.date_of_birth).toString()
                 : ''
             setFormData(prev => ({
@@ -210,7 +210,7 @@ export function RegistrationModule() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    
+
     // Auto-format phone number
     if (name === 'phone' || name === 'emergency_phone') {
       let formatted = value.replace(/\D/g, '') // Remove non-digits
@@ -226,7 +226,7 @@ export function RegistrationModule() {
       // Location autocomplete
       setFormData(prev => ({ ...prev, [name]: value }))
       if (value.length > 0) {
-        const filtered = KENYAN_LOCATIONS.filter(loc => 
+        const filtered = KENYAN_LOCATIONS.filter(loc =>
           loc.toLowerCase().includes(value.toLowerCase())
         ).slice(0, 5)
         setLocationSuggestions(filtered)
@@ -308,8 +308,8 @@ export function RegistrationModule() {
         }
       } else {
         // Full mode: standard validation (emergency contact is optional)
-        if (!formData.first_name || !formData.last_name || !formData.age || 
-            !formData.gender || !formData.phone || !formData.address) {
+        if (!formData.first_name || !formData.last_name || !formData.age ||
+          !formData.gender || !formData.phone || !formData.address) {
           toast({
             variant: 'error',
             title: 'Validation Error',
@@ -347,9 +347,9 @@ export function RegistrationModule() {
           ...formData,
           age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
         }
-        
+
         const updated = await updatePatient(returningPatient.id, updateData)
-        
+
         // Log activity
         if (user?.id) {
           try {
@@ -369,7 +369,7 @@ export function RegistrationModule() {
             console.warn('Failed to log activity:', error)
           }
         }
-        
+
         toast({
           title: 'Patient Updated Successfully',
           description: `Patient ${updated.first_name} ${updated.last_name} information has been updated.`,
@@ -384,7 +384,10 @@ export function RegistrationModule() {
       // Send age directly, no conversion needed
       const patientData = {
         ...formData,
-        age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
+        age: formData.age ? Number(formData.age) : undefined,
+        date_of_birth: formData.age
+          ? new Date(new Date().getFullYear() - Number(formData.age), 0, 1).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0], // Fallback to today if no age
         patient_number: generatePatientNumber(),
         status: 'active' as const,
       }
@@ -427,7 +430,7 @@ export function RegistrationModule() {
             status: 'completed',
             notes: `Visit reason: ${formData.visit_reason}${category ? ` (Category: ${VISIT_REASON_CATEGORIES.find(c => c.value === category)?.label})` : ''}`
           })
-          
+
           // Log consultation creation
           if (user?.id && consultation?.id) {
             try {
@@ -500,13 +503,13 @@ export function RegistrationModule() {
     try {
       // 🎯 USE CONTEXT SEARCH - NOW SEARCHES ALL PATIENTS INCLUDING IMPORTED!
       const results = await searchPatients(searchTerm)
-      
+
       // TODO: Also search via backend API when available
       // const response = await fetch(`/api/patients/search?q=${searchTerm}`)
       // const data = await response.json()
 
       setSearchResults(results)
-      
+
       if (results.length === 0) {
         toast({
           title: 'No Results',
@@ -545,7 +548,7 @@ export function RegistrationModule() {
   const handleViewPatient = async (patient: Patient) => {
     setSelectedPatient(patient)
     setIsViewDialogOpen(true)
-    
+
     // Load patient history
     setLoadingHistory(true)
     try {
@@ -554,7 +557,7 @@ export function RegistrationModule() {
         invoiceAPI.getAll({ patient_id: patient.id }).catch(() => ({ data: [] })),
         prescriptionAPI.getAll({ patient_id: patient.id }).catch(() => ({ data: [] })),
       ])
-      
+
       setPatientConsultations(consultations?.data || [])
       setPatientInvoices(invoices?.data || [])
       setPatientPrescriptions(prescriptions?.data || [])
@@ -571,9 +574,9 @@ export function RegistrationModule() {
   const handleEditPatient = (patient: Patient) => {
     setSelectedPatient(patient)
     // Use age from patient if available, otherwise calculate from date_of_birth
-    const age = (patient as any).age 
-      ? (patient as any).age.toString() 
-      : patient.date_of_birth 
+    const age = (patient as any).age
+      ? (patient as any).age.toString()
+      : patient.date_of_birth
         ? calculateAge(patient.date_of_birth).toString()
         : ''
     setFormData({
@@ -582,7 +585,7 @@ export function RegistrationModule() {
       age: age, // Use age directly or calculated from date_of_birth
       gender: patient.gender,
       phone: patient.phone,
-        address: patient.address || '',
+      address: patient.address || '',
       emergency_contact: patient.emergency_contact || '',
       emergency_phone: patient.emergency_phone || '',
       visit_reason: '',
@@ -604,10 +607,10 @@ export function RegistrationModule() {
         ...formData,
         age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
       }
-      
+
       // 🎯 ACTUALLY UPDATE IN CONTEXT - NOW WORKS!
       await updatePatient(selectedPatient.id, updateData)
-      
+
       // TODO: Also send to backend API when available
       // await fetch(`/api/patients/${selectedPatient.id}`, { 
       //   method: 'PUT', 
@@ -682,7 +685,7 @@ export function RegistrationModule() {
             {getTotalPatients()} Patients ({getActivePatients()} Active)
           </Badge>
         </div>
-        
+
         <MigrationWizard open={isWizardOpen} onOpenChange={setIsWizardOpen} />
       </div>
 
@@ -728,7 +731,7 @@ export function RegistrationModule() {
                     {filteredPatients.length} results
                   </Badge>
                 </div>
-                
+
                 {/* Date Range Filter */}
                 <div className="flex items-center gap-4">
                   <DateRangeFilter
@@ -737,8 +740,8 @@ export function RegistrationModule() {
                     className="w-full sm:w-auto"
                   />
                   <div className="text-sm text-muted-foreground">
-                    {dateRange.from || dateRange.to ? 
-                      `Showing patients registered ${dateRange.from ? `from ${dateRange.from.toLocaleDateString()}` : ''} ${dateRange.to ? `to ${dateRange.to.toLocaleDateString()}` : ''}` : 
+                    {dateRange.from || dateRange.to ?
+                      `Showing patients registered ${dateRange.from ? `from ${dateRange.from.toLocaleDateString()}` : ''} ${dateRange.to ? `to ${dateRange.to.toLocaleDateString()}` : ''}` :
                       'Showing all patients'
                     }
                   </div>
@@ -776,7 +779,7 @@ export function RegistrationModule() {
                           ? getLastVisitDate(patient.id)
                           : null
                         const isReturning = lastVisit !== null
-                        const daysSinceVisit = lastVisit 
+                        const daysSinceVisit = lastVisit
                           ? Math.floor((Date.now() - lastVisit.getTime()) / (1000 * 60 * 60 * 24))
                           : null
 
@@ -811,11 +814,11 @@ export function RegistrationModule() {
                                   </div>
                                   {daysSinceVisit !== null && (
                                     <div className="text-muted-foreground text-xs">
-                                      {daysSinceVisit === 0 
-                                        ? 'Today' 
-                                        : daysSinceVisit === 1 
-                                        ? 'Yesterday'
-                                        : `${daysSinceVisit} days ago`}
+                                      {daysSinceVisit === 0
+                                        ? 'Today'
+                                        : daysSinceVisit === 1
+                                          ? 'Yesterday'
+                                          : `${daysSinceVisit} days ago`}
                                     </div>
                                   )}
                                 </div>
@@ -878,7 +881,7 @@ export function RegistrationModule() {
                 <div>
                   <CardTitle>{quickRegistrationMode ? 'Quick Registration (Returning Patient)' : 'New Patient Registration'}</CardTitle>
                   <CardDescription>
-                    {quickRegistrationMode 
+                    {quickRegistrationMode
                       ? 'Minimal data entry for returning patients - only phone and visit reason required'
                       : 'Enter patient details to create a new record'}
                   </CardDescription>
@@ -957,8 +960,8 @@ export function RegistrationModule() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="gender">Gender *</Label>
-                        <Select 
-                          value={formData.gender} 
+                        <Select
+                          value={formData.gender}
                           onValueChange={(value) => handleSelectChange('gender', value)}
                           disabled={quickRegistrationMode && !!returningPatient}
                         >
@@ -980,7 +983,7 @@ export function RegistrationModule() {
                   <Alert className="border-blue-500 bg-blue-50">
                     <CheckCircle2 className="h-4 w-4 text-blue-600" />
                     <AlertDescription className="text-blue-900">
-                      <strong>Quick Mode:</strong> Using existing patient data for {returningPatient.first_name} {returningPatient.last_name}. 
+                      <strong>Quick Mode:</strong> Using existing patient data for {returningPatient.first_name} {returningPatient.last_name}.
                       Only phone and visit reason are required.
                     </AlertDescription>
                   </Alert>
@@ -1012,7 +1015,7 @@ export function RegistrationModule() {
                         <Alert className="mt-2 border-blue-500 bg-blue-50">
                           <CheckCircle2 className="h-4 w-4 text-blue-600" />
                           <AlertDescription className="text-blue-900">
-                            <strong>Returning Patient:</strong> {returningPatient.first_name} {returningPatient.last_name} 
+                            <strong>Returning Patient:</strong> {returningPatient.first_name} {returningPatient.last_name}
                             ({returningPatient.patient_number}). Form pre-filled. Click "Register" to update or create new record.
                           </AlertDescription>
                         </Alert>
@@ -1028,7 +1031,7 @@ export function RegistrationModule() {
                           onChange={handleInputChange}
                           onFocus={() => {
                             if (formData.address.length > 0) {
-                              const filtered = KENYAN_LOCATIONS.filter(loc => 
+                              const filtered = KENYAN_LOCATIONS.filter(loc =>
                                 loc.toLowerCase().includes(formData.address.toLowerCase())
                               ).slice(0, 5)
                               setLocationSuggestions(filtered)
@@ -1070,8 +1073,8 @@ export function RegistrationModule() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="visit_reason_category">Visit Category</Label>
-                      <Select 
-                        value={visitReasonCategory} 
+                      <Select
+                        value={visitReasonCategory}
                         onValueChange={(value) => {
                           setVisitReasonCategory(value as VisitReasonCategory)
                           // Auto-categorize if reason is already entered
@@ -1166,7 +1169,7 @@ export function RegistrationModule() {
                   <Button type="button" variant="outline" onClick={() => setFormData({
                     first_name: '',
                     last_name: '',
-                    date_of_birth: '',
+                    age: '',
                     gender: '',
                     phone: '',
                     address: '',
@@ -1325,7 +1328,7 @@ export function RegistrationModule() {
                   <div>
                     <Label className="text-muted-foreground">Date of Birth</Label>
                     <p className="font-medium">
-                      {new Date(selectedPatient.date_of_birth).toLocaleDateString()} 
+                      {new Date(selectedPatient.date_of_birth).toLocaleDateString()}
                       <span className="text-muted-foreground ml-2">({(selectedPatient as any).age || calculateAge(selectedPatient.date_of_birth)} years)</span>
                     </p>
                   </div>
@@ -1399,7 +1402,7 @@ export function RegistrationModule() {
                   <Activity className="h-5 w-5" />
                   Visit History & Medical Records
                 </h4>
-                
+
                 {loadingHistory ? (
                   <div className="text-center py-4 text-muted-foreground">Loading history...</div>
                 ) : (
@@ -1686,11 +1689,11 @@ export function RegistrationModule() {
           <div className="space-y-4">
             <Alert className="border-orange-500 bg-orange-50">
               <AlertDescription className="text-orange-900">
-                Please review the matches below. If this is the same patient, click "Use Existing" to update their information. 
+                Please review the matches below. If this is the same patient, click "Use Existing" to update their information.
                 Otherwise, click "Create New" to register as a new patient.
               </AlertDescription>
             </Alert>
-            
+
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {duplicateWarning.matches.map((match) => (
                 <Card key={match.id} className="border-orange-200">
@@ -1751,6 +1754,10 @@ export function RegistrationModule() {
                   setDuplicateWarning({ show: false, matches: [] })
                   const patientData = {
                     ...formData,
+                    age: formData.age ? Number(formData.age) : undefined,
+                    date_of_birth: formData.age
+                      ? new Date(new Date().getFullYear() - Number(formData.age), 0, 1).toISOString().split('T')[0]
+                      : new Date().toISOString().split('T')[0],
                     patient_number: generatePatientNumber(),
                     status: 'active' as const,
                   }
@@ -1762,12 +1769,13 @@ export function RegistrationModule() {
                   setFormData({
                     first_name: '',
                     last_name: '',
-                    date_of_birth: '',
+                    age: '',
                     gender: '',
                     phone: '',
                     address: '',
                     emergency_contact: '',
                     emergency_phone: '',
+                    visit_reason: '',
                   })
                   setActiveTab('search')
                 }}
@@ -1778,7 +1786,7 @@ export function RegistrationModule() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   )
 }
 

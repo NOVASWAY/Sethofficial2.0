@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { 
+import {
   Shield, FileText, Clock, CheckCircle2, XCircle, AlertCircle,
   DollarSign, Calendar, Download, Eye, TrendingUp, RefreshCw
 } from 'lucide-react'
@@ -129,12 +129,12 @@ const defaultClaimDetails: ClaimDetail[] = [
 
 export function SHAClaimTracking() {
   const { toast } = useToast()
-  
+
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isSubmitOpen, setIsSubmitOpen] = useState(false)
   const [selectedClaim, setSelectedClaim] = useState<SHAClaim | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
-  
+
   const [claims, setClaims] = useState<SHAClaim[]>([])
   const [claimDetails, setClaimDetails] = useState<ClaimDetail[]>([])
   const [loading, setLoading] = useState(true)
@@ -142,94 +142,94 @@ export function SHAClaimTracking() {
   const [totalPages, setTotalPages] = useState(1)
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
 
-  // Fetch SHA claims from API
-  useEffect(() => {
-    const fetchClaims = async () => {
-      try {
-        setLoading(true)
-        const result = await reportsAPI.getShaClaims({
-          page,
-          per_page: 20,
-          status: statusFilter
-        })
+  const loadClaims = useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await reportsAPI.getShaClaims({
+        page,
+        per_page: 20,
+        status: statusFilter
+      })
 
-        if (result && result.claims && Array.isArray(result.claims)) {
-          // Transform API response to match SHAClaim interface
-          const transformedClaims = result.claims.map((claim: any) => ({
-            id: claim.id || claim.claim_number || `claim-${Date.now()}`,
-            claimNumber: claim.claim_number || claim.claimNumber || '',
-            month: new Date(claim.claim_date || claim.service_date).toLocaleString('default', { month: 'long' }),
-            year: new Date(claim.claim_date || claim.service_date).getFullYear(),
-            submissionDate: claim.submission_date || claim.claim_date || '',
-            status: (claim.status === 'pending' ? 'pending' : 
-                     claim.status === 'submitted' ? 'under-review' :
-                     claim.status === 'approved' ? 'approved' :
-                     claim.status === 'rejected' ? 'rejected' :
-                     claim.status === 'paid' ? 'paid' : 'pending') as SHAClaim['status'],
-            totalPatients: 1, // Will be calculated from details
+      if (result && result.claims && Array.isArray(result.claims)) {
+        // Transform API response to match SHAClaim interface
+        const transformedClaims = result.claims.map((claim: any) => ({
+          id: claim.id || claim.claim_number || `claim-${Date.now()}`,
+          claimNumber: claim.claim_number || claim.claimNumber || '',
+          month: new Date(claim.claim_date || claim.service_date).toLocaleString('default', { month: 'long' }),
+          year: new Date(claim.claim_date || claim.service_date).getFullYear(),
+          submissionDate: claim.submission_date || claim.claim_date || '',
+          status: (claim.status === 'pending' ? 'pending' :
+            claim.status === 'submitted' ? 'under-review' :
+              claim.status === 'approved' ? 'approved' :
+                claim.status === 'rejected' ? 'rejected' :
+                  claim.status === 'paid' ? 'paid' : 'pending') as SHAClaim['status'],
+          totalPatients: 1, // Will be calculated from details
+          totalAmount: claim.total_amount || 0,
+          approvedAmount: claim.approved_amount,
+          rejectedAmount: claim.total_amount && claim.approved_amount ? claim.total_amount - claim.approved_amount : undefined,
+          paidAmount: claim.paid_amount || claim.approved_amount,
+          paymentDate: claim.payment_date,
+          reviewNotes: claim.notes,
+          rejectionReason: claim.rejection_reason,
+          recordedBy: 'System', // TODO: Get from auth context
+          shaWebsiteReference: claim.claim_number || '',
+        }))
+        setClaims(transformedClaims)
+
+        // Set claim details from the same data
+        if (result.claims) {
+          const details = result.claims.map((claim: any) => ({
+            id: claim.id,
+            claimId: claim.id,
+            patientName: claim.patient_name || '',
+            patientNumber: claim.patient_id || '',
+            patientSHANumber: claim.patient_sha_number || '',
+            visitDate: claim.service_date || claim.claim_date || '',
+            consultationAmount: 0, // Not available in API response
+            labTestAmount: 0, // Not available in API response
+            medicationAmount: 0, // Not available in API response
             totalAmount: claim.total_amount || 0,
-            approvedAmount: claim.approved_amount,
-            rejectedAmount: claim.total_amount && claim.approved_amount ? claim.total_amount - claim.approved_amount : undefined,
-            paidAmount: claim.paid_amount || claim.approved_amount,
-            paymentDate: claim.payment_date,
-            reviewNotes: claim.notes,
+            status: (claim.status === 'pending' ? 'pending' :
+              claim.status === 'approved' ? 'approved' :
+                claim.status === 'rejected' ? 'rejected' : 'pending') as ClaimDetail['status'],
             rejectionReason: claim.rejection_reason,
-            recordedBy: 'System', // TODO: Get from auth context
-            shaWebsiteReference: claim.claim_number || '',
           }))
-          setClaims(transformedClaims)
-
-          // Set claim details from the same data
-          if (result.claims) {
-            const details = result.claims.map((claim: any) => ({
-              id: claim.id,
-              claimId: claim.id,
-              patientName: claim.patient_name || '',
-              patientNumber: claim.patient_id || '',
-              patientSHANumber: claim.patient_sha_number || '',
-              visitDate: claim.service_date || claim.claim_date || '',
-              consultationAmount: 0, // Not available in API response
-              labTestAmount: 0, // Not available in API response
-              medicationAmount: 0, // Not available in API response
-              totalAmount: claim.total_amount || 0,
-              status: (claim.status === 'pending' ? 'pending' :
-                       claim.status === 'approved' ? 'approved' :
-                       claim.status === 'rejected' ? 'rejected' : 'pending') as ClaimDetail['status'],
-              rejectionReason: claim.rejection_reason,
-            }))
-            setClaimDetails(details)
-          }
-
-          if (result.pagination) {
-            setTotalPages(result.pagination.total_pages || 1)
-          }
-        } else if (result && result.note) {
-          // API returned empty result (table doesn't exist)
-          setClaims([])
-          setClaimDetails([])
-          toast({
-            title: "Info",
-            description: "SHA claims table not available. Using empty state.",
-          })
+          setClaimDetails(details)
         }
-      } catch (error) {
-        console.error('Error fetching SHA claims from API:', error)
-        toast({
-          title: "Error",
-          description: "Failed to load SHA claims. Please try again.",
-          variant: "destructive"
-        })
-        // Fallback to empty array on error
+
+        if (result.pagination) {
+          setTotalPages(result.pagination.total_pages || 1)
+        }
+      } else if (result && result.note) {
+        // API returned empty result (table doesn't exist)
         setClaims([])
         setClaimDetails([])
-      } finally {
-        setLoading(false)
-        setIsInitialized(true)
+        toast({
+          title: "Info",
+          description: "SHA claims table not available. Using empty state.",
+        })
       }
+    } catch (error) {
+      console.error('Error fetching SHA claims from API:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load SHA claims. Please try again.",
+        variant: "destructive"
+      })
+      // Fallback to empty array on error
+      setClaims([])
+      setClaimDetails([])
+    } finally {
+      setLoading(false)
+      setIsInitialized(true)
     }
-
-    fetchClaims()
   }, [page, statusFilter, toast])
+
+  // Fetch SHA claims from API
+  useEffect(() => {
+    loadClaims()
+  }, [loadClaims])
 
   const [submitData, setSubmitData] = useState({
     claimNumber: '', // SHA claim number from their website
@@ -292,12 +292,12 @@ export function SHAClaimTracking() {
           title: 'Claim Recorded Successfully',
           description: `SHA claim ${submitData.claimNumber} has been recorded in the system.`,
         })
-        
+
         // Refresh the claims list
         await loadClaims()
-        
+
         setIsSubmitOpen(false)
-        setSubmitData({ 
+        setSubmitData({
           claimNumber: '',
           month: '',
           year: new Date().getFullYear(),
@@ -337,7 +337,7 @@ export function SHAClaimTracking() {
     reportData += `${'-'.repeat(100)}\n`
     reportData += `Total Patients: ${claim.totalPatients}\n`
     reportData += `Total Claimed Amount: KES ${claim.totalAmount.toLocaleString()}\n`
-    
+
     if (claim.approvedAmount !== undefined) {
       reportData += `Approved Amount: KES ${claim.approvedAmount.toLocaleString()}\n`
     }
@@ -360,7 +360,7 @@ export function SHAClaimTracking() {
     if (details.length > 0) {
       reportData += `\n\nCLAIM DETAILS\n`
       reportData += `${'='.repeat(100)}\n\n`
-      
+
       details.forEach((detail, index) => {
         reportData += `${index + 1}. Patient: ${detail.patientName}\n`
         reportData += `   OP Number: ${detail.patientNumber}\n`
@@ -413,8 +413,8 @@ export function SHAClaimTracking() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="lg"
             onClick={async () => {
               try {
@@ -431,11 +431,11 @@ export function SHAClaimTracking() {
                     month: new Date(claim.claim_date || claim.service_date).toLocaleString('default', { month: 'long' }),
                     year: new Date(claim.claim_date || claim.service_date).getFullYear(),
                     submissionDate: claim.submission_date || claim.claim_date || '',
-                    status: (claim.status === 'pending' ? 'pending' : 
-                             claim.status === 'submitted' ? 'under-review' :
-                             claim.status === 'approved' ? 'approved' :
-                             claim.status === 'rejected' ? 'rejected' :
-                             claim.status === 'paid' ? 'paid' : 'pending') as SHAClaim['status'],
+                    status: (claim.status === 'pending' ? 'pending' :
+                      claim.status === 'submitted' ? 'under-review' :
+                        claim.status === 'approved' ? 'approved' :
+                          claim.status === 'rejected' ? 'rejected' :
+                            claim.status === 'paid' ? 'paid' : 'pending') as SHAClaim['status'],
                     totalPatients: 1,
                     totalAmount: claim.total_amount || 0,
                     approvedAmount: claim.approved_amount,
@@ -575,8 +575,8 @@ export function SHAClaimTracking() {
             </Card>
           ) : (
             <>
-              <ClaimsList 
-                claims={claims} 
+              <ClaimsList
+                claims={claims}
                 onViewDetails={handleViewDetails}
                 onExport={handleExportClaim}
                 getStatusBadge={getStatusBadge}
@@ -587,16 +587,16 @@ export function SHAClaimTracking() {
                     Page {page} of {totalPages}
                   </p>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1 || loading}
                     >
                       Previous
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages || loading}
@@ -611,7 +611,7 @@ export function SHAClaimTracking() {
         </TabsContent>
 
         <TabsContent value="pending" className="space-y-4 mt-4">
-          <ClaimsList 
+          <ClaimsList
             claims={claims.filter(c => c.status === 'pending' || c.status === 'under-review')}
             onViewDetails={handleViewDetails}
             onExport={handleExportClaim}
@@ -620,7 +620,7 @@ export function SHAClaimTracking() {
         </TabsContent>
 
         <TabsContent value="approved" className="space-y-4 mt-4">
-          <ClaimsList 
+          <ClaimsList
             claims={claims.filter(c => c.status === 'approved')}
             onViewDetails={handleViewDetails}
             onExport={handleExportClaim}
@@ -629,7 +629,7 @@ export function SHAClaimTracking() {
         </TabsContent>
 
         <TabsContent value="paid" className="space-y-4 mt-4">
-          <ClaimsList 
+          <ClaimsList
             claims={claims.filter(c => c.status === 'paid')}
             onViewDetails={handleViewDetails}
             onExport={handleExportClaim}
@@ -638,7 +638,7 @@ export function SHAClaimTracking() {
         </TabsContent>
 
         <TabsContent value="rejected" className="space-y-4 mt-4">
-          <ClaimsList 
+          <ClaimsList
             claims={claims.filter(c => c.status === 'rejected')}
             onViewDetails={handleViewDetails}
             onExport={handleExportClaim}
@@ -889,8 +889,8 @@ export function SHAClaimTracking() {
                                 <td className="p-2">
                                   <Badge className={
                                     detail.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                    detail.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
+                                      detail.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                        'bg-yellow-100 text-yellow-800'
                                   }>
                                     {detail.status}
                                   </Badge>
@@ -912,12 +912,12 @@ export function SHAClaimTracking() {
 }
 
 // Helper component for claims list
-function ClaimsList({ 
-  claims, 
-  onViewDetails, 
+function ClaimsList({
+  claims,
+  onViewDetails,
   onExport,
-  getStatusBadge 
-}: { 
+  getStatusBadge
+}: {
   claims: SHAClaim[]
   onViewDetails: (claim: SHAClaim) => void
   onExport: (claim: SHAClaim) => void

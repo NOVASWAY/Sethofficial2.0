@@ -9,14 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarIcon, Filter, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { DateRange as RDDateRange } from 'react-day-picker'
 
-export interface DateRange {
-  from: Date | undefined
-  to: Date | undefined
-}
+export type DateRange = RDDateRange
 
 interface DateRangeFilterProps {
-  onDateRangeChange: (range: DateRange) => void
+  onDateRangeChange: (range: RDDateRange) => void
   className?: string
   placeholder?: string
   showPresets?: boolean
@@ -39,11 +37,11 @@ export function DateRangeFilter({
   placeholder = 'Select date range',
   showPresets = true
 }: DateRangeFilterProps) {
-  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
+  const [dateRange, setDateRange] = useState<RDDateRange>({ from: undefined, to: undefined })
   const [isOpen, setIsOpen] = useState(false)
   const [preset, setPreset] = useState<string>('')
 
-  const handleDateRangeChange = (range: DateRange) => {
+  const handleDateRangeChange = (range: RDDateRange) => {
     setDateRange(range)
     onDateRangeChange(range)
   }
@@ -94,13 +92,13 @@ export function DateRangeFilter({
         break
     }
 
-    const newRange = { from, to }
+    const newRange: RDDateRange = { from, to }
     setDateRange(newRange)
     onDateRangeChange(newRange)
   }
 
   const clearFilter = () => {
-    const newRange = { from: undefined, to: undefined }
+    const newRange: RDDateRange = { from: undefined, to: undefined }
     setDateRange(newRange)
     setPreset('')
     onDateRangeChange(newRange)
@@ -170,13 +168,13 @@ export function DateRangeFilter({
               <Label className="text-sm font-medium">Custom Range</Label>
               <Calendar
                 mode="range"
-                selected={dateRange}
+                selected={dateRange as any}
                 onSelect={(range) => {
-                  if (range) {
-                    handleDateRangeChange(range)
+                  const r = range as RDDateRange | undefined
+                  if (r) {
+                    handleDateRangeChange(r)
                   }
                 }}
-                numberOfMonths={2}
                 className="mt-2"
               />
             </div>

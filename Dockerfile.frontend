@@ -1,5 +1,5 @@
-# Multi-stage build for Next.js frontend
-FROM node:18-alpine AS builder
+# Production stage - use pre-built frontend
+FROM node:20-slim
 
 # Set working directory
 WORKDIR /app
@@ -7,37 +7,19 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (skip scripts to avoid Husky)
-# Using npm install to handle out-of-sync lock files
-# Builder stage needs dev dependencies for building
-RUN npm install --ignore-scripts
+# Install only production dependencies (skip scripts to avoid Husky)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN npm install --legacy-peer-deps --omit=dev --ignore-scripts --no-audit --no-fund || \
+    npm install --legacy-peer-deps --production --ignore-scripts
 
-# Copy source code
-COPY . .
-
-# Build the application (skip scripts to avoid Husky)
-RUN npm run build --ignore-scripts
-
-# Production stage
-FROM node:18-alpine
-
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install only production dependencies
-# Using npm install to handle out-of-sync lock files
-RUN npm install --omit=dev --ignore-scripts
-
-# Copy built application from builder stage
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
+# Copy pre-built application (built locally to avoid npm bug in Docker)
+COPY .next ./.next
+COPY public ./public
+COPY next.config.* ./
+COPY package.json ./
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G nodejs -g nodejs nextjs && \
+RUN groupadd -r nodejs && useradd -r -g nodejs nextjs && \
     chown -R nextjs:nodejs /app
 
 # Switch to non-root user

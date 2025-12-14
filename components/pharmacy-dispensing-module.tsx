@@ -11,14 +11,17 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  Pill, Package, AlertTriangle, CheckCircle2, Clock, 
+import {
+  Pill, Package, AlertTriangle, CheckCircle2, Clock,
   Search, FileText, User, Calendar, ShoppingCart, Plus, Trash2
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { defaultMedicines, type Medicine } from './medicine-catalog'
 import { useInventory } from '@/contexts/inventory-context'
 import { usePatient } from '@/contexts/patient-context'
+import { invoiceAPI, prescriptionAPI } from '@/lib/api-client'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/auth-context'
 
 interface Prescription {
   id: string
@@ -50,6 +53,8 @@ interface WalkInItem {
 
 export function PharmacyDispensingModule() {
   const { toast } = useToast()
+  const router = useRouter()
+  const { user } = useAuth()
   const { medicines, updateStock, checkStock, getMedicine } = useInventory()
   const { checkMedicationAllergy, getPatientAllergies } = usePatient()
   const [activeTab, setActiveTab] = useState('pending')
@@ -58,58 +63,115 @@ export function PharmacyDispensingModule() {
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null)
   const [dispensingNotes, setDispensingNotes] = useState('')
   const [batchNumber, setBatchNumber] = useState('')
+  const [showBillingDialog, setShowBillingDialog] = useState(false)
+  const [pendingInvoice, setPendingInvoice] = useState<{
+    patientId: string
+    patientName: string
+    items: Array<{ description: string; quantity: number; unitPrice: number; totalPrice: number }>
+    total: number
+    prescriptionId?: string
+  } | null>(null)
 
   // Walk-in sale state
   const [selectedMedicineId, setSelectedMedicineId] = useState<string>('')
   const [medicineQuantity, setMedicineQuantity] = useState<string>('1')
   const [walkInItems, setWalkInItems] = useState<WalkInItem[]>([])
 
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>([
-    {
-      id: '1',
-      prescription_number: 'RX-202510-001',
-      patient_id: 'PAT-2025-0001',
-      patient_name: 'John Doe',
-      clinician_name: 'Dr. Sarah Johnson',
-      medication_name: 'Amoxicillin 500mg',
-      dosage: '500mg',
-      frequency: 'Three times daily',
-      duration_days: 7,
-      quantity: 21,
-      instructions: 'Take after meals',
-      status: 'pending',
-      created_at: '2025-10-02T10:30:00Z',
-      available_stock: 150,
-      expiry_date: '2026-06-30',
-    },
-    {
-      id: '2',
-      prescription_number: 'RX-202510-002',
-      patient_id: 'PAT-2025-0015',
-      patient_name: 'Jane Smith',
-      clinician_name: 'Dr. Michael Brown',
-      medication_name: 'Ibuprofen 400mg',
-      dosage: '400mg',
-      frequency: 'Twice daily',
-      duration_days: 5,
-      quantity: 10,
-      instructions: 'Take with food',
-      status: 'pending',
-      created_at: '2025-10-02T11:15:00Z',
-      available_stock: 5,
-      expiry_date: '2025-11-15',
-    },
-  ])
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
 
-  const handleSearch = () => {
-    // TODO: Implement actual search API call
-    toast({
-      title: 'Search',
-      description: `Searching for: ${searchTerm}`,
-    })
+  // Load prescriptions from API
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      try {
+        setLoading(true)
+        // Fetch pending prescriptions by default, or all if needed
+        const result = await prescriptionAPI.getAll({ status: 'pending' })
+        if (result && result.data && Array.isArray(result.data)) {
+          // Transform API response to fit component state if necessary
+          // Assuming API response matches Prescription interface roughly or we map it
+          const mapped: Prescription[] = result.data.map((p: any) => ({
+            id: p.id,
+            prescription_number: p.prescription_number || p.id,
+            patient_id: p.patient_id,
+            patient_name: p.patient_name || 'Unknown',
+            clinician_name: p.clinician_name || 'Unknown',
+            medication_name: p.medication_name || 'Unknown',
+            dosage: p.dosage || '',
+            frequency: p.frequency || '',
+            duration_days: p.duration_days || 0,
+            quantity: p.quantity || 0,
+            instructions: p.instructions || '',
+            status: p.status || 'pending',
+            created_at: p.created_at,
+            available_stock: p.available_stock || 0, // This might need a separate check or check inventory context
+            expiry_date: p.expiry_date
+          }))
+          setPrescriptions(mapped)
+        }
+      } catch (error) {
+        console.error('Failed to load prescriptions:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load prescriptions from API",
+          variant: "destructive"
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPrescriptions()
+  }, [])
+
+  const handleSearch = async () => {
+    if (!searchTerm) return
+    try {
+      setLoading(true)
+      // TODO: Implement search parameter in API
+      const result = await prescriptionAPI.getAll({ page: 1 }) // fallback for now
+      // ... same mapping logic ...
+      if (result && result.data && Array.isArray(result.data)) {
+        const mapped: Prescription[] = result.data.map((p: any) => ({
+          id: p.id,
+          prescription_number: p.prescription_number || p.id,
+          patient_id: p.patient_id,
+          patient_name: p.patient_name || 'Unknown',
+          clinician_name: p.clinician_name || 'Unknown',
+          medication_name: p.medication_name || 'Unknown',
+          dosage: p.dosage || '',
+          frequency: p.frequency || '',
+          duration_days: p.duration_days || 0,
+          quantity: p.quantity || 0,
+          instructions: p.instructions || '',
+          status: p.status || 'pending',
+          created_at: p.created_at,
+          available_stock: p.available_stock || 0,
+          expiry_date: p.expiry_date
+        }))
+        setPrescriptions(mapped.filter(p =>
+          p.prescription_number.includes(searchTerm) ||
+          p.patient_name.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
+      }
+    } catch (error) {
+      // ...
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleDispense = async () => {
+    // ZERO TRUST GUARD: Only Pharmacists and Admins can dispense
+    const allowedRoles = ['pharmacist', 'admin']
+    if (user && !allowedRoles.includes(user.role)) {
+      toast({
+        variant: 'destructive',
+        title: 'Action Denied',
+        description: `Your role (${user.role}) is not authorized to dispense medications.`,
+        duration: 8000
+      })
+      return
+    }
     if (!selectedPrescription) return
 
     setLoading(true)
@@ -128,7 +190,7 @@ export function PharmacyDispensingModule() {
       }
 
       // Find matching medicine in catalog
-      const medicine = medicines.find(m => 
+      const medicine = medicines.find(m =>
         m.name.toLowerCase().includes(selectedPrescription.medication_name.toLowerCase())
       )
 
@@ -195,24 +257,85 @@ export function PharmacyDispensingModule() {
       //   body: JSON.stringify(dispensingPayload),
       // })
 
-      // Update local state
-      setPrescriptions(prev =>
-        prev.map(p =>
-          p.id === selectedPrescription.id
-            ? { ...p, status: 'dispensed' as const, dispensed_at: new Date().toISOString() }
-            : p
+      // Calculate medication cost
+      const medicationCost = medicine.unitPrice * selectedPrescription.quantity
+      const taxAmount = medicationCost * 0.16 // 16% VAT
+      const totalAmount = medicationCost + taxAmount
+
+      // Create invoice for medication
+      try {
+        const invoiceItems = [{
+          description: `${selectedPrescription.medication_name} - ${selectedPrescription.dosage}`,
+          quantity: selectedPrescription.quantity,
+          unit_price: medicine.unitPrice,
+          total_price: medicationCost,
+          diagnosis_code: undefined,
+          diagnosis_description: undefined,
+        }]
+
+        const invoiceData = {
+          patient_id: selectedPrescription.patient_id,
+          date: new Date().toISOString().split('T')[0],
+          items: invoiceItems,
+          consultation_id: undefined, // Medications can be dispensed without consultation
+          notes: `Prescription: ${selectedPrescription.prescription_number}. ${dispensingNotes || ''}`.trim(),
+        }
+
+        const invoiceResponse = await invoiceAPI.create(invoiceData)
+        const newInvoice = invoiceResponse?.data || invoiceResponse
+
+        // Update local state
+        setPrescriptions(prev =>
+          prev.map(p =>
+            p.id === selectedPrescription.id
+              ? { ...p, status: 'dispensed' as const, dispensed_at: new Date().toISOString() }
+              : p
+          )
         )
-      )
 
-      toast({
-        title: 'Medication Dispensed',
-        description: `${selectedPrescription.medication_name} dispensed successfully. Stock updated.`,
-      })
+        const invoiceNumber = newInvoice?.invoice_number || newInvoice?.id || 'N/A'
+        toast({
+          title: 'Medication Dispensed & Invoiced',
+          description: `${selectedPrescription.medication_name} dispensed. Invoice created for KSh ${totalAmount.toFixed(2)}. Redirecting to billing...`,
+        })
 
-      setSelectedPrescription(null)
-      setDispensingNotes('')
-      setBatchNumber('')
-      setActiveTab('dispensed')
+        setSelectedPrescription(null)
+        setDispensingNotes('')
+        setBatchNumber('')
+        setActiveTab('dispensed')
+
+        // Redirect to billing after 2 seconds to process payment
+        setTimeout(() => {
+          const invoiceId = newInvoice?.id || newInvoice?.invoice_id
+          if (invoiceId) {
+            router.push(`/dashboard/${user?.role || 'receptionist'}/billing?invoiceId=${invoiceId}`)
+          } else {
+            router.push(`/dashboard/${user?.role || 'receptionist'}/billing`)
+          }
+        }, 2000)
+
+      } catch (invoiceError) {
+        console.error('Failed to create invoice:', invoiceError)
+        // Still mark as dispensed even if invoice creation fails
+        setPrescriptions(prev =>
+          prev.map(p =>
+            p.id === selectedPrescription.id
+              ? { ...p, status: 'dispensed' as const, dispensed_at: new Date().toISOString() }
+              : p
+          )
+        )
+
+        toast({
+          variant: 'error',
+          title: 'Dispensing Completed, Invoice Failed',
+          description: 'Medication dispensed but invoice creation failed. Please create invoice manually.',
+        })
+
+        setSelectedPrescription(null)
+        setDispensingNotes('')
+        setBatchNumber('')
+        setActiveTab('dispensed')
+      }
     } catch (error) {
       toast({
         variant: 'error',
@@ -278,6 +401,19 @@ export function PharmacyDispensingModule() {
   }
 
   const handleCompleteSale = () => {
+    // ZERO TRUST GUARD: Only Pharmacists/Admins/Receptionists can process sales
+    // Receptionists might be allowed for billing, but let's restrict walk-in sales if needed.
+    // Assuming walk-in is loose, but let's stick to pharmacist/admin/receptionist for money handling.
+    const allowedRoles = ['pharmacist', 'admin', 'receptionist']
+    if (user && !allowedRoles.includes(user.role)) {
+      toast({
+        variant: 'destructive',
+        title: 'Action Denied',
+        description: `Your role (${user.role}) is not authorized to process walk-in sales.`,
+        duration: 8000
+      })
+      return
+    }
     if (walkInItems.length === 0) {
       toast({
         variant: 'error',
@@ -313,15 +449,58 @@ export function PharmacyDispensingModule() {
       return
     }
 
-    const total = walkInItems.reduce((sum, item) => sum + item.total, 0)
+    const subtotal = walkInItems.reduce((sum, item) => sum + item.total, 0)
+    const taxAmount = subtotal * 0.16 // 16% VAT
+    const total = subtotal + taxAmount
 
-    toast({
-      title: 'Sale Completed',
-      description: `Total: KSh ${total.toFixed(2)} - ${walkInItems.length} item(s) sold. Stock updated.`,
-    })
+    // Create invoice for walk-in sale
+    try {
+      const invoiceItems = walkInItems.map(item => ({
+        description: item.medicineName,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        total_price: item.total,
+        diagnosis_code: undefined,
+        diagnosis_description: undefined,
+      }))
 
-    // TODO: Process payment via M-Pesa or Cash
-    setWalkInItems([])
+      // For walk-in sales, we need patient info - prompt user or use a default
+      // For now, we'll create invoice without patient_id (can be updated later)
+      // Or redirect to billing module with items
+
+      toast({
+        title: 'Stock Updated',
+        description: `Total: KSh ${total.toFixed(2)} - ${walkInItems.length} item(s). Redirecting to billing...`,
+      })
+
+      // Store items for billing
+      setPendingInvoice({
+        patientId: '', // Will need to select patient in billing
+        patientName: 'Walk-in Customer',
+        items: walkInItems.map(item => ({
+          description: item.medicineName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.total
+        })),
+        total: total,
+      })
+
+      // Redirect to billing with items
+      setTimeout(() => {
+        router.push(`/dashboard/${user?.role || 'receptionist'}/billing?walkInItems=${encodeURIComponent(JSON.stringify(walkInItems))}`)
+      }, 1500)
+
+      setWalkInItems([])
+    } catch (error) {
+      console.error('Failed to process walk-in sale:', error)
+      toast({
+        variant: 'error',
+        title: 'Sale Partially Completed',
+        description: 'Stock updated but billing failed. Please create invoice manually.',
+      })
+      setWalkInItems([])
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -416,11 +595,10 @@ export function PharmacyDispensingModule() {
                 </Card>
               ) : (
                 filteredPrescriptions.map((prescription) => (
-                  <Card 
+                  <Card
                     key={prescription.id}
-                    className={`cursor-pointer transition-colors hover:border-primary ${
-                      selectedPrescription?.id === prescription.id ? 'border-primary bg-primary/5' : ''
-                    }`}
+                    className={`cursor-pointer transition-colors hover:border-primary ${selectedPrescription?.id === prescription.id ? 'border-primary bg-primary/5' : ''
+                      }`}
                     onClick={() => setSelectedPrescription(prescription)}
                   >
                     <CardContent className="pt-6">
@@ -643,11 +821,10 @@ export function PharmacyDispensingModule() {
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Available</Label>
-                      <p className={`font-semibold ${
-                        selectedPrescription.available_stock < selectedPrescription.quantity 
-                          ? 'text-red-600' 
-                          : 'text-green-600'
-                      }`}>
+                      <p className={`font-semibold ${selectedPrescription.available_stock < selectedPrescription.quantity
+                        ? 'text-red-600'
+                        : 'text-green-600'
+                        }`}>
                         {selectedPrescription.available_stock} units
                       </p>
                     </div>
@@ -696,8 +873,8 @@ export function PharmacyDispensingModule() {
                       </Alert>
                     )}
 
-                    <Button 
-                      onClick={handleDispense} 
+                    <Button
+                      onClick={handleDispense}
                       disabled={loading || selectedPrescription.quantity > selectedPrescription.available_stock}
                       className="w-full"
                       size="lg"
@@ -715,7 +892,7 @@ export function PharmacyDispensingModule() {
                       <div className="space-y-1">
                         <p className="font-semibold text-green-700">Already Dispensed</p>
                         <p className="text-sm">
-                          {selectedPrescription.dispensed_at && 
+                          {selectedPrescription.dispensed_at &&
                             new Date(selectedPrescription.dispensed_at).toLocaleString()}
                         </p>
                       </div>

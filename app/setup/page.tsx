@@ -32,6 +32,11 @@ export default function SetupPage() {
     department: 'Administration'
   })
 
+  // Allow users to skip setup and go to login
+  const handleSkipSetup = () => {
+    router.push('/')
+  }
+
   const handleInputChange = (field: keyof SetupData, value: string) => {
     setSetupData(prev => ({ ...prev, [field]: value }))
     setError(null)
@@ -340,6 +345,20 @@ export default function SetupPage() {
               'Create Admin Account'
             )}
           </Button>
+
+          <div className="pt-4 border-t">
+            <p className="text-sm text-center text-muted-foreground mb-2">
+              Already have an account or want to use demo credentials?
+            </p>
+            <Button 
+              onClick={handleSkipSetup}
+              variant="outline"
+              className="w-full"
+              disabled={isLoading}
+            >
+              Skip Setup & Go to Login
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

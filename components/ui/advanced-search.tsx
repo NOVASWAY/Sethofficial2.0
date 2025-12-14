@@ -19,10 +19,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { 
-  Search, 
-  Filter, 
-  X, 
+import {
+  Search,
+  Filter,
+  X,
   Calendar as CalendarIcon,
   ChevronDown,
   RotateCcw
@@ -195,15 +195,14 @@ export function AdvancedSearch({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.from ? format(dateRange.from, "PPP") : "From date"}
+                      {dateRange.from && dateRange.from instanceof Date ? format(dateRange.from, "PPP") : "From date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={dateRange.from}
+                      selected={dateRange.from instanceof Date ? dateRange.from : undefined}
                       onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
@@ -217,15 +216,14 @@ export function AdvancedSearch({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.to ? format(dateRange.to, "PPP") : "To date"}
+                      {dateRange.to && dateRange.to instanceof Date ? format(dateRange.to, "PPP") : "To date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={dateRange.to}
+                      selected={dateRange.to instanceof Date ? dateRange.to : undefined}
                       onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
@@ -241,15 +239,14 @@ export function AdvancedSearch({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filterValue ? format(filterValue, "PPP") : "Select date"}
+                    {filterValue && filterValue instanceof Date ? format(filterValue, "PPP") : "Select date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={filterValue}
+                    selected={filterValue instanceof Date ? filterValue : undefined}
                     onSelect={setFilterValue}
-                    initialFocus
                   />
                 </PopoverContent>
               </Popover>
@@ -313,7 +310,7 @@ export function AdvancedSearch({
             }}
           />
         </div>
-        
+
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="px-3">
@@ -386,9 +383,17 @@ export function AdvancedSearch({
               {/* Add New Filter */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Add Filter</Label>
-                
+
                 <div className="grid grid-cols-3 gap-2">
-                  <Select value={selectedField} onValueChange={setSelectedField}>
+                  <Select
+                    value={selectedField}
+                    onValueChange={(value) => {
+                      setSelectedField(value)
+                      setFilterValue("")
+                      setSelectedOperator("")
+                      setDateRange({})
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Field" />
                     </SelectTrigger>

@@ -36,7 +36,7 @@ pub async fn create_service(
     let nhif_price = service_data.nhif_price;
     let sha_price = service_data.sha_price;
 
-    match sqlx::query_as::<Service>(
+    match sqlx::query_as::<_, Service>(
         r#"
         INSERT INTO services (
             id, service_code, service_name, category, description,
@@ -93,7 +93,7 @@ pub async fn create_service(
 pub async fn get_services(
     data: web::Data<crate::AppState>,
 ) -> ActixResult<HttpResponse> {
-    match sqlx::query_as::<Service>(
+    match sqlx::query_as::<_, Service>(
         r#"
         SELECT id, service_code, service_name, category, description,
                unit_price, cash_price, nhif_price, sha_price,
@@ -144,7 +144,7 @@ pub async fn get_services_for_admin(
         }));
     }
 
-    match sqlx::query_as::<Service>(
+    match sqlx::query_as::<_, Service>(
         r#"
         SELECT id, service_code, service_name, category, description,
                unit_price, cash_price, nhif_price, sha_price,
@@ -219,7 +219,7 @@ pub async fn update_service_prices(
     }
 
 
-    match sqlx::query_as::<Service>(
+    match sqlx::query_as::<_, Service>(
         r#"
         UPDATE services 
         SET cash_price = COALESCE($2, cash_price),

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -10,9 +10,59 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertTriangle, Clock, XCircle, Package } from 'lucide-react'
 import { useInventory } from '@/contexts/inventory-context'
 import { getAllExpiryAlerts, formatExpiryStatus, type ExpiryAlert } from '@/lib/expiry-utils'
+import { Skeleton } from '@/components/ui/skeleton'
+
+function ExpiryAlertsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="h-9 w-48 mb-2" />
+        <Skeleton className="h-5 w-96" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3].map(i => (
+          <Card key={i} className="border-gray-200">
+            <CardHeader className="pb-3">
+              <Skeleton className="h-5 w-24" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-10 w-16 mb-2" />
+              <Skeleton className="h-4 w-32" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64 mt-2" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
 export function ExpiryAlertsDashboard() {
   const { medicines } = useInventory()
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  if (!isMounted && medicines.length === 0) {
+    return <ExpiryAlertsSkeleton />
+  }
+
   const allAlerts = getAllExpiryAlerts(medicines)
 
   const expiredAlerts = allAlerts.filter(a => a.severity === 'expired')
@@ -140,7 +190,7 @@ export function ExpiryAlertsDashboard() {
               ⚠️ EXPIRED MEDICINES DETECTED - {expiredAlerts.length}
             </div>
             <div className="text-red-800">
-              You have <span className="font-semibold">{expiredAlerts.length}</span> expired medicine batch(es). 
+              You have <span className="font-semibold">{expiredAlerts.length}</span> expired medicine batch(es).
               These must be removed from inventory immediately and disposed of properly.
             </div>
           </AlertDescription>
@@ -228,3 +278,4 @@ export function ExpiryAlertsDashboard() {
   )
 }
 
+export default ExpiryAlertsDashboard

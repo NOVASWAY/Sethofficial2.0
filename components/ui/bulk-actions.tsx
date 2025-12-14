@@ -62,7 +62,6 @@ export function BulkActions({
         <div className="flex items-center gap-2">
           <Checkbox
             checked={isAllSelected}
-            indeterminate={isSomeSelected}
             onCheckedChange={isAllSelected ? onDeselectAll : onSelectAll}
             aria-label={isAllSelected ? 'Deselect all' : 'Select all'}
           />

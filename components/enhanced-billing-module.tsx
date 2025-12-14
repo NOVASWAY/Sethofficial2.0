@@ -10,13 +10,65 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Receipt, CreditCard, Smartphone, Shield, DollarSign, 
+import {
+  Receipt, CreditCard, Smartphone, Shield, DollarSign,
   FileText, Printer, CheckCircle2, AlertCircle, Calculator, Plus, Trash2, Loader2
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { EnhancedServiceCatalog, Service } from './enhanced-service-catalog'
-import { billingAPI, serviceCatalogAPI, invoiceAPI, shaClaimAPI } from '@/lib/api-client'
+import { billingAPI, serviceCatalogAPI, invoiceAPI, shaClaimAPI, patientAPI } from '@/lib/api-client'
+// Lightweight fallback for card payments while the real gateway component is offline
+const PaymentGatewayIntegration = ({
+  amount,
+  currency,
+  invoiceId,
+  patientId,
+  patientName,
+  onSuccess,
+  onError,
+  onCancel,
+}: {
+  amount: number
+  currency: string
+  invoiceId: string
+  patientId?: string
+  patientName?: string
+  onSuccess: (data: any) => void
+  onError: (error: string) => void
+  onCancel: () => void
+}) => {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Demo card payment for {patientName || 'patient'} — {currency} {amount.toLocaleString()}
+      </p>
+      <div className="flex gap-2">
+        <Button
+          onClick={() =>
+            onSuccess({
+              amount,
+              transactionId: `demo-${Date.now()}`,
+              gateway: 'demo-gateway',
+              cardDetails: { last4: '4242', brand: 'VISA' },
+              metadata: { invoiceId, patientId },
+            })
+          }
+        >
+          Simulate Success
+        </Button>
+        <Button variant="outline" onClick={() => onError('Payment simulation failed')}>
+          Simulate Error
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { DashboardSkeleton } from '@/components/ui/loading'
 
 interface BillingItem {
   service_id: string
@@ -48,9 +100,9 @@ interface EnhancedBillingModuleProps {
   role?: string // Add role prop for access control
 }
 
-export function EnhancedBillingModule({ 
-  patientId = '', 
-  patientName = '', 
+export function EnhancedBillingModule({
+  patientId = '',
+  patientName = '',
   consultationId = '',
   onInvoiceCreated,
   role = 'receptionist' // Default to receptionist for backward compatibility
@@ -60,14 +112,63 @@ export function EnhancedBillingModule({
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
-  const [insuranceType, setInsuranceType] = useState<'NHIF' | 'SHA' | 'Cash'>('Cash')
+  const [insuranceType, setInsuranceType] = useState<'NHIF' | 'SHA' | 'Cash' | 'Private' | 'Mixed'>('Cash')
   const [patientType, setPatientType] = useState<'adult' | 'child' | 'senior'>('adult')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa' | 'bank_transfer' | 'cheque'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa' | 'bank_transfer' | 'cheque' | 'card'>('cash')
+  const [showCardPayment, setShowCardPayment] = useState(false)
+  const [cardPaymentResult, setCardPaymentResult] = useState<any>(null)
   const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('')
   const [bankReference, setBankReference] = useState('')
   const [chequeNumber, setChequeNumber] = useState('')
   const [autoBillResult, setAutoBillResult] = useState<AutoBillResponse | null>(null)
   const [notes, setNotes] = useState('')
+  // Ensure component is mounted to prevent hydration mismatch
+  const [isMounted, setIsMounted] = useState(false)
+  const patientPayment = autoBillResult?.totals?.patient_payment ?? 0
+  const hasPatientPayment = patientPayment > 0
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+
+
+
+  // Auto-load insurance type from patient when patientId is provided
+  useEffect(() => {
+    if (patientId) {
+      patientAPI.getById(patientId)
+        .then((patientData: any) => {
+          const patientInsurance = patientData?.insurance_type || patientData?.insuranceType
+          if (patientInsurance) {
+            // Map patient insurance to billing insurance type
+            const insuranceMap: Record<string, 'NHIF' | 'SHA' | 'Cash' | 'Private' | 'Mixed'> = {
+              'nhif': 'NHIF',
+              'NHIF': 'NHIF',
+              'sha': 'SHA',
+              'SHA': 'SHA',
+              'private': 'Private',
+              'Private': 'Private',
+              'mixed': 'Mixed',
+              'Mixed': 'Mixed',
+              'cash': 'Cash',
+              'Cash': 'Cash',
+            }
+            const mappedInsurance = insuranceMap[patientInsurance] || 'Cash'
+            setInsuranceType(mappedInsurance)
+
+            toast({
+              title: 'Insurance Type Loaded',
+              description: `Patient insurance type: ${mappedInsurance}${patientData?.insurance_number ? ` (${patientData.insurance_number})` : ''}`,
+            })
+          }
+        })
+        .catch((error: any) => {
+          console.error('Failed to load patient insurance:', error)
+          // Silently fail - user can manually select insurance type
+        })
+    }
+  }, [patientId, toast])
 
   const handleServiceSelect = (service: Service) => {
     // Check if service is already selected
@@ -125,10 +226,10 @@ export function EnhancedBillingModule({
       )
 
       setAutoBillResult(result)
-      
+
       toast({
         title: 'Auto-Bill Created Successfully',
-        description: `Invoice ${result.invoice_id} generated with automated pricing`,
+        description: `Invoice ${result?.invoice_id || result?.data?.invoice_id || 'N/A'} generated with automated pricing`,
       })
 
       if (onInvoiceCreated) {
@@ -155,11 +256,22 @@ export function EnhancedBillingModule({
 
   const calculateManualTotal = () => {
     return selectedServices.reduce((sum, service) => {
-      const price = insuranceType === 'Cash' ? service.cash_price : 
-                   insuranceType === 'NHIF' ? service.nhif_price : 
-                   service.sha_price
+      let price = service.cash_price // Default to cash price
+      if (insuranceType === 'SHA') {
+        price = service.sha_price
+      } else if (insuranceType === 'NHIF') {
+        price = service.nhif_price || service.cash_price
+      } else if (insuranceType === 'Private') {
+        price = service.cash_price * 0.9 // 90% coverage
+      } else if (insuranceType === 'Mixed') {
+        price = service.sha_price * 0.7 // 70% coverage
+      }
       return sum + price
     }, 0)
+  }
+
+  if (!isMounted) {
+    return <DashboardSkeleton />
   }
 
   return (
@@ -206,11 +318,22 @@ export function EnhancedBillingModule({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="Cash">Cash (Self-Pay)</SelectItem>
                       <SelectItem value="NHIF">NHIF</SelectItem>
-                      <SelectItem value="SHA">SHA</SelectItem>
+                      <SelectItem value="SHA">SHA (Social Health Authority)</SelectItem>
+                      <SelectItem value="Private">Private Insurance</SelectItem>
+                      <SelectItem value="Mixed">Mixed (SHA + Cash)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {patientId && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {insuranceType === 'SHA' && 'Full coverage by SHA'}
+                      {insuranceType === 'NHIF' && '80% coverage by NHIF, 20% patient pays'}
+                      {insuranceType === 'Private' && '90% coverage by insurance, 10% patient pays'}
+                      {insuranceType === 'Mixed' && '70% coverage, 30% patient pays'}
+                      {insuranceType === 'Cash' && 'Patient pays full amount'}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Patient Type</Label>
@@ -225,7 +348,7 @@ export function EnhancedBillingModule({
                     </SelectContent>
                   </Select>
                 </div>
-                {autoBillResult && autoBillResult.totals.patient_payment > 0 && (
+                {(insuranceType !== 'SHA' || hasPatientPayment) && (
                   <>
                     <div>
                       <Label className="text-muted-foreground">Payment Method</Label>
@@ -236,6 +359,7 @@ export function EnhancedBillingModule({
                         <SelectContent>
                           <SelectItem value="cash">Cash</SelectItem>
                           <SelectItem value="mpesa">M-Pesa</SelectItem>
+                          <SelectItem value="card">Credit/Debit Card</SelectItem>
                           <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                           <SelectItem value="cheque">Cheque</SelectItem>
                         </SelectContent>
@@ -289,6 +413,29 @@ export function EnhancedBillingModule({
                         </p>
                       </div>
                     )}
+                    {paymentMethod === 'card' && (
+                      <div className="col-span-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setShowCardPayment(true)}
+                          className="w-full"
+                        >
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Process Card Payment
+                        </Button>
+                        {cardPaymentResult && (
+                          <div className="mt-2 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              <p className="text-sm text-green-800 dark:text-green-200">
+                                Payment processed: {cardPaymentResult.transactionId}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -325,9 +472,16 @@ export function EnhancedBillingModule({
               <CardContent>
                 <div className="space-y-3">
                   {selectedServices.map((service) => {
-                    const price = insuranceType === 'Cash' ? service.cash_price : 
-                                 insuranceType === 'NHIF' ? service.nhif_price : 
-                                 service.sha_price
+                    let price = service.cash_price // Default to cash price
+                    if (insuranceType === 'SHA') {
+                      price = service.sha_price
+                    } else if (insuranceType === 'NHIF') {
+                      price = service.nhif_price || service.cash_price
+                    } else if (insuranceType === 'Private') {
+                      price = service.cash_price * 0.9 // 90% coverage
+                    } else if (insuranceType === 'Mixed') {
+                      price = service.sha_price * 0.7 // 70% coverage
+                    }
                     return (
                       <div key={service.id} className="flex justify-between items-center p-3 border rounded-lg">
                         <div className="flex-1">
@@ -425,10 +579,10 @@ export function EnhancedBillingModule({
 
               <div className="space-y-2">
                 {canCreateInvoices ? (
-                  <Button 
-                    onClick={handleCreateAutoBill} 
+                  <Button
+                    onClick={handleCreateAutoBill}
                     disabled={loading || selectedServices.length === 0 || !patientId}
-                    className="w-full" 
+                    className="w-full"
                     size="lg"
                   >
                     {loading ? (
@@ -449,9 +603,9 @@ export function EnhancedBillingModule({
                     <p className="text-xs mt-2">You can view invoices in the Invoice Records section.</p>
                   </div>
                 )}
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   onClick={handleReset}
                   className="w-full"
                 >
@@ -474,19 +628,19 @@ export function EnhancedBillingModule({
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Invoice ID:</span>
-                    <span className="font-mono">{autoBillResult.invoice_id}</span>
+                    <span className="font-mono">{autoBillResult?.invoice_id || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Patient ID:</span>
-                    <span className="font-mono">{autoBillResult.patient_id}</span>
+                    <span className="font-mono">{autoBillResult?.patient_id || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Insurance:</span>
-                    <Badge variant="outline">{autoBillResult.insurance_type}</Badge>
+                    <Badge variant="outline">{autoBillResult?.insurance_type || 'Cash'}</Badge>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Patient Type:</span>
-                    <Badge variant="outline">{autoBillResult.patient_type}</Badge>
+                    <Badge variant="outline">{autoBillResult?.patient_type || 'adult'}</Badge>
                   </div>
                 </div>
 
@@ -495,15 +649,15 @@ export function EnhancedBillingModule({
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Total Amount:</span>
-                    <span className="font-semibold">KES {autoBillResult.totals.total_amount.toFixed(2)}</span>
+                    <span className="font-semibold">KES {autoBillResult?.totals?.total_amount?.toFixed(2) || '0.00'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Insurance Coverage:</span>
-                    <span className="text-green-600 font-semibold">KES {autoBillResult.totals.insurance_coverage.toFixed(2)}</span>
+                    <span className="text-green-600 font-semibold">KES {autoBillResult?.totals?.insurance_coverage?.toFixed(2) || '0.00'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Patient Payment:</span>
-                    <span className="text-orange-600 font-semibold">KES {autoBillResult.totals.patient_payment.toFixed(2)}</span>
+                    <span className="text-orange-600 font-semibold">KES {patientPayment.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -512,7 +666,7 @@ export function EnhancedBillingModule({
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Billing Items:</Label>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {autoBillResult.billing_items.map((item, index) => (
+                    {autoBillResult?.billing_items?.map((item, index) => (
                       <div key={index} className="flex justify-between text-xs p-2 bg-muted rounded">
                         <span className="truncate">{item.service_name}</span>
                         <span className="font-semibold">KES {item.total.toFixed(2)}</span>
@@ -532,17 +686,17 @@ export function EnhancedBillingModule({
                       PDF
                     </Button>
                   </div>
-                  
-                  {autoBillResult.totals.patient_payment > 0 && (
-                    <Button 
-                      className="w-full" 
+
+                  {hasPatientPayment && (
+                    <Button
+                      className="w-full"
                       onClick={async () => {
                         try {
                           setLoading(true)
                           // Use selected payment method (insurance type only affects pricing, not payment method)
                           // Backend only accepts: 'cash', 'mpesa', 'bank_transfer', 'cheque'
                           // Insurance type (SHA/NHIF) determines pricing but payment_method is how patient actually pays
-                          
+
                           // Validate M-Pesa phone number if needed
                           if (paymentMethod === 'mpesa') {
                             if (!mpesaPhoneNumber || !/^(\+?254|0)?[17]\d{8}$/.test(mpesaPhoneNumber.replace(/\s+/g, ''))) {
@@ -555,33 +709,33 @@ export function EnhancedBillingModule({
                               return
                             }
                           }
-                          
+
                           const paymentData: any = {
                             payment_method: paymentMethod,
-                            amount_paid: autoBillResult.totals.patient_payment,
+                            amount_paid: patientPayment,
                             payment_date: new Date().toISOString().split('T')[0],
                             transaction_id: `TXN-${Date.now()}`,
                           }
-                          
+
                           // Add phone number for M-Pesa payments
                           if (paymentMethod === 'mpesa' && mpesaPhoneNumber) {
                             paymentData.phone_number = mpesaPhoneNumber.replace(/\s+/g, '')
                           }
-                          
+
                           // Add reference number for bank transfer
                           if (paymentMethod === 'bank_transfer' && bankReference) {
                             paymentData.reference_number = bankReference
                           }
-                          
+
                           // Add cheque number for cheque payments
                           if (paymentMethod === 'cheque' && chequeNumber) {
                             paymentData.reference_number = chequeNumber
                           }
-                          
-                          await invoiceAPI.processPayment(autoBillResult.invoice_id, paymentData)
+
+                          await invoiceAPI.processPayment(autoBillResult?.invoice_id || '', paymentData)
                           toast({
                             title: "Payment Processed",
-                            description: `Payment of KSh ${autoBillResult.totals.patient_payment.toFixed(2)} processed successfully.`,
+                            description: `Payment of KSh ${(autoBillResult?.totals?.patient_payment || 0).toFixed(2)} processed successfully.`,
                           })
                         } catch (error) {
                           console.error("Error processing payment:", error)
@@ -615,6 +769,69 @@ export function EnhancedBillingModule({
           )}
         </div>
       </div>
+
+      {/* Card Payment Dialog */}
+      <Dialog open={showCardPayment} onOpenChange={setShowCardPayment}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Card Payment</DialogTitle>
+            <DialogDescription>
+              Process payment via credit or debit card
+            </DialogDescription>
+          </DialogHeader>
+          {autoBillResult && (
+            <PaymentGatewayIntegration
+              amount={patientPayment}
+              currency="KES"
+              invoiceId={autoBillResult?.invoice_id || ''}
+              patientId={patientId}
+              patientName={patientName}
+              onSuccess={async (paymentData) => {
+                setCardPaymentResult(paymentData)
+                setShowCardPayment(false)
+
+                // Process the payment through the invoice API
+                try {
+                  const paymentDataForAPI = {
+                    payment_method: 'card',
+                    amount: paymentData.amount,
+                    payment_reference: paymentData.transactionId,
+                    gateway_name: paymentData.gateway,
+                    gateway_transaction_id: paymentData.transactionId,
+                    card_last4: paymentData.cardDetails?.last4,
+                    card_brand: paymentData.cardDetails?.brand,
+                    metadata: paymentData.metadata
+                  }
+
+                  await invoiceAPI.processPayment(autoBillResult?.invoice_id || '', paymentDataForAPI)
+
+                  toast({
+                    title: "Payment Processed",
+                    description: `Card payment of KSh ${paymentData.amount.toLocaleString()} processed successfully.`,
+                  })
+                } catch (error) {
+                  console.error("Error processing card payment:", error)
+                  toast({
+                    variant: 'error',
+                    title: 'Payment Recording Failed',
+                    description: 'Payment was successful but failed to record. Please contact support.',
+                  })
+                }
+              }}
+              onError={(error) => {
+                toast({
+                  variant: 'error',
+                  title: 'Payment Failed',
+                  description: error,
+                })
+              }}
+              onCancel={() => setShowCardPayment(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+export default EnhancedBillingModule

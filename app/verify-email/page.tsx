@@ -34,7 +34,7 @@ export default function VerifyEmailPage() {
     setError(null)
 
     try {
-      const response = await authAPI.verifyEmail(tokenValue)
+      const response: any = await authAPI.verifyEmail(tokenValue)
       if (response.success) {
         setSuccess(true)
         setTimeout(() => {

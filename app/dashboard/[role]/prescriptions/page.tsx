@@ -12,15 +12,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { 
-  ClipboardList, 
-  Search, 
-  Plus, 
-  Eye, 
-  Edit, 
-  FileText, 
-  User, 
-  Calendar, 
+import {
+  ClipboardList,
+  Search,
+  Plus,
+  Eye,
+  Edit,
+  FileText,
+  User,
+  Calendar,
   Pill,
   CheckCircle,
   Clock,
@@ -115,17 +115,17 @@ export default function PrescriptionsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
-  
+  const [activeTab, setActiveTab] = useState("all")
+
   // Debounce search term
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
-  
-  // Memoized cache key
+
+  // Memoized cache key - must be after activeTab is defined
   const prescriptionsCacheKey = useMemo(() => getCacheKey('prescriptions', { role, tab: activeTab }), [role, activeTab])
-  const [patients, setPatients] = useState<Array<{id: string, firstName: string, lastName: string, patientNumber?: string}>>([])
-  const [doctors, setDoctors] = useState<Array<{id: string, name: string, role: string}>>([])
-  const [medicines, setMedicines] = useState<Array<{id: string, name: string, dosage_form: string, strength: string, unit_price: number}>>([])
-  const [activeTab, setActiveTab] = useState("all")
-  
+  const [patients, setPatients] = useState<Array<{ id: string, firstName: string, lastName: string, patientNumber?: string }>>([])
+  const [doctors, setDoctors] = useState<Array<{ id: string, name: string, role: string }>>([])
+  const [medicines, setMedicines] = useState<Array<{ id: string, name: string, dosage_form: string, strength: string, unit_price: number }>>([])
+
   // Form state for new prescription
   const [selectedPatientId, setSelectedPatientId] = useState<string>("")
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("")
@@ -173,7 +173,7 @@ export default function PrescriptionsPage() {
           page: 1,
           per_page: 100
         }
-        
+
         if (activeTab !== "all") {
           params.status = activeTab === "pending" ? "active" : activeTab === "dispensed" ? "dispensed" : activeTab === "cancelled" ? "cancelled" : undefined
         }
@@ -183,7 +183,7 @@ export default function PrescriptionsPage() {
           () => prescriptionAPI.getAll(params),
           5 * 60 * 1000 // Cache for 5 minutes
         )
-        
+
         if (result && Array.isArray(result.data)) {
           // Transform API response using memoized function
           const transformed = result.data.map(transformPrescription)
@@ -241,7 +241,7 @@ export default function PrescriptionsPage() {
               role: u.role
             }))
           setDoctors(doctorUsers)
-          
+
           // Set current user as default doctor if they're a clinician
           if (user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin')) {
             setSelectedDoctorId(user.id)
@@ -408,7 +408,7 @@ export default function PrescriptionsPage() {
   }
 
   const canCreatePrescriptions = role === "clinician" || role === "admin"
-  const canViewPrescriptions = role === "clinician" || role === "pharmacist" || role === "admin"
+  const canViewPrescriptions = role === "clinician" || role === "pharmacist" || role === "admin" || role === "nurse"
 
   return (
     <DashboardLayout role={role}>
@@ -537,43 +537,43 @@ export default function PrescriptionsPage() {
                       </TableRow>
                     ) : (
                       filteredPrescriptions.map((prescription) => {
-                      const StatusIcon = getStatusIcon(prescription.status)
-                      return (
-                        <TableRow key={prescription.id}>
-                          <TableCell className="font-medium">{prescription.id}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{prescription.patientName}</p>
-                              <p className="text-sm text-muted-foreground">{prescription.patientId}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>{prescription.prescribedBy}</TableCell>
-                          <TableCell>{new Date(prescription.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{prescription.medications.length} item(s)</TableCell>
-                          <TableCell className="font-medium">KSh {prescription.totalAmount.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <StatusIcon className="w-4 h-4" />
-                              <Badge className={getStatusColor(prescription.status)}>{prescription.status}</Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              {canViewPrescriptions && (
-                                <Button variant="ghost" size="sm" onClick={() => handleViewPrescription(prescription)}>
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                              )}
-                              {canCreatePrescriptions && (
-                                <Button variant="ghost" size="sm">
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    }))}
+                        const StatusIcon = getStatusIcon(prescription.status)
+                        return (
+                          <TableRow key={prescription.id}>
+                            <TableCell className="font-medium">{prescription.id}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{prescription.patientName}</p>
+                                <p className="text-sm text-muted-foreground">{prescription.patientId}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>{prescription.prescribedBy}</TableCell>
+                            <TableCell>{new Date(prescription.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{prescription.medications.length} item(s)</TableCell>
+                            <TableCell className="font-medium">KSh {prescription.totalAmount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <StatusIcon className="w-4 h-4" />
+                                <Badge className={getStatusColor(prescription.status)}>{prescription.status}</Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                {canViewPrescriptions && (
+                                  <Button variant="ghost" size="sm" onClick={() => handleViewPrescription(prescription)}>
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {canCreatePrescriptions && (
+                                  <Button variant="ghost" size="sm">
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      }))}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -605,7 +605,7 @@ export default function PrescriptionsPage() {
                             View
                           </Button>
                           {role === "pharmacist" && (
-                            <Button 
+                            <Button
                               size="sm"
                               onClick={async () => {
                                 try {
@@ -748,7 +748,7 @@ export default function PrescriptionsPage() {
                 </Select>
               </div>
             </div>
-            
+
             {/* Medicines Selection */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -883,7 +883,7 @@ export default function PrescriptionsPage() {
                 </p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <Label>Prescription Instructions/Notes *</Label>
               <Textarea
@@ -945,7 +945,7 @@ export default function PrescriptionsPage() {
 
                   try {
                     setIsCreating(true)
-                    
+
                     // Prepare medicines array for backend
                     const medicinesArray = selectedMedicines.map(med => ({
                       medicine_id: med.medicine_id,
@@ -956,7 +956,7 @@ export default function PrescriptionsPage() {
                       quantity: med.quantity,
                       instructions: med.instructions
                     }))
-                    
+
                     const prescriptionData = {
                       patient_id: selectedPatientId,
                       doctor_id: selectedDoctorId,
@@ -966,20 +966,20 @@ export default function PrescriptionsPage() {
                     }
 
                     const result = await prescriptionAPI.create(prescriptionData)
-                    
+
                     if (result) {
                       toast({
                         title: "Success",
                         description: "Prescription created successfully",
                       })
-                      
+
                       // Reset form
                       setSelectedPatientId("")
                       setSelectedDoctorId(user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin') ? user.id : "")
                       setPrescriptionInstructions("")
                       setSelectedMedicines([])
                       setIsNewPrescriptionOpen(false)
-                      
+
                       // Refresh prescriptions list
                       window.location.reload()
                     }

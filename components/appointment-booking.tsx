@@ -21,7 +21,7 @@ import { useAppointments, type Appointment } from '@/contexts/appointment-contex
 export function AppointmentBooking() {
   const { toast } = useToast()
   const { appointments: contextAppointments, addAppointment, updateAppointment, cancelAppointment } = useAppointments()
-  
+
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
@@ -29,19 +29,20 @@ export function AppointmentBooking() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [loading, setLoading] = useState(true)
-  
+
   // Debounce selected date changes to reduce API calls when navigating dates
   const debouncedSelectedDate = useDebounce(selectedDate, 300)
-  
+
   // Memoized cache key for appointments
   const appointmentsCacheKey = useMemo(
     () => getCacheKey('appointments', { date: debouncedSelectedDate }),
     [debouncedSelectedDate]
   )
-  
+
   // Memoized transform function
   const transformAppointment = useCallback((apt: any): Appointment => ({
     id: apt.id || `APT-${apt.id?.slice(0, 8)}`,
+    appointmentNumber: apt.appointment_number || apt.appointmentNumber || apt.id || `APT-${Date.now()}`,
     patientId: apt.patient_id || apt.patientId || '',
     patientName: apt.patient_name || `${apt.patient_first_name || ''} ${apt.patient_last_name || ''}`.trim() || 'Unknown Patient',
     patientPhone: apt.patient_phone || apt.patientPhone || '',
@@ -51,14 +52,15 @@ export function AppointmentBooking() {
     clinicianId: apt.doctor_id || apt.clinician_id || apt.clinicianId || '',
     clinicianName: apt.doctor_name || apt.clinician_name || apt.clinicianName || 'Unknown Doctor',
     status: (apt.status === 'scheduled' ? 'scheduled' as const :
-             apt.status === 'checked-in' ? 'checked-in' as const :
-             apt.status === 'in-progress' ? 'in-progress' as const :
-             apt.status === 'completed' ? 'completed' as const :
-             apt.status === 'cancelled' ? 'cancelled' as const :
-             apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
+      apt.status === 'checked-in' ? 'checked-in' as const :
+        apt.status === 'in-progress' ? 'in-progress' as const :
+          apt.status === 'completed' ? 'completed' as const :
+            apt.status === 'cancelled' ? 'cancelled' as const :
+              apt.status === 'no-show' ? 'no-show' as const : 'scheduled' as const),
     notes: apt.notes || apt.notes || '',
     cancelledReason: apt.cancelled_reason || apt.cancelReason || undefined,
     createdAt: apt.created_at || new Date().toISOString(),
+    updatedAt: apt.updated_at || apt.updatedAt || apt.created_at || new Date().toISOString(),
   }), [])
 
   // Fetch appointments from API with caching and lazy loading by date
@@ -66,28 +68,33 @@ export function AppointmentBooking() {
     const fetchAppointments = async () => {
       try {
         setLoading(true)
-        
+
         // Use cached API call if available
         const cacheKey = appointmentsCacheKey
-        const result = await withCache(
+        const result: any[] = await withCache(
           cacheKey,
-          () => {
+          async () => {
             // If date is selected, fetch appointments for that date
-            if (debouncedSelectedDate) {
-              return appointmentAPI.getByDate(debouncedSelectedDate)
+            const apiResult: any = debouncedSelectedDate
+              ? await appointmentAPI.getByDate(debouncedSelectedDate)
+              : await appointmentAPI.getAll({ page: 1, per_page: 200 })
+
+            if (apiResult && Array.isArray(apiResult.data)) {
+              return apiResult.data
             }
-            // Otherwise fetch all with pagination
-            return appointmentAPI.getAll({ page: 1, per_page: 200 })
+            if (Array.isArray(apiResult)) {
+              return apiResult
+            }
+            if (Array.isArray(apiResult?.data?.data)) {
+              return apiResult.data.data
+            }
+            return []
           },
           5 * 60 * 1000 // Cache for 5 minutes
         )
-        
-        if (result && Array.isArray(result.data)) {
+
+        if (result && Array.isArray(result)) {
           // Transform API response to match Appointment interface
-          const transformed = result.data.map(transformAppointment)
-          setAppointments(transformed)
-        } else if (result && Array.isArray(result)) {
-          // Handle case where API returns array directly
           const transformed = result.map(transformAppointment)
           setAppointments(transformed)
         } else {
@@ -110,7 +117,7 @@ export function AppointmentBooking() {
 
     fetchAppointments()
   }, [debouncedSelectedDate, appointmentsCacheKey, transformAppointment, contextAppointments, toast])
-  
+
   const [bookingData, setBookingData] = useState({
     patientId: '',
     patientName: '',
@@ -124,8 +131,8 @@ export function AppointmentBooking() {
   })
 
   const handleBookAppointment = async () => {
-    if (!bookingData.patientName || !bookingData.patientPhone || !bookingData.appointmentDate || 
-        !bookingData.appointmentTime || !bookingData.clinicianName) {
+    if (!bookingData.patientName || !bookingData.patientPhone || !bookingData.appointmentDate ||
+      !bookingData.appointmentTime || !bookingData.clinicianName) {
       toast({
         variant: 'error',
         title: 'Validation Error',
@@ -147,13 +154,14 @@ export function AppointmentBooking() {
       }
 
       const apiResponse = await appointmentAPI.create(appointmentData)
-      
+
       // Invalidate appointment cache after creating new appointment
       dashboardCache.invalidatePattern('dashboard:appointments:.*')
 
       // Also add to context for immediate UI update
       const newAppointment: Appointment = {
         id: apiResponse?.id || `APT-${Date.now()}`,
+        appointmentNumber: apiResponse?.appointment_number || apiResponse?.id || `APT-${Date.now()}`,
         patientId: bookingData.patientId || `PAT-${Date.now()}`,
         patientName: bookingData.patientName,
         patientPhone: bookingData.patientPhone,
@@ -165,6 +173,7 @@ export function AppointmentBooking() {
         status: 'scheduled',
         notes: bookingData.notes,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       }
 
       addAppointment(newAppointment)
@@ -206,7 +215,7 @@ export function AppointmentBooking() {
         status: 'cancelled',
         notes: cancelReason ? `${selectedAppointment.notes || ''}\nCancellation reason: ${cancelReason}`.trim() : selectedAppointment.notes,
       })
-      
+
       // Invalidate appointment cache after cancelling
       dashboardCache.invalidatePattern('dashboard:appointments:.*')
 
@@ -214,12 +223,12 @@ export function AppointmentBooking() {
       cancelAppointment(selectedAppointment.id, cancelReason)
 
       // Update local state
-      setAppointments(appointments.map(apt => 
-        apt.id === selectedAppointment.id 
+      setAppointments(appointments.map(apt =>
+        apt.id === selectedAppointment.id
           ? { ...apt, status: 'cancelled' as const, cancelledReason: cancelReason }
           : apt
       ))
-      
+
       toast({
         title: 'Appointment Cancelled',
         description: `Appointment for ${selectedAppointment.patientName} has been cancelled`,
@@ -255,9 +264,9 @@ export function AppointmentBooking() {
     () => appointments.filter(apt => apt.appointmentDate === selectedDate),
     [appointments, selectedDate]
   )
-  
+
   const upcomingAppointments = useMemo(
-    () => appointments.filter(apt => 
+    () => appointments.filter(apt =>
       new Date(apt.appointmentDate) > new Date(selectedDate) && apt.status === 'scheduled'
     ),
     [appointments, selectedDate]
@@ -273,14 +282,14 @@ export function AppointmentBooking() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
             variant="outline"
             onClick={async () => {
               try {
                 setLoading(true)
                 // Invalidate cache before refreshing
                 dashboardCache.invalidatePattern('dashboard:appointments:.*')
-                
+
                 const result = await appointmentAPI.getAll({ page: 1, per_page: 200 })
                 if (result && Array.isArray(result.data)) {
                   const transformed = result.data.map(transformAppointment)
@@ -378,8 +387,8 @@ export function AppointmentBooking() {
                       </div>
                       <div className="flex gap-2">
                         {apt.status === 'scheduled' && (
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => {
                               setSelectedAppointment(apt)
@@ -429,8 +438,8 @@ export function AppointmentBooking() {
                           </p>
                         </div>
                       </div>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
                         onClick={() => {
                           setSelectedAppointment(apt)
@@ -627,3 +636,4 @@ export function AppointmentBooking() {
   )
 }
 
+export default AppointmentBooking

@@ -417,7 +417,7 @@ pub async fn process_payment(
         .unwrap_or("");
 
     // Get current invoice
-    let invoice_result = sqlx::query_as::<(f64, String)>(
+    let invoice_result = sqlx::query_as::<_, (f64, String)>(
         "SELECT total_amount, payment_status FROM invoices WHERE id = $1"
     )
     .bind(invoice_id)

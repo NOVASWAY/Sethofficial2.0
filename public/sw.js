@@ -163,10 +163,7 @@ async function handleStaticRequest(request) {
     return networkResponse
   } catch (error) {
     console.error('Service Worker: Static fetch failed', error)
-    return new Response('Offline', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain' },
-    })
+    throw error
   }
 }
 

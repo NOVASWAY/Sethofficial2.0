@@ -38,15 +38,18 @@ impl Validate for CreatePatient {
         }
 
         // Date of birth validation
-        let today = Utc::now().date_naive();
-        if self.date_of_birth > today {
-            errors.add_error("date_of_birth".to_string(), "Date of birth cannot be in the future".to_string(), Some(serde_json::Value::String(self.date_of_birth.to_string())));
-        }
+        if let Some(dob) = self.date_of_birth {
+            let today = Utc::now().date_naive();
+            let dob_naive = dob.date_naive();
+            if dob_naive > today {
+                errors.add_error("date_of_birth".to_string(), "Date of birth cannot be in the future".to_string(), Some(serde_json::Value::String(dob.to_rfc3339())));
+            }
 
-        // Check if patient is too old (e.g., over 150 years)
-        let age = (today - self.date_of_birth).num_days() / 365;
-        if age > 150 {
-            errors.add_error("date_of_birth".to_string(), "Invalid date of birth".to_string(), Some(serde_json::Value::String(self.date_of_birth.to_string())));
+            // Check if patient is too old (e.g., over 150 years)
+            let age = (today - dob_naive).num_days() / 365;
+            if age > 150 {
+                errors.add_error("date_of_birth".to_string(), "Invalid date of birth".to_string(), Some(serde_json::Value::String(dob.to_rfc3339())));
+            }
         }
 
         // Gender validation

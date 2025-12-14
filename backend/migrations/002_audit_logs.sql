@@ -58,65 +58,52 @@ END $$;
 -- Add additional columns to medications table if not present
 DO $$ 
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'generic_name') THEN
-        ALTER TABLE medications ADD COLUMN generic_name VARCHAR(255);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'generic_name') THEN
+        ALTER TABLE medicines ADD COLUMN generic_name VARCHAR(255);
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'category') THEN
-        ALTER TABLE medications ADD COLUMN category VARCHAR(100);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'category') THEN
+        ALTER TABLE medicines ADD COLUMN category VARCHAR(100);
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'manufacturer') THEN
-        ALTER TABLE medications ADD COLUMN manufacturer VARCHAR(255);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'manufacturer') THEN
+        ALTER TABLE medicines ADD COLUMN manufacturer VARCHAR(255);
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'batch_number') THEN
-        ALTER TABLE medications ADD COLUMN batch_number VARCHAR(100) UNIQUE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'batch_number') THEN
+        ALTER TABLE medicines ADD COLUMN batch_number VARCHAR(100) UNIQUE;
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'reorder_level') THEN
-        ALTER TABLE medications ADD COLUMN reorder_level INT NOT NULL DEFAULT 10;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'reorder_level') THEN
+        ALTER TABLE medicines ADD COLUMN reorder_level INT NOT NULL DEFAULT 10;
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'location') THEN
-        ALTER TABLE medications ADD COLUMN location VARCHAR(255);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'location') THEN
+        ALTER TABLE medicines ADD COLUMN location VARCHAR(255);
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'description') THEN
-        ALTER TABLE medications ADD COLUMN description TEXT;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'description') THEN
+        ALTER TABLE medicines ADD COLUMN description TEXT;
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'side_effects') THEN
-        ALTER TABLE medications ADD COLUMN side_effects TEXT;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'side_effects') THEN
+        ALTER TABLE medicines ADD COLUMN side_effects TEXT;
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'dosage_form') THEN
-        ALTER TABLE medications ADD COLUMN dosage_form VARCHAR(100);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'dosage_form') THEN
+        ALTER TABLE medicines ADD COLUMN dosage_form VARCHAR(100);
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medications' AND column_name = 'strength') THEN
-        ALTER TABLE medications ADD COLUMN strength VARCHAR(100);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'medicines' AND column_name = 'strength') THEN
+        ALTER TABLE medicines ADD COLUMN strength VARCHAR(100);
     END IF;
 END $$;
-
--- Create prescriptions table
-CREATE TABLE IF NOT EXISTS prescriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    clinician_id UUID NOT NULL REFERENCES users(id),
-    prescription_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    diagnosis TEXT,
-    notes TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 -- Create prescription_items table
 CREATE TABLE IF NOT EXISTS prescription_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     prescription_id UUID NOT NULL REFERENCES prescriptions(id) ON DELETE CASCADE,
-    medication_id UUID NOT NULL REFERENCES medications(id),
+    medication_id UUID NOT NULL REFERENCES medicines(id),
     quantity INT NOT NULL,
     dosage VARCHAR(255) NOT NULL,
     frequency VARCHAR(100) NOT NULL,

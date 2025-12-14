@@ -7,14 +7,14 @@ import { ImageIcon, Loader2 } from 'lucide-react'
 interface OptimizedImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'srcSet'> {
   src: string
   alt: string
-  width?: number
-  height?: number
+  width?: number | string
+  height?: number | string
   fallback?: string
   loading?: 'lazy' | 'eager'
   placeholder?: 'blur' | 'empty'
   blurDataURL?: string
   className?: string
-  onError?: () => void
+  onError?: React.ReactEventHandler<HTMLImageElement>
   priority?: boolean
 }
 
@@ -79,17 +79,17 @@ export function OptimizedImage({
   }
 
   // Handle image error
-  const handleError = () => {
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     setIsLoading(false)
     setHasError(true)
-    
+
     if (fallback && imgSrc !== fallback) {
       setImgSrc(fallback)
       setHasError(false)
       return
     }
 
-    onError?.()
+    onError?.(e)
   }
 
   // Generate WebP srcSet if possible
@@ -112,7 +112,11 @@ export function OptimizedImage({
   const getSrcSet = (baseSrc: string): string => {
     const sizes = [320, 640, 768, 1024, 1280, 1920]
     return sizes
-      .filter(size => width ? size <= width : true)
+      .filter(size => {
+        if (!width) return true
+        const widthNum = typeof width === 'string' ? parseInt(width, 10) : width
+        return !isNaN(widthNum) && size <= widthNum
+      })
       .map(size => {
         const webpSrc = getWebPSrc(baseSrc)
         return `${webpSrc}?w=${size} ${size}w`

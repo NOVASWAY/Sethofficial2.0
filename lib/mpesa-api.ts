@@ -60,8 +60,8 @@ class MpesaApiClient {
    */
   async initiateStkPush(request: StkPushRequest): Promise<StkPushResponse> {
     try {
-      const response = await apiClient.post(`${this.baseUrl}/stk-push`, request)
-      return response.data
+      const response = await apiClient.post<StkPushResponse>(`${this.baseUrl}/stk-push`, request)
+      return response
     } catch (error: any) {
       console.error('STK Push initiation failed:', error)
       return {
@@ -77,10 +77,10 @@ class MpesaApiClient {
    */
   async getTransactionStatus(checkoutRequestId: string): Promise<MpesaTransactionStatus> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/transaction/${checkoutRequestId}`)
+      const response = await apiClient.get<MpesaTransaction>(`${this.baseUrl}/transaction/${checkoutRequestId}`)
       return {
         success: true,
-        data: response.data
+        data: response
       }
     } catch (error: any) {
       console.error('Failed to get transaction status:', error)
@@ -96,8 +96,8 @@ class MpesaApiClient {
    */
   async getInvoiceTransactions(invoiceId: string): Promise<MpesaTransactionsResponse> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/invoice/${invoiceId}/transactions`)
-      return response.data
+      const response = await apiClient.get<MpesaTransactionsResponse>(`${this.baseUrl}/invoice/${invoiceId}/transactions`)
+      return response
     } catch (error: any) {
       console.error('Failed to get invoice transactions:', error)
       return {
@@ -112,28 +112,28 @@ class MpesaApiClient {
    * Poll transaction status until completion or timeout
    */
   async pollTransactionStatus(
-    checkoutRequestId: string, 
-    maxAttempts: number = 30, 
+    checkoutRequestId: string,
+    maxAttempts: number = 30,
     intervalMs: number = 2000
   ): Promise<MpesaTransactionStatus> {
     let attempts = 0
-    
+
     while (attempts < maxAttempts) {
       const result = await this.getTransactionStatus(checkoutRequestId)
-      
+
       if (result.success && result.data) {
         // Check if transaction is completed (success or failure)
         if (result.data.status === 'Completed' || result.data.status === 'Failed' || result.data.status === 'Cancelled') {
           return result
         }
       }
-      
+
       attempts++
       if (attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, intervalMs))
       }
     }
-    
+
     return {
       success: false,
       error: 'Transaction status polling timed out'
@@ -146,27 +146,27 @@ class MpesaApiClient {
   validatePhoneNumber(phone: string): { isValid: boolean; formatted: string; error?: string } {
     // Remove any spaces, dashes, or parentheses
     const cleaned = phone.replace(/[\s\-\(\)]/g, '')
-    
+
     // Check if it starts with +254
     if (cleaned.startsWith('+254') && cleaned.length === 13) {
       return { isValid: true, formatted: cleaned }
     }
-    
+
     // Check if it starts with 254
     if (cleaned.startsWith('254') && cleaned.length === 12) {
       return { isValid: true, formatted: `+${cleaned}` }
     }
-    
+
     // Check if it starts with 0
     if (cleaned.startsWith('0') && cleaned.length === 10) {
       return { isValid: true, formatted: `+254${cleaned.slice(1)}` }
     }
-    
+
     // Check if it's 9 digits (assume it's missing country code)
     if (cleaned.length === 9 && /^\d+$/.test(cleaned)) {
       return { isValid: true, formatted: `+254${cleaned}` }
     }
-    
+
     return {
       isValid: false,
       formatted: phone,

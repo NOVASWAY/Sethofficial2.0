@@ -1,0 +1,1888 @@
+    Checking clinic-management-backend v0.1.0 (/home/njau/seth/Sethofficial2.0/backend)
+error: error returned from database: column "mfa_enabled" does not exist
+   --> src/mfa.rs:121:24
+    |
+121 |           let user_row = sqlx::query!(
+    |  ________________________^
+122 | |             r#"
+123 | |             SELECT 
+124 | |                 COALESCE(mfa_enabled, false) as mfa_enabled,
+...   |
+134 | |             user_id
+135 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "mfa_secret" of relation "users" does not exist
+   --> src/mfa.rs:179:9
+    |
+179 | /         sqlx::query!(
+180 | |             r#"
+181 | |             UPDATE users 
+182 | |             SET mfa_secret = $1, 
+...   |
+188 | |             user_id
+189 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "mfa_secret" does not exist
+   --> src/mfa.rs:206:20
+    |
+206 |           let user = sqlx::query!(
+    |  ____________________^
+207 | |             r#"
+208 | |             SELECT mfa_secret, COALESCE(mfa_enabled, false) as mfa_enabled
+209 | |             FROM users
+...   |
+212 | |             user_id
+213 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "phone_number" does not exist
+   --> src/mfa.rs:256:20
+    |
+256 |           let user = sqlx::query!(
+    |  ____________________^
+257 | |             r#"
+258 | |             SELECT phone_number, COALESCE(mfa_enabled, false) as mfa_enabled
+259 | |             FROM users
+...   |
+262 | |             user_id
+263 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "mfa_recovery_codes" does not exist
+   --> src/mfa.rs:321:13
+    |
+321 | /             sqlx::query!(
+322 | |                 r#"
+323 | |                 INSERT INTO mfa_recovery_codes (user_id, code_hash, expires_at)
+324 | |                 VALUES ($1, $2, NOW() + INTERVAL '1 year')
+...   |
+327 | |                 hash
+328 | |             )
+    | |_____________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "mfa_recovery_codes" does not exist
+   --> src/mfa.rs:362:22
+    |
+362 |           let result = sqlx::query!(
+    |  ______________________^
+363 | |             r#"
+364 | |             UPDATE mfa_recovery_codes
+365 | |             SET used = true, used_at = NOW()
+...   |
+373 | |             code_hash
+374 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "mfa_sessions" does not exist
+   --> src/mfa.rs:420:23
+    |
+420 |           let session = sqlx::query_as!(
+    |  _______________________^
+421 | |             MfaSession,
+422 | |             r#"
+423 | |             SELECT id, user_id, session_token, mfa_verified, created_at, expires_at,
+...   |
+428 | |             session_token
+429 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query_as` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "mfa_sessions" does not exist
+   --> src/mfa.rs:479:9
+    |
+479 | /         sqlx::query!(
+480 | |             r#"
+481 | |             UPDATE mfa_sessions
+482 | |             SET mfa_verified = true, verified_at = NOW()
+...   |
+485 | |             session.id
+486 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "mfa_enabled" does not exist
+   --> src/mfa.rs:492:9
+    |
+492 | /         sqlx::query!(
+493 | |             r#"
+494 | |             UPDATE users
+495 | |             SET mfa_enabled = true, updated_at = NOW()
+...   |
+498 | |             session.user_id
+499 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "mfa_sessions" does not exist
+   --> src/mfa.rs:509:23
+    |
+509 |           let session = sqlx::query_as!(
+    |  _______________________^
+510 | |             MfaSession,
+511 | |             r#"
+512 | |             SELECT id, user_id, session_token, mfa_verified, created_at, expires_at,
+...   |
+517 | |             session_token
+518 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query_as` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "mfa_enabled" of relation "users" does not exist
+   --> src/mfa.rs:531:9
+    |
+531 | /         sqlx::query!(
+532 | |             r#"
+533 | |             UPDATE users
+534 | |             SET mfa_enabled = false, mfa_method = NULL, mfa_secret = NULL, updated_at = NOW()
+...   |
+537 | |             user_id
+538 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "mfa_recovery_codes" does not exist
+   --> src/mfa.rs:544:9
+    |
+544 | /         sqlx::query!(
+545 | |             r#"
+546 | |             UPDATE mfa_recovery_codes
+547 | |             SET used = true, used_at = NOW()
+...   |
+550 | |             user_id
+551 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "files" does not exist
+   --> src/handlers/upload_handlers.rs:93:18
+    |
+ 93 |       let result = sqlx::query!(
+    |  __________________^
+ 94 | |         r#"
+ 95 | |         INSERT INTO files (
+ 96 | |             filename, original_filename, file_path, file_size, mime_type, file_type,
+...   |
+111 | |         is_public
+112 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "files" does not exist
+   --> src/handlers/upload_handlers.rs:244:18
+    |
+244 |       let result = sqlx::query!(
+    |  __________________^
+245 | |         r#"
+246 | |         INSERT INTO files (
+247 | |             filename, original_filename, file_path, file_size, mime_type, file_type,
+...   |
+262 | |         is_public
+263 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "files" does not exist
+   --> src/handlers/upload_handlers.rs:297:16
+    |
+297 |       let file = sqlx::query!(
+    |  ________________^
+298 | |         r#"
+299 | |         SELECT id, filename, original_filename, file_path, file_size, mime_type, file_type,
+300 | |                entity_type, entity_id, uploaded_by, description, is_public, created_at
+...   |
+304 | |         file_id
+305 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "files" does not exist
+   --> src/handlers/upload_handlers.rs:467:16
+    |
+467 |       let file = sqlx::query!(
+    |  ________________^
+468 | |         r#"
+469 | |         SELECT filename, file_path, uploaded_by
+470 | |         FROM files
+...   |
+473 | |         file_id
+474 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "files" does not exist
+   --> src/handlers/upload_handlers.rs:499:13
+    |
+499 | /             sqlx::query!(
+500 | |                 "DELETE FROM files WHERE id = $1",
+501 | |                 file_id
+502 | |             )
+    | |_____________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_jobs" does not exist
+   --> src/handlers/backup_handlers.rs:142:19
+    |
+142 |       let deleted = sqlx::query!(
+    |  ___________________^
+143 | |         "DELETE FROM backup_jobs WHERE id = $1",
+144 | |         backup_id
+145 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_config" does not exist
+   --> src/handlers/backup_handlers.rs:230:22
+    |
+230 |       let config_row = sqlx::query!(
+    |  ______________________^
+231 | |         r#"
+232 | |         SELECT enabled, schedule, retention_days, backup_path, compression, include_files, max_backup_size_mb
+233 | |         FROM backup_config
+...   |
+236 | |         "#
+237 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/handlers/backup_handlers.rs:456:19
+    |
+456 |       let deleted = sqlx::query!(
+    |  ___________________^
+457 | |         "DELETE FROM backup_schedules WHERE id = $1",
+458 | |         schedule_id
+459 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/handlers/backup_handlers.rs:484:19
+    |
+484 |       let updated = sqlx::query!(
+    |  ___________________^
+485 | |         r#"
+486 | |         UPDATE backup_schedules 
+487 | |         SET enabled = NOT enabled, updated_at = NOW()
+...   |
+490 | |         schedule_id
+491 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "user_dashboard_preferences" does not exist
+   --> src/handlers/user_preferences_handlers.rs:452:11
+    |
+452 |       match sqlx::query!(
+    |  ___________^
+453 | |         "DELETE FROM user_dashboard_preferences WHERE user_id = $1",
+454 | |         user_id
+455 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "data_isolation_rules" does not exist
+   --> src/handlers/data_isolation_handlers.rs:501:32
+    |
+501 |       let isolation_rule = match sqlx::query_as!(
+    |  ________________________________^
+502 | |         IsolationRule,
+503 | |         "SELECT id, role, entity_type, filter_rules, permissions, is_active
+504 | |          FROM data_isolation_rules 
+...   |
+507 | |         validation_data.entity_type
+508 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query_as` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "password_reset_tokens" does not exist
+   --> src/handlers/password_reset_handlers.rs:156:22
+    |
+156 |       let token_data = sqlx::query!(
+    |  ______________________^
+157 | |         r#"
+158 | |         SELECT user_id, expires_at, used
+159 | |         FROM password_reset_tokens
+...   |
+162 | |         req.token
+163 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "password_reset_tokens" does not exist
+   --> src/handlers/password_reset_handlers.rs:221:5
+    |
+221 | /     sqlx::query!(
+222 | |         r#"
+223 | |         UPDATE password_reset_tokens
+224 | |         SET used = true, used_at = NOW()
+...   |
+227 | |         req.token
+228 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "password_reset_tokens" does not exist
+   --> src/handlers/password_reset_handlers.rs:245:22
+    |
+245 |       let token_data = sqlx::query!(
+    |  ______________________^
+246 | |         r#"
+247 | |         SELECT expires_at, used
+248 | |         FROM password_reset_tokens
+...   |
+251 | |         token.into_inner()
+252 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "email_verification_tokens" does not exist
+  --> src/handlers/email_verification_handlers.rs:24:22
+   |
+24 |       let token_data = sqlx::query!(
+   |  ______________________^
+25 | |         r#"
+26 | |         SELECT user_id, email, expires_at, used
+27 | |         FROM email_verification_tokens
+...  |
+30 | |         token_value
+31 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "email_verified" of relation "users" does not exist
+  --> src/handlers/email_verification_handlers.rs:69:5
+   |
+69 | /     sqlx::query!(
+70 | |         r#"
+71 | |         UPDATE users
+72 | |         SET email_verified = true, updated_at = NOW()
+...  |
+75 | |         token_data.user_id
+76 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "email_verification_tokens" does not exist
+  --> src/handlers/email_verification_handlers.rs:81:5
+   |
+81 | /     sqlx::query!(
+82 | |         r#"
+83 | |         UPDATE email_verification_tokens
+84 | |         SET used = true, used_at = NOW()
+...  |
+87 | |         token_value
+88 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: column "email_verified" does not exist
+   --> src/handlers/email_verification_handlers.rs:108:16
+    |
+108 |       let user = sqlx::query!(
+    |  ________________^
+109 | |         "SELECT id, username, email, name, email_verified FROM users WHERE email = $1 AND is_active = true",
+110 | |         req.email
+111 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "email_verification_tokens" does not exist
+   --> src/handlers/email_verification_handlers.rs:143:5
+    |
+143 | /     sqlx::query!(
+144 | |         r#"
+145 | |         INSERT INTO email_verification_tokens (user_id, token, email, expires_at)
+146 | |         VALUES ($1, $2, $3, $4)
+...   |
+152 | |         expires_at
+153 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_jobs" does not exist
+   --> src/backup.rs:143:17
+    |
+143 | /                 sqlx::query!(
+144 | |                     r#"
+145 | |                     UPDATE backup_jobs 
+146 | |                     SET status = $1, completed_at = $2, file_path = $3, file_size_bytes = $4
+...   |
+153 | |                     backup_id
+154 | |                 )
+    | |_________________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_jobs" does not exist
+   --> src/backup.rs:176:17
+    |
+176 | /                 sqlx::query!(
+177 | |                     r#"
+178 | |                     UPDATE backup_jobs 
+179 | |                     SET status = $1, completed_at = $2, error_message = $3
+...   |
+185 | |                     backup_id
+186 | |                 )
+    | |_________________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_jobs" does not exist
+   --> src/backup.rs:363:29
+    |
+363 |           let deleted_count = sqlx::query!(
+    |  _____________________________^
+364 | |             r#"
+365 | |             DELETE FROM backup_jobs 
+366 | |             WHERE started_at < $1 AND status = 'completed'
+367 | |             "#,
+368 | |             cutoff_date
+369 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/backup_scheduler.rs:129:9
+    |
+129 | /         sqlx::query!(
+130 | |             r#"
+131 | |             UPDATE backup_schedules 
+132 | |             SET last_run_at = $1, next_run_at = $2, updated_at = NOW()
+...   |
+137 | |             schedule_id
+138 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/backup_scheduler.rs:175:9
+    |
+175 | /         sqlx::query!(
+176 | |             r#"
+177 | |             INSERT INTO backup_schedules (id, name, backup_type, cron_expression, enabled, retention_days, next_run_at)
+178 | |             VALUES ($1, $2, $3, $4, $5, $6, $7)
+...   |
+186 | |             next_run
+187 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/backup_scheduler.rs:197:9
+    |
+197 | /         sqlx::query!(
+198 | |             r#"
+199 | |             UPDATE backup_schedules 
+200 | |             SET name = $1, backup_type = $2, cron_expression = $3, enabled = $4, retention_days = $5, updated_at = NOW()
+...   |
+208 | |             schedule_id
+209 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/backup_scheduler.rs:219:9
+    |
+219 | /         sqlx::query!(
+220 | |             "DELETE FROM backup_schedules WHERE id = $1",
+221 | |             schedule_id
+222 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error returned from database: relation "backup_schedules" does not exist
+   --> src/backup_scheduler.rs:232:9
+    |
+232 | /         sqlx::query!(
+233 | |             r#"
+234 | |             UPDATE backup_schedules 
+235 | |             SET enabled = $1, updated_at = NOW()
+...   |
+239 | |             schedule_id
+240 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `System`
+ --> src/main.rs:6:20
+  |
+6 | use actix::{Actor, System};
+  |                    ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `rust_decimal::Decimal`
+ --> src/models.rs:5:5
+  |
+5 | use rust_decimal::Decimal;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `sqlx::types::BigDecimal`
+ --> src/models.rs:6:5
+  |
+6 | use sqlx::types::BigDecimal;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/models.rs:7:5
+  |
+7 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Appointment`, `Medicine`, and `Prescription`
+ --> src/simple_handlers.rs:9:61
+  |
+9 | use crate::{AppState, models::{User, Patient, Consultation, Appointment, Invoice, Medicine, Prescription}, jwt_utils::verify_jwt_from_req...
+  |                                                             ^^^^^^^^^^^           ^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+    --> src/simple_handlers.rs:5743:9
+     |
+5743 |     use std::collections::HashMap;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::num::NonZeroU32`
+  --> src/middleware/security.rs:13:5
+   |
+13 | use std::num::NonZeroU32;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Data` and `HttpRequest`
+ --> src/middleware/security_middleware.rs:4:12
+  |
+4 |     Error, HttpRequest, HttpResponse, Result,
+  |            ^^^^^^^^^^^
+5 |     middleware::Next,
+6 |     web::{Data, self},
+  |           ^^^^
+
+warning: unused import: `UNIX_EPOCH`
+  --> src/middleware/security_middleware.rs:10:29
+   |
+10 | use std::time::{SystemTime, UNIX_EPOCH};
+   |                             ^^^^^^^^^^
+
+warning: unused import: `error::ApiError`
+  --> src/middleware/security_middleware.rs:22:5
+   |
+22 |     error::ApiError,
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused imports: `get_claims_from_request`, `get_user_id_from_request`, `get_user_role_from_request`, `has_permission`, `has_role`, and `is_admin`
+  --> src/middleware/mod.rs:7:5
+   |
+ 7 |     get_claims_from_request,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+ 8 |     get_user_id_from_request,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+ 9 |     get_user_role_from_request,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+10 |     has_permission,
+   |     ^^^^^^^^^^^^^^
+11 |     has_role,
+   |     ^^^^^^^^
+12 |     is_admin,
+   |     ^^^^^^^^
+
+warning: unused import: `security_middleware::csrf_protection_middleware`
+  --> src/middleware/mod.rs:14:9
+   |
+14 | pub use security_middleware::csrf_protection_middleware;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/services/notification_service.rs:1:5
+  |
+1 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `file_service::*`
+ --> src/services/mod.rs:8:9
+  |
+8 | pub use file_service::*;
+  |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `notification_service::*`
+ --> src/services/mod.rs:9:9
+  |
+9 | pub use notification_service::*;
+  |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Duration` and `Instant`
+ --> src/websocket.rs:7:17
+  |
+7 | use std::time::{Duration, Instant};
+  |                 ^^^^^^^^  ^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src/websocket.rs:8:5
+  |
+8 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `tokio::sync::RwLock`
+ --> src/websocket.rs:9:5
+  |
+9 | use tokio::sync::RwLock;
+  |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ActivityLogCache`, `CacheConfig`, `CacheEntry`, `CacheInvalidator`, `CacheKeys`, `CacheMetrics`, `CacheService`, `DashboardCache`, `UserPreferencesCache`, and `ValidationCache`
+ --> src/cache/mod.rs:4:5
+  |
+4 |     CacheService, CacheConfig, CacheEntry, CacheMetrics, CacheKeys, CacheInvalidator,
+  |     ^^^^^^^^^^^^  ^^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^  ^^^^^^^^^^^^^^^^
+5 |     DashboardCache, UserPreferencesCache, ActivityLogCache, ValidationCache,
+  |     ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+
+warning: unused import: `Duration`
+ --> src/mfa.rs:4:29
+  |
+4 | use chrono::{Utc, DateTime, Duration};
+  |                             ^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/mfa.rs:9:5
+  |
+9 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `error`
+  --> src/mfa.rs:10:27
+   |
+10 | use tracing::{info, warn, error};
+   |                           ^^^^^
+
+warning: unused import: `std::fmt`
+ --> src/errors.rs:3:5
+  |
+3 | use std::fmt;
+  |     ^^^^^^^^
+
+warning: unused imports: `CreateInvoiceItem`, `Invoice`, and `PaginatedResponse`
+ --> src/handlers/invoice_handlers.rs:7:21
+  |
+7 | use crate::models::{Invoice, CreateInvoice, CreateInvoiceItem, ApiResponse, PaginatedResponse};
+  |                     ^^^^^^^                 ^^^^^^^^^^^^^^^^^               ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CreatePrescription`, `Medicine`, and `Prescription`
+ --> src/handlers/pharmacy_handlers.rs:7:21
+  |
+7 | use crate::models::{Prescription, CreatePrescription, Medicine, CreateMedicine, ApiResponse, PaginatedResponse};
+  |                     ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^
+
+warning: unused import: `Medicine`
+ --> src/handlers/inventory_handlers.rs:5:21
+  |
+5 | use crate::models::{Medicine, ApiResponse};
+  |                     ^^^^^^^^
+
+warning: unused import: `crate::middleware::auth::get_current_user`
+ --> src/handlers/inventory_handlers.rs:7:5
+  |
+7 | use crate::middleware::auth::get_current_user;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Appointment`, `CheckInRequest`, and `QueueItem`
+ --> src/handlers/appointment_handlers.rs:7:21
+  |
+7 | use crate::models::{Appointment, CreateAppointment, QueueItem, CheckInRequest, ApiResponse, PaginatedResponse};
+  |                     ^^^^^^^^^^^                     ^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused imports: `PasswordHash` and `PasswordVerifier`
+ --> src/handlers/user_handlers.rs:6:38
+  |
+6 | use argon2::{Argon2, PasswordHasher, PasswordHash, PasswordVerifier};
+  |                                      ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+
+warning: unused imports: `UpdateUser` and `User`
+ --> src/handlers/user_handlers.rs:9:21
+  |
+9 | use crate::models::{User, CreateUser, UpdateUser, ApiResponse, PaginatedResponse};
+  |                     ^^^^              ^^^^^^^^^^
+
+warning: unused imports: `CreateSystemSetting`, `CreateUserSetting`, `UpdateSystemSetting`, and `UpdateUserSetting`
+ --> src/handlers/settings_handlers.rs:6:49
+  |
+6 | ...g, UpdateSystemSetting, CreateSystemSetting, SettingsResponse, UpdateSettingsRequest, UserSetting, CreateUserSetting, UpdateUserSetting};
+  |       ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^                                                        ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `web`
+ --> src/handlers/health_handlers.rs:1:17
+  |
+1 | use actix_web::{web, HttpResponse, Result};
+  |                 ^^^
+
+warning: unused import: `HttpRequest`
+ --> src/handlers/mpesa_handlers.rs:1:44
+  |
+1 | use actix_web::{web, HttpResponse, Result, HttpRequest};
+  |                                            ^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src/handlers/mpesa_handlers.rs:4:5
+  |
+4 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `warn`
+ --> src/handlers/mpesa_handlers.rs:7:28
+  |
+7 | use tracing::{info, error, warn};
+  |                            ^^^^
+
+warning: unused import: `MpesaTransactionUpdate`
+  --> src/handlers/mpesa_handlers.rs:10:42
+   |
+10 |     MpesaService, StkPushRequestPayload, MpesaTransactionUpdate, 
+   |                                          ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::database::DatabasePool`
+ --> src/handlers/backup_handlers.rs:5:5
+  |
+5 | use crate::database::DatabasePool;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `HttpRequest`
+ --> src/handlers/monitoring_handlers.rs:1:44
+  |
+1 | use actix_web::{web, HttpResponse, Result, HttpRequest};
+  |                                            ^^^^^^^^^^^
+
+warning: unused imports: `LogEntry` and `MonitoringService`
+ --> src/handlers/monitoring_handlers.rs:8:5
+  |
+8 |     MonitoringService, LogEntry, LogLevel, SystemHealth, Alert, AlertSeverity, 
+  |     ^^^^^^^^^^^^^^^^^  ^^^^^^^^
+
+warning: unused import: `ApiError`
+  --> src/handlers/monitoring_handlers.rs:11:20
+   |
+11 | use crate::error::{ApiError, ApiResponse};
+   |                    ^^^^^^^^
+
+warning: unused import: `Datelike`
+ --> src/handlers/dashboard_handlers.rs:5:39
+  |
+5 | use chrono::{DateTime, Utc, Duration, Datelike, NaiveDate};
+  |                                       ^^^^^^^^
+
+warning: unused import: `crate::errors::AppError`
+  --> src/handlers/activity_log_handlers.rs:10:5
+   |
+10 | use crate::errors::AppError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `UpdatePatient` and `UpdateUser`
+ --> src/handlers/validation_handlers.rs:7:49
+  |
+7 | use crate::models::{ApiResponse, CreatePatient, UpdatePatient, CreateUser, UpdateUser};
+  |                                                 ^^^^^^^^^^^^^              ^^^^^^^^^^
+
+warning: unused import: `MfaEnrollmentRequest`
+ --> src/handlers/mfa_handlers.rs:5:54
+  |
+5 | use crate::mfa::{MfaService, MfaVerificationRequest, MfaEnrollmentRequest};
+  |                                                      ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `sqlx::PgPool`
+ --> src/handlers/password_reset_handlers.rs:3:5
+  |
+3 | use sqlx::PgPool;
+  |     ^^^^^^^^^^^^
+
+warning: unused import: `HttpRequest`
+ --> src/handlers/email_verification_handlers.rs:1:36
+  |
+1 | use actix_web::{web, HttpResponse, HttpRequest};
+  |                                    ^^^^^^^^^^^
+
+warning: unused import: `sqlx::PgPool`
+ --> src/handlers/email_verification_handlers.rs:3:5
+  |
+3 | use sqlx::PgPool;
+  |     ^^^^^^^^^^^^
+
+warning: unused import: `crate::middleware::security::get_user_id_from_request`
+ --> src/handlers/csrf_handlers.rs:5:5
+  |
+5 | use crate::middleware::security::get_user_id_from_request;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `sqlx::PgPool`
+ --> src/handlers/batch_import_handlers.rs:3:5
+  |
+3 | use sqlx::PgPool;
+  |     ^^^^^^^^^^^^
+
+warning: unused import: `rust_decimal::Decimal`
+ --> src/handlers/batch_import_handlers.rs:7:5
+  |
+7 | use rust_decimal::Decimal;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `sqlx::types::BigDecimal`
+ --> src/handlers/batch_import_handlers.rs:8:5
+  |
+8 | use sqlx::types::BigDecimal;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::str::FromStr`
+ --> src/handlers/batch_import_handlers.rs:9:5
+  |
+9 | use std::str::FromStr;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Serialize`
+ --> src/handlers/lab_order_handlers.rs:2:26
+  |
+2 | use serde::{Deserialize, Serialize};
+  |                          ^^^^^^^^^
+
+warning: unused imports: `Decimal` and `prelude::*`
+ --> src/handlers/service_handlers.rs:5:20
+  |
+5 | use rust_decimal::{Decimal, prelude::*};
+  |                    ^^^^^^^  ^^^^^^^^^^
+
+warning: unused imports: `NoteWithUser` and `Note`
+ --> src/handlers/notes_handlers.rs:7:21
+  |
+7 | use crate::models::{Note, CreateNote, UpdateNote, NoteWithUser, ApiResponse};
+  |                     ^^^^                          ^^^^^^^^^^^^
+
+warning: unused import: `auth_handlers::*`
+  --> src/handlers/mod.rs:36:9
+   |
+36 | pub use auth_handlers::*;
+   |         ^^^^^^^^^^^^^^^^
+
+warning: unused import: `patient_handlers::*`
+  --> src/handlers/mod.rs:37:9
+   |
+37 | pub use patient_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `consultation_handlers::*`
+  --> src/handlers/mod.rs:38:9
+   |
+38 | pub use consultation_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `invoice_handlers::*`
+  --> src/handlers/mod.rs:39:9
+   |
+39 | pub use invoice_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `pharmacy_handlers::*`
+  --> src/handlers/mod.rs:40:9
+   |
+40 | pub use pharmacy_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `inventory_handlers::*`
+  --> src/handlers/mod.rs:41:9
+   |
+41 | pub use inventory_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `appointment_handlers::*`
+  --> src/handlers/mod.rs:42:9
+   |
+42 | pub use appointment_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `report_handlers::*`
+  --> src/handlers/mod.rs:43:9
+   |
+43 | pub use report_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `user_handlers::*`
+  --> src/handlers/mod.rs:44:9
+   |
+44 | pub use user_handlers::*;
+   |         ^^^^^^^^^^^^^^^^
+
+warning: unused import: `settings_handlers::*`
+  --> src/handlers/mod.rs:45:9
+   |
+45 | pub use settings_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `upload_handlers::*`
+  --> src/handlers/mod.rs:46:9
+   |
+46 | pub use upload_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `health_handlers::*`
+  --> src/handlers/mod.rs:47:9
+   |
+47 | pub use health_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `mpesa_handlers::*`
+  --> src/handlers/mod.rs:48:9
+   |
+48 | pub use mpesa_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `backup_handlers::*`
+  --> src/handlers/mod.rs:49:9
+   |
+49 | pub use backup_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `monitoring_handlers::*`
+  --> src/handlers/mod.rs:50:9
+   |
+50 | pub use monitoring_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `missing_handlers::*`
+  --> src/handlers/mod.rs:51:9
+   |
+51 | pub use missing_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `dashboard_handlers::*`
+  --> src/handlers/mod.rs:52:9
+   |
+52 | pub use dashboard_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `user_preferences_handlers::*`
+  --> src/handlers/mod.rs:53:9
+   |
+53 | pub use user_preferences_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `activity_log_handlers::*`
+  --> src/handlers/mod.rs:54:9
+   |
+54 | pub use activity_log_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `data_isolation_handlers::*`
+  --> src/handlers/mod.rs:55:9
+   |
+55 | pub use data_isolation_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `validation_handlers::*`
+  --> src/handlers/mod.rs:56:9
+   |
+56 | pub use validation_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `csrf_handlers::*`
+  --> src/handlers/mod.rs:57:9
+   |
+57 | pub use csrf_handlers::*;
+   |         ^^^^^^^^^^^^^^^^
+
+warning: unused import: `lab_order_handlers::*`
+  --> src/handlers/mod.rs:58:9
+   |
+58 | pub use lab_order_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `lab_result_handlers::*`
+  --> src/handlers/mod.rs:59:9
+   |
+59 | pub use lab_result_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `service_handlers::*`
+  --> src/handlers/mod.rs:60:9
+   |
+60 | pub use service_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `notes_handlers::*`
+  --> src/handlers/mod.rs:61:9
+   |
+61 | pub use notes_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `internal_notifications_handlers::*`
+  --> src/handlers/mod.rs:62:9
+   |
+62 | pub use internal_notifications_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `task_handlers::*`
+  --> src/handlers/mod.rs:63:9
+   |
+63 | pub use task_handlers::*;
+   |         ^^^^^^^^^^^^^^^^
+
+warning: unused import: `announcements_handlers::*`
+  --> src/handlers/mod.rs:64:9
+   |
+64 | pub use announcements_handlers::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `sqlx::PgPool`
+ --> src/backup.rs:3:5
+  |
+3 | use sqlx::PgPool;
+  |     ^^^^^^^^^^^^
+
+warning: unused import: `UNIX_EPOCH`
+ --> src/monitoring.rs:3:48
+  |
+3 | use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+  |                                                ^^^^^^^^^^
+
+warning: unused imports: `debug`, `error`, and `warn`
+ --> src/monitoring.rs:7:21
+  |
+7 | use tracing::{info, warn, error, debug, instrument, Level};
+  |                     ^^^^  ^^^^^  ^^^^^
+
+warning: unused imports: `AuditAction`, `AuditResource`, and `AuditResult`
+  --> src/monitoring.rs:11:33
+   |
+11 | use crate::audit::{AuditLogger, AuditAction, AuditResource, AuditResult};
+   |                                 ^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/metrics.rs:1:5
+  |
+1 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src/metrics.rs:2:5
+  |
+2 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/metrics.rs:3:27
+  |
+3 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused imports: `Histogram`, `IntCounterVec`, `IntCounter`, and `IntGaugeVec`
+ --> src/metrics.rs:5:43
+  |
+5 |     Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramVec, 
+  |                                           ^^^^^^^^^
+6 |     IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry, 
+  |     ^^^^^^^^^^  ^^^^^^^^^^^^^            ^^^^^^^^^^^
+
+warning: unused imports: `debug` and `warn`
+  --> src/metrics.rs:10:21
+   |
+10 | use tracing::{info, warn, debug};
+   |                     ^^^^  ^^^^^
+
+warning: unused import: `validate_email`
+ --> src/validation.rs:1:48
+  |
+1 | use crate::error::{ApiError, ValidationErrors, validate_email, validate_phone_number, validate_required_string, validate_string_length, v...
+  |                                                ^^^^^^^^^^^^^^
+
+warning: unused import: `Datelike`
+ --> src/validation.rs:3:30
+  |
+3 | use chrono::{NaiveDate, Utc, Datelike};
+  |                              ^^^^^^^^
+
+warning: unused import: `uuid::Uuid`
+ --> src/validation.rs:4:5
+  |
+4 | use uuid::Uuid;
+  |     ^^^^^^^^^^
+
+warning: unused imports: `Duration` and `Utc`
+ --> src/csrf.rs:6:14
+  |
+6 | use chrono::{Utc, Duration};
+  |              ^^^  ^^^^^^^^
+
+warning: unused import: `actix_web::web::Data`
+ --> src/backup_scheduler.rs:1:5
+  |
+1 | use actix_web::web::Data;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `BackupType`
+ --> src/backup_scheduler.rs:7:65
+  |
+7 | use crate::backup::{BackupService, BackupConfig, BackupRequest, BackupType, BackupSchedule};
+  |                                                                 ^^^^^^^^^^
+
+warning: unused import: `warn`
+ --> src/backup_scheduler.rs:9:28
+  |
+9 | use tracing::{info, error, warn};
+  |                            ^^^^
+
+warning: unused import: `web`
+ --> src/security.rs:1:52
+  |
+1 | use actix_web::{HttpRequest, HttpResponse, Result, web, middleware::Next, dev::ServiceRequest, dev::ServiceResponse, Error};
+  |                                                    ^^^
+
+warning: unused import: `std::collections::HashSet`
+ --> src/security.rs:6:5
+  |
+6 | use std::collections::HashSet;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Duration`
+  --> src/security.rs:10:19
+   |
+10 | use chrono::{Utc, Duration};
+   |                   ^^^^^^^^
+
+warning: unused import: `crate::error::ApiError`
+  --> src/security.rs:16:5
+   |
+16 | use crate::error::ApiError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `actix_web::middleware::Next`
+ --> src/security/permission_middleware.rs:4:5
+  |
+4 | use actix_web::middleware::Next;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `actix_web::web::Data`
+ --> src/security/permission_middleware.rs:5:5
+  |
+5 | use actix_web::web::Data;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `actix_web::HttpRequest`
+ --> src/security/permission_middleware.rs:6:5
+  |
+6 | use actix_web::HttpRequest;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `claims`
+   --> src/simple_handlers.rs:355:12
+    |
+355 |         Ok(claims) => {
+    |            ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pn`
+   --> src/simple_handlers.rs:948:21
+    |
+948 |         if let Some(pn) = processed_patient.get("patient_number") {
+    |                     ^^ help: if this is intentional, prefix it with an underscore: `_pn`
+
+warning: unused variable: `dt`
+    --> src/simple_handlers.rs:2213:27
+     |
+2213 |                 if let Ok(dt) = NaiveDate::parse_from_str(dt_str, "%Y-%m-%d") {
+     |                           ^^ help: if this is intentional, prefix it with an underscore: `_dt`
+
+warning: unused variable: `consultation_id`
+    --> src/simple_handlers.rs:2573:9
+     |
+2573 |     let consultation_id = invoice_data.get("consultation_id")
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_consultation_id`
+
+warning: unused variable: `retry_number`
+    --> src/simple_handlers.rs:2636:17
+     |
+2636 |             let retry_number = generate_invoice_number();
+     |                 ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_retry_number`
+
+warning: unused variable: `query`
+    --> src/simple_handlers.rs:5252:5
+     |
+5252 |     query: web::Query<serde_json::Value>,
+     |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_query`
+
+warning: unused variable: `merchant_request_id`
+    --> src/simple_handlers.rs:5529:9
+     |
+5529 |     let merchant_request_id = callback.get("MerchantRequestID")
+     |         ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_merchant_request_id`
+
+warning: use of deprecated method `actix_web::dev::ConnectionInfo::remote_addr`: Renamed to `peer_addr`.
+  --> src/middleware/security_middleware.rs:61:10
+   |
+61 |         .remote_addr()
+   |          ^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated method `actix_web::dev::ConnectionInfo::remote_addr`: Renamed to `peer_addr`.
+   --> src/middleware/security_middleware.rs:166:10
+    |
+166 |         .remote_addr()
+    |          ^^^^^^^^^^^
+
+warning: use of deprecated method `actix_web::dev::ConnectionInfo::remote_addr`: Renamed to `peer_addr`.
+   --> src/middleware/security_middleware.rs:335:10
+    |
+335 |         .remote_addr()
+    |          ^^^^^^^^^^^
+
+warning: unused variable: `manager`
+   --> src/websocket.rs:310:43
+    |
+310 | pub async fn get_connected_sessions_count(manager: web::Data<Addr<WebSocketManager>>) -> usize {
+    |                                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_manager`
+
+warning: unused variable: `req`
+   --> src/handlers/auth_handlers.rs:275:5
+    |
+275 |     req: HttpRequest,
+    |     ^^^ help: if this is intentional, prefix it with an underscore: `_req`
+
+warning: unused variable: `data`
+   --> src/handlers/auth_handlers.rs:276:5
+    |
+276 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `claims`
+   --> src/handlers/patient_handlers.rs:484:9
+    |
+484 |     let claims = get_current_user(&http_req)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+
+warning: unused variable: `claims`
+  --> src/handlers/consultation_handlers.rs:68:9
+   |
+68 |     let claims = get_current_user(&http_req)
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+
+warning: unused variable: `claims`
+   --> src/handlers/consultation_handlers.rs:161:9
+    |
+161 |     let claims = get_current_user(&http_req)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+
+warning: unused variable: `claims`
+   --> src/handlers/consultation_handlers.rs:214:9
+    |
+214 |     let claims = get_current_user(&http_req)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+
+warning: unused variable: `invoices_query`
+  --> src/handlers/invoice_handlers.rs:86:9
+   |
+86 |     let invoices_query = format!(
+   |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_invoices_query`
+
+warning: unused variable: `path`
+   --> src/handlers/invoice_handlers.rs:379:5
+    |
+379 |     path: web::Path<Uuid>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+
+warning: unused variable: `req`
+   --> src/handlers/invoice_handlers.rs:380:5
+    |
+380 |     req: web::Json<CreateInvoice>,
+    |     ^^^ help: if this is intentional, prefix it with an underscore: `_req`
+
+warning: unused variable: `data`
+   --> src/handlers/invoice_handlers.rs:381:5
+    |
+381 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `http_req`
+   --> src/handlers/invoice_handlers.rs:382:5
+    |
+382 |     http_req: HttpRequest,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `total_amount`
+   --> src/handlers/invoice_handlers.rs:428:18
+    |
+428 |         Ok(Some((total_amount, current_status))) => {
+    |                  ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_total_amount`
+
+warning: unused variable: `patient_uuid`
+  --> src/handlers/pharmacy_handlers.rs:26:17
+   |
+26 |     if let Some(patient_uuid) = patient_id.and_then(|s| Uuid::parse_str(s).ok()) {
+   |                 ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_patient_uuid`
+
+warning: unused variable: `status_filter`
+  --> src/handlers/pharmacy_handlers.rs:31:17
+   |
+31 |     if let Some(status_filter) = status {
+   |                 ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_status_filter`
+
+warning: value assigned to `param_count` is never read
+   --> src/handlers/pharmacy_handlers.rs:319:9
+    |
+319 |         param_count += 1;
+    |         ^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `query`
+  --> src/handlers/inventory_handlers.rs:10:5
+   |
+10 |     query: web::Query<serde_json::Value>,
+   |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_query`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:11:5
+   |
+11 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `req`
+  --> src/handlers/inventory_handlers.rs:22:5
+   |
+22 |     req: web::Json<serde_json::Value>,
+   |     ^^^ help: if this is intentional, prefix it with an underscore: `_req`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:23:5
+   |
+23 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `http_req`
+  --> src/handlers/inventory_handlers.rs:24:5
+   |
+24 |     http_req: HttpRequest,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `path`
+  --> src/handlers/inventory_handlers.rs:35:5
+   |
+35 |     path: web::Path<Uuid>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+
+warning: unused variable: `req`
+  --> src/handlers/inventory_handlers.rs:36:5
+   |
+36 |     req: web::Json<serde_json::Value>,
+   |     ^^^ help: if this is intentional, prefix it with an underscore: `_req`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:37:5
+   |
+37 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `http_req`
+  --> src/handlers/inventory_handlers.rs:38:5
+   |
+38 |     http_req: HttpRequest,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `path`
+  --> src/handlers/inventory_handlers.rs:49:5
+   |
+49 |     path: web::Path<Uuid>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:50:5
+   |
+50 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `http_req`
+  --> src/handlers/inventory_handlers.rs:51:5
+   |
+51 |     http_req: HttpRequest,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:62:5
+   |
+62 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:73:5
+   |
+73 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `query`
+  --> src/handlers/inventory_handlers.rs:84:5
+   |
+84 |     query: web::Query<serde_json::Value>,
+   |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_query`
+
+warning: unused variable: `data`
+  --> src/handlers/inventory_handlers.rs:85:5
+   |
+85 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `patient_uuid`
+  --> src/handlers/appointment_handlers.rs:28:17
+   |
+28 |     if let Some(patient_uuid) = patient_id.and_then(|s| Uuid::parse_str(s).ok()) {
+   |                 ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_patient_uuid`
+
+warning: unused variable: `doctor_uuid`
+  --> src/handlers/appointment_handlers.rs:33:17
+   |
+33 |     if let Some(doctor_uuid) = doctor_id.and_then(|s| Uuid::parse_str(s).ok()) {
+   |                 ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_doctor_uuid`
+
+warning: unused variable: `date_str`
+  --> src/handlers/appointment_handlers.rs:38:17
+   |
+38 |     if let Some(date_str) = date.and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()) {
+   |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_date_str`
+
+warning: unused variable: `status_filter`
+  --> src/handlers/appointment_handlers.rs:43:17
+   |
+43 |     if let Some(status_filter) = status {
+   |                 ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_status_filter`
+
+warning: unused variable: `query`
+   --> src/handlers/report_handlers.rs:193:5
+    |
+193 |     query: web::Query<serde_json::Value>,
+    |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_query`
+
+warning: unused variable: `role_filter`
+  --> src/handlers/user_handlers.rs:29:17
+   |
+29 |     if let Some(role_filter) = role {
+   |                 ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_role_filter`
+
+warning: unused variable: `dept_filter`
+  --> src/handlers/user_handlers.rs:34:17
+   |
+34 |     if let Some(dept_filter) = department {
+   |                 ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dept_filter`
+
+warning: unused variable: `active_filter`
+  --> src/handlers/user_handlers.rs:39:17
+   |
+39 |     if let Some(active_filter) = is_active {
+   |                 ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_active_filter`
+
+warning: unused variable: `now`
+   --> src/handlers/user_handlers.rs:228:9
+    |
+228 |     let now = Utc::now();
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_now`
+
+warning: unused variable: `username`
+   --> src/handlers/user_handlers.rs:259:17
+    |
+259 |     if let Some(username) = update_data.get("username").and_then(|v| v.as_str()) {
+    |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_username`
+
+warning: unused variable: `password_hash`
+   --> src/handlers/user_handlers.rs:268:13
+    |
+268 |         let password_hash = match argon2.hash_password(password.as_bytes(), &salt) {
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_password_hash`
+
+warning: unused variable: `role`
+   --> src/handlers/user_handlers.rs:283:17
+    |
+283 |     if let Some(role) = update_data.get("role").and_then(|v| v.as_str()) {
+    |                 ^^^^ help: if this is intentional, prefix it with an underscore: `_role`
+
+warning: unused variable: `name`
+   --> src/handlers/user_handlers.rs:288:17
+    |
+288 |     if let Some(name) = update_data.get("name").and_then(|v| v.as_str()) {
+    |                 ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+
+warning: unused variable: `department`
+   --> src/handlers/user_handlers.rs:293:17
+    |
+293 |     if let Some(department) = update_data.get("department").and_then(|v| v.as_str()) {
+    |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_department`
+
+warning: unused variable: `permissions`
+   --> src/handlers/user_handlers.rs:298:17
+    |
+298 |     if let Some(permissions) = update_data.get("permissions") {
+    |                 ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_permissions`
+
+warning: unused variable: `is_active`
+   --> src/handlers/user_handlers.rs:303:17
+    |
+303 |     if let Some(is_active) = update_data.get("is_active").and_then(|v| v.as_bool()) {
+    |                 ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_active`
+
+warning: unused variable: `data`
+   --> src/handlers/settings_handlers.rs:223:5
+    |
+223 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `http_req`
+   --> src/handlers/settings_handlers.rs:224:5
+    |
+224 |     http_req: HttpRequest,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `req`
+   --> src/handlers/settings_handlers.rs:235:5
+    |
+235 |     req: web::Json<serde_json::Value>,
+    |     ^^^ help: if this is intentional, prefix it with an underscore: `_req`
+
+warning: unused variable: `data`
+   --> src/handlers/settings_handlers.rs:236:5
+    |
+236 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `http_req`
+   --> src/handlers/settings_handlers.rs:237:5
+    |
+237 |     http_req: HttpRequest,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `offset`
+   --> src/handlers/upload_handlers.rs:366:9
+    |
+366 |     let offset = (page - 1) * per_page;
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_offset`
+
+warning: unused variable: `mpesa_service`
+   --> src/handlers/mpesa_handlers.rs:210:9
+    |
+210 |     let mpesa_service = MpesaService::new();
+    |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_mpesa_service`
+
+warning: unused variable: `callback_data`
+   --> src/handlers/mpesa_handlers.rs:213:9
+    |
+213 |     let callback_data = crate::mpesa::StkPushCallback {
+    |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_callback_data`
+
+warning: unused variable: `data`
+  --> src/handlers/monitoring_handlers.rs:92:5
+   |
+92 |     data: web::Data<AppState>,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:159:5
+    |
+159 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:184:5
+    |
+184 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:215:5
+    |
+215 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `limit`
+   --> src/handlers/monitoring_handlers.rs:217:9
+    |
+217 |     let limit = query.get("limit")
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_limit`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:238:5
+    |
+238 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:257:5
+    |
+257 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:280:5
+    |
+280 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `config_req`
+   --> src/handlers/monitoring_handlers.rs:283:9
+    |
+283 |     let config_req = req.into_inner();
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_config_req`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:303:5
+    |
+303 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:323:5
+    |
+323 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:348:5
+    |
+348 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:373:5
+    |
+373 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:397:5
+    |
+397 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:420:5
+    |
+420 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `data`
+   --> src/handlers/monitoring_handlers.rs:439:5
+    |
+439 |     data: web::Data<AppState>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `department`
+   --> src/handlers/dashboard_handlers.rs:391:5
+    |
+391 |     department: &str,
+    |     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_department`
+
+warning: unused variable: `pool`
+   --> src/handlers/user_preferences_handlers.rs:494:5
+    |
+494 |     pool: web::Data<PgPool>,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_pool`
+
+warning: unused variable: `claims`
+   --> src/handlers/activity_log_handlers.rs:337:9
+    |
+337 |     let claims = match verify_jwt_token(token) {
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+
+warning: unused variable: `user_id_filter`
+   --> src/handlers/activity_log_handlers.rs:450:9
+    |
+450 |     let user_id_filter = query.get("user_id").and_then(|s| s.parse::<Uuid>().ok());
+    |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_user_id_filter`
+
+warning: unused variable: `status`
+   --> src/handlers/data_isolation_handlers.rs:611:17
+    |
+611 |     if let Some(status) = status_filter {
+    |                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: unused variable: `search`
+   --> src/handlers/data_isolation_handlers.rs:617:17
+    |
+617 |     if let Some(search) = search_term {
+    |                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_search`
+
+warning: unused variable: `status`
+   --> src/handlers/data_isolation_handlers.rs:706:17
+    |
+706 |     if let Some(status) = status_filter {
+    |                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: unused variable: `date_from`
+   --> src/handlers/data_isolation_handlers.rs:712:17
+    |
+712 |     if let Some(date_from) = date_from {
+    |                 ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_date_from`
+
+warning: unused variable: `date_to`
+   --> src/handlers/data_isolation_handlers.rs:717:17
+    |
+717 |     if let Some(date_to) = date_to {
+    |                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_date_to`
+
+warning: unused variable: `status`
+   --> src/handlers/data_isolation_handlers.rs:811:17
+    |
+811 |     if let Some(status) = status_filter {
+    |                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: unused variable: `status`
+   --> src/handlers/data_isolation_handlers.rs:899:17
+    |
+899 |     if let Some(status) = status_filter {
+    |                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: unused variable: `date_from`
+   --> src/handlers/data_isolation_handlers.rs:905:17
+    |
+905 |     if let Some(date_from) = date_from {
+    |                 ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_date_from`
+
+warning: unused variable: `date_to`
+   --> src/handlers/data_isolation_handlers.rs:910:17
+    |
+910 |     if let Some(date_to) = date_to {
+    |                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_date_to`
+
+warning: unused variable: `pool`
+   --> src/handlers/validation_handlers.rs:422:5
+    |
+422 |     pool: &PgPool,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_pool`
+
+warning: unused variable: `pool`
+   --> src/handlers/validation_handlers.rs:710:5
+    |
+710 |     pool: &PgPool,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_pool`
+
+warning: variable does not need to be mutable
+   --> src/handlers/batch_import_handlers.rs:111:9
+    |
+111 |     let mut duplicate_count = 0;
+    |         ----^^^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> src/handlers/task_handlers.rs:52:9
+   |
+52 |     let mut query_str = String::from(
+   |         ----^^^^^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: unused variable: `content`
+   --> src/backup.rs:306:13
+    |
+306 |         let content = fs::read(file_path)
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_content`
+
+warning: unused variable: `http_req`
+   --> src/backup.rs:385:5
+    |
+385 |     http_req: HttpRequest,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_http_req`
+
+warning: unused variable: `config_id`
+   --> src/monitoring.rs:352:14
+    |
+352 |         for (config_id, config) in &self.alerts {
+    |              ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_config_id`
+
+warning: use of deprecated method `actix_web::dev::ConnectionInfo::remote_addr`: Renamed to `peer_addr`.
+   --> src/security.rs:394:10
+    |
+394 |         .remote_addr()
+    |          ^^^^^^^^^^^
+
+warning: use of deprecated method `actix_web::dev::ConnectionInfo::remote_addr`: Renamed to `peer_addr`.
+   --> src/security/permission_middleware.rs:217:31
+    |
+217 |         req.connection_info().remote_addr().unwrap_or("unknown").to_string()
+    |                               ^^^^^^^^^^^
+
+warning: unused variable: `token`
+   --> src/middleware/security.rs:168:17
+    |
+168 |     if let Some(token) = extract_token_from_request(req) {
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_token`
+
+warning: unused variable: `query_string`
+  --> src/security/permission_middleware.rs:75:17
+   |
+75 |             let query_string = req.query_string().to_string();
+   |                 ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_query_string`
+
+warning: unused variable: `should_deny`
+  --> src/security/permission_middleware.rs:97:17
+   |
+97 |             let should_deny = if let Some(claims) = claims_opt {
+   |                 ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_should_deny`
+
+warning: unused variable: `enable_csrf_clone`
+   --> src/main.rs:262:9
+    |
+262 |     let enable_csrf_clone = enable_csrf;
+    |         ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_enable_csrf_clone`
+
+warning: unused variable: `auth_middleware_strict`
+   --> src/main.rs:294:13
+    |
+294 |         let auth_middleware_strict = SecurityMiddleware::with_strict_rate_limit(app_state.auth_service.clone());
+    |             ^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_auth_middleware_strict`
+
+warning: variable does not need to be mutable
+   --> src/main.rs:297:13
+    |
+297 |         let mut app = App::new()
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: `clinic-management-backend` (bin "clinic-management-backend") generated 217 warnings
+error: could not compile `clinic-management-backend` (bin "clinic-management-backend") due to 39 previous errors; 217 warnings emitted

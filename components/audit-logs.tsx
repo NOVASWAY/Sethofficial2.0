@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useAuditLog, type AuditLog } from '@/contexts/audit-log-context'
 import { useToast } from '@/hooks/use-toast'
+import { formatDistanceToNow } from 'date-fns'
 
 export function AuditLogs() {
   const { toast } = useToast()
@@ -300,7 +301,7 @@ export function AuditLogs() {
                             {new Date(log.timestamp).toLocaleString()}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(log.timestamp).toRelativeTime?.() || 'Recently'}
+                            {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
                           </p>
                         </div>
                       </div>

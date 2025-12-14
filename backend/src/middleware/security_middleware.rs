@@ -233,7 +233,7 @@ pub async fn csrf_protection_middleware(
     ];
     
     if skip_paths.iter().any(|&skip_path| path.starts_with(skip_path)) {
-        return next.call(req).await;
+        return Ok(next.call(req).await?.map_into_boxed_body());
     }
 
     // Check for CSRF token in header

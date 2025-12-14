@@ -200,7 +200,7 @@ pub async fn get_lab_order(
 
     let order_id = path.into_inner();
 
-    match sqlx::query_as::<LabTestOrder>(
+    match sqlx::query_as::<_, LabTestOrder>(
         r#"
         SELECT id, order_number, patient_id, consultation_id, ordering_clinician_id,
                test_type, test_code, test_name, priority, clinical_indication,
@@ -422,14 +422,14 @@ pub async fn cancel_lab_order(
     .await
     {
         Ok(result) if result.rows_affected() > 0 => {
-            Ok(HttpResponse::Ok().json(ApiResponse {
+            Ok(HttpResponse::Ok().json(ApiResponse::<()> {
                 success: true,
                 data: None,
                 message: Some("Lab test order cancelled successfully".to_string()),
                 error: None,
             }))
         }
-        Ok(None) => {
+        Ok(_) => {
             Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
                 success: false,
                 data: None,

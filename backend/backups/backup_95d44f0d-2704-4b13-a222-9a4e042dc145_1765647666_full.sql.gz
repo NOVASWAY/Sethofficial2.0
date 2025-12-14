@@ -1,0 +1,6 @@
+-- Clinic Management System Database Backup
+-- Generated at: 2025-12-13 17:41:06.907329171 UTC
+-- Backup Type: Full
+
+-- Full backup functionality to be implemented
+-- Use pg_dump for production backups

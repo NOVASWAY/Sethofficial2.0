@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { 
-  Wrench, 
-  Users, 
-  CheckCircle2, 
-  AlertTriangle, 
+import {
+  Wrench,
+  Users,
+  CheckCircle2,
+  AlertTriangle,
   RefreshCw,
   FileText,
   Phone,
@@ -29,7 +29,7 @@ interface CleanupIssue {
   patient_number: string
   first_name: string
   last_name: string
-  issue_type: 'missing_phone' | 'missing_location' | 'invalid_phone' | 'missing_email' | 'missing_dob' | 'duplicate'
+  issue_type: 'missing_phone' | 'missing_location' | 'invalid_phone' | 'missing_dob' | 'duplicate'
   severity: 'error' | 'warning' | 'info'
   description: string
   suggestion: string
@@ -41,7 +41,6 @@ interface CleanupStats {
   missing_phone: number
   missing_location: number
   invalid_phone: number
-  missing_email: number
   missing_dob: number
   duplicates: number
 }
@@ -72,7 +71,6 @@ export function PostImportCleanup() {
         missing_phone: 0,
         missing_location: 0,
         invalid_phone: 0,
-        missing_email: 0,
         missing_dob: 0,
         duplicates: 0,
       }
@@ -125,20 +123,7 @@ export function PostImportCleanup() {
           stats.missing_location++
         }
 
-        // Check missing email (optional but good to have)
-        if (!patient.email || patient.email.trim() === '') {
-          cleanupIssues.push({
-            id: patient.id,
-            patient_number: patient.patient_number || patient.id,
-            first_name: patient.first_name,
-            last_name: patient.last_name,
-            issue_type: 'missing_email',
-            severity: 'info',
-            description: 'Email address is missing',
-            suggestion: 'Add email address if available',
-          })
-          stats.missing_email++
-        }
+
 
         // Check missing date of birth
         if (!patient.date_of_birth || patient.date_of_birth.trim() === '') {
@@ -221,11 +206,11 @@ export function PostImportCleanup() {
 
       for (let i = 0; i < selectedIssuesList.length; i++) {
         const issue = selectedIssuesList[i]
-        
+
         // For now, just mark as processed
         // In production, would actually fix the issues
         await new Promise(resolve => setTimeout(resolve, 100))
-        
+
         fixed++
         setFixProgress((fixed / selectedIssuesList.length) * 100)
       }
@@ -237,10 +222,10 @@ export function PostImportCleanup() {
 
       // Reload patients
       await loadPatients()
-      
+
       // Re-analyze
       await analyzeData()
-      
+
       setSelectedIssues(new Set())
     } catch (error) {
       console.error('Fix error:', error)
@@ -262,8 +247,7 @@ export function PostImportCleanup() {
         return <Phone className="w-4 h-4" />
       case 'missing_location':
         return <MapPin className="w-4 h-4" />
-      case 'missing_email':
-        return <Mail className="w-4 h-4" />
+
       case 'missing_dob':
         return <Calendar className="w-4 h-4" />
       case 'duplicate':
@@ -347,7 +331,7 @@ export function PostImportCleanup() {
                   <p className="text-2xl font-bold">
                     {Math.round(((stats.total_patients - stats.issues_found) / stats.total_patients) * 100)}%
                   </p>
-                  <p className="text-sm text-muted-foreground">Quality Score</p>
+                  {/* Email removed as it's not in Patient interface */}
                 </div>
               </div>
             </CardContent>

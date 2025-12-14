@@ -9,11 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Users, 
-  CheckCircle2, 
-  X, 
-  ArrowRight, 
+import {
+  Users,
+  CheckCircle2,
+  X,
+  ArrowRight,
   Merge,
   AlertTriangle,
   Info,
@@ -55,7 +55,6 @@ interface DuplicateMergeProps {
 }
 
 interface FieldSelection {
-  [field: string]: 'keep' | 'merge' | 'new'
   source: 'keep' | 'merge'
 }
 
@@ -68,10 +67,7 @@ export function DuplicateMerge({ duplicates, onMergeComplete, onCancel }: Duplic
   const handleSelectGroup = (group: DuplicateGroup) => {
     setSelectedGroup(group)
     // Initialize field selections
-    const selections: FieldSelection = {
-      source: 'keep', // Keep first patient as primary
-    }
-    setFieldSelections(selections)
+    setFieldSelections({})
   }
 
   const handleMerge = async () => {
@@ -92,34 +88,34 @@ export function DuplicateMerge({ duplicates, onMergeComplete, onCancel }: Duplic
 
       // Build merged patient data
       const mergedData: Partial<Patient> = {
-        first_name: fieldSelections['first_name'] === 'merge' 
+        first_name: fieldSelections['first_name']?.source === 'merge'
           ? `${primary.first_name} ${secondary.first_name}`.trim()
           : primary.first_name,
-        last_name: fieldSelections['last_name'] === 'merge'
+        last_name: fieldSelections['last_name']?.source === 'merge'
           ? `${primary.last_name} ${secondary.last_name}`.trim()
           : primary.last_name,
-        phone: fieldSelections['phone'] === 'merge'
+        phone: fieldSelections['phone']?.source === 'merge'
           ? primary.phone || secondary.phone
           : primary.phone,
-        location: fieldSelections['location'] === 'merge'
+        location: fieldSelections['location']?.source === 'merge'
           ? primary.location || secondary.location
           : primary.location,
-        email: fieldSelections['email'] === 'merge'
+        email: fieldSelections['email']?.source === 'merge'
           ? primary.email || secondary.email
           : primary.email,
-        emergency_contact: fieldSelections['emergency_contact'] === 'merge'
+        emergency_contact: fieldSelections['emergency_contact']?.source === 'merge'
           ? primary.emergency_contact || secondary.emergency_contact
           : primary.emergency_contact,
-        emergency_phone: fieldSelections['emergency_phone'] === 'merge'
+        emergency_phone: fieldSelections['emergency_phone']?.source === 'merge'
           ? primary.emergency_phone || secondary.emergency_phone
           : primary.emergency_phone,
-        blood_type: fieldSelections['blood_type'] === 'merge'
+        blood_type: fieldSelections['blood_type']?.source === 'merge'
           ? primary.blood_type || secondary.blood_type
           : primary.blood_type,
-        medical_history: fieldSelections['medical_history'] === 'merge'
+        medical_history: fieldSelections['medical_history']?.source === 'merge'
           ? `${primary.medical_history || ''}\n\n${secondary.medical_history || ''}`.trim()
           : primary.medical_history,
-        allergies: fieldSelections['allergies'] === 'merge'
+        allergies: fieldSelections['allergies']?.source === 'merge'
           ? [...(primary.allergies || []), ...(secondary.allergies || [])]
           : primary.allergies,
       }
@@ -181,11 +177,10 @@ export function DuplicateMerge({ duplicates, onMergeComplete, onCancel }: Duplic
             {duplicates.map((group, index) => (
               <div
                 key={index}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  selectedGroup === group
+                className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedGroup === group
                     ? 'border-primary bg-primary/5'
                     : 'hover:bg-muted/50'
-                }`}
+                  }`}
                 onClick={() => handleSelectGroup(group)}
               >
                 <div className="flex items-center justify-between">

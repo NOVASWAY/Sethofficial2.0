@@ -116,7 +116,7 @@ pub async fn get_filtered_patients(
     let search_term = query.get("search");
 
     // Build query based on user role and permissions
-    let department = user.department.as_deref().unwrap_or("");
+    let department = user.department.as_str();
     let patients = match build_filtered_patients_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, search_term).await {
         Ok(patients) => patients,
         Err(e) => {
@@ -216,7 +216,7 @@ pub async fn get_filtered_consultations(
     let date_to = query.get("date_to").and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Build query based on user role and permissions
-    let department = user.department.as_deref().unwrap_or("");
+    let department = user.department.as_str();
     let consultations = match build_filtered_consultations_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, date_from, date_to).await {
         Ok(consultations) => consultations,
         Err(e) => {
@@ -314,7 +314,7 @@ pub async fn get_filtered_prescriptions(
     let status_filter = query.get("status");
 
     // Build query based on user role and permissions
-    let department = user.department.as_deref().unwrap_or("");
+    let department = user.department.as_str();
     let prescriptions = match build_filtered_prescriptions_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter).await {
         Ok(prescriptions) => prescriptions,
         Err(e) => {
@@ -414,7 +414,7 @@ pub async fn get_filtered_invoices(
     let date_to = query.get("date_to").and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Build query based on user role and permissions
-    let department = user.department.as_deref().unwrap_or("");
+    let department = user.department.as_str();
     let invoices = match build_filtered_invoices_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, date_from, date_to).await {
         Ok(invoices) => invoices,
         Err(e) => {

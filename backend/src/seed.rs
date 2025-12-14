@@ -16,8 +16,13 @@ pub async fn seed_default_users(pool: &PgPool, auth_service: &AuthService) -> Re
         return Ok(());
     }
 
-    // No default users - system starts empty
-    let default_users = vec![];
+    // Default users from DEMO_CREDENTIALS.md
+    let default_users = vec![
+        ("admin", "admin@clinic.com", "demo123", UserRole::Administrator, "System Admin", "IT"),
+        ("receptionist", "receptionist@clinic.com", "demo123", UserRole::Receptionist, "Sarah Receptionist", "Front Desk"),
+        ("clinician", "clinician@clinic.com", "demo123", UserRole::Clinician, "Dr. Smith", "General Practice"),
+        ("nurse", "nurse@clinic.com", "demo123", UserRole::Nurse, "Nurse Joy", "Nursing"),
+    ];
 
     for (username, email, password, role, name, department) in default_users {
         // Hash password securely
@@ -44,14 +49,14 @@ pub async fn seed_default_users(pool: &PgPool, auth_service: &AuthService) -> Re
         
         println!("Created user: {} with role: {:?}", username, role);
     }
-
-    println!("Default users seeded successfully");
-    Ok(())
 }
 
 pub async fn seed_sample_data(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    // No sample patients - system starts empty
-    let sample_patients = vec![];
+    // Sample patients
+    let sample_patients = vec![
+        ("P001", "John", "Doe", chrono::NaiveDate::from_ymd_opt(1980, 1, 1).unwrap(), "Male", "555-0101", "john@example.com", "123 Main St", "Jane Doe", "555-0102", "O+", "Penicillin", "Hypertension"),
+        ("P002", "Jane", "Smith", chrono::NaiveDate::from_ymd_opt(1990, 5, 15).unwrap(), "Female", "555-0201", "jane@example.com", "456 Oak Ave", "John Smith", "555-0202", "A-", "None", "Asthma"),
+    ];
 
     for (patient_number, first_name, last_name, date_of_birth, gender, phone, email, address, emergency_contact, emergency_phone, blood_type, allergies, medical_history) in sample_patients {
         sqlx::query!(
@@ -76,12 +81,15 @@ pub async fn seed_sample_data(pool: &PgPool) -> Result<(), Box<dyn std::error::E
         .await?;
     }
 
-    // No sample medications - system starts empty
-    let sample_medications = vec![];
+    // Sample medications
+    let sample_medications = vec![
+        ("Paracetamol", "Acetaminophen", "Analgesic", "PharmaCorp", "BATCH001", chrono::NaiveDate::from_ymd_opt(2025, 12, 31).unwrap(), 1000, rust_decimal::Decimal::from(10), 100, "Shelf A1", "Pain reliever", "Nausea", "Tablet", "500mg"),
+        ("Amoxicillin", "Amoxicillin", "Antibiotic", "MediGone", "BATCH002", chrono::NaiveDate::from_ymd_opt(2024, 6, 30).unwrap(), 500, rust_decimal::Decimal::from(25), 50, "Shelf B2", "Antibiotic for infections", "Rash", "Capsule", "250mg"),
+    ];
 
     for (name, generic_name, category, manufacturer, batch_number, expiry_date, quantity, unit_price, reorder_level, location, description, side_effects, dosage_form, strength) in sample_medications {
         sqlx::query!(
-            "INSERT INTO medications (name, generic_name, category, manufacturer, batch_number, expiry_date, quantity, unit_price, reorder_level, location, description, side_effects, dosage_form, strength)
+            "INSERT INTO medicines (name, generic_name, category, manufacturer, batch_number, expiry_date, quantity, unit_price, reorder_level, location, description, side_effects, dosage_form, strength)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              ON CONFLICT (batch_number) DO NOTHING",
             name,
@@ -90,9 +98,9 @@ pub async fn seed_sample_data(pool: &PgPool) -> Result<(), Box<dyn std::error::E
             manufacturer,
             batch_number,
             expiry_date,
-            quantity,
+            quantity as i32,
             unit_price,
-            reorder_level,
+            reorder_level as i32,
             location,
             description,
             side_effects,

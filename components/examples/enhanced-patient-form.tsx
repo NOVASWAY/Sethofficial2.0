@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
+import {
   LoadingButton,
-  FormLoadingOverlay 
+  FormLoadingOverlay
 } from '@/components/ui/loading'
 import { ErrorDisplay, ValidationError } from '@/components/ui/error-display'
 import { useFormSubmission } from '@/hooks/use-async-operation'
@@ -17,6 +17,7 @@ import { useErrorHandler } from '@/hooks/use-error-handler'
 import { patientAPI } from '@/lib/api-client'
 import { validateForm, validationSchemas } from '@/lib/validation'
 import { UserPlus, Save, X, AlertCircle } from 'lucide-react'
+import { withErrorBoundary } from '@/components/error-boundary'
 
 interface PatientFormData {
   first_name: string
@@ -61,14 +62,14 @@ export function EnhancedPatientForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // Using the form submission hook
-  const { state, submit, reset } = useFormSubmission()
-  
+  const { loading, error, submit, reset } = useFormSubmission()
+
   // Using the error handler hook for additional error management
   const { error: additionalError, clearError } = useErrorHandler()
 
   const handleInputChange = (field: keyof PatientFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    
+
     // Clear field-specific error when user starts typing
     if (fieldErrors[field]) {
       setFieldErrors(prev => {
@@ -93,22 +94,22 @@ export function EnhancedPatientForm({
         emergencyPhone: formData.emergency_phone,
       }
 
-      const errors = validateForm(validationData, validationSchemas.patient)
-      
-      if (errors.length > 0) {
-        setValidationErrors(errors)
-        
+      const validationResult = validateForm(validationData, validationSchemas.patient)
+
+      if (!validationResult.isValid) {
+        setValidationErrors(validationResult.errors)
+
         // Convert validation errors to field errors
         const fieldErrorMap: Record<string, string> = {}
-        errors.forEach(error => {
+        validationResult.errors.forEach(error => {
           if (error.field) {
             // Map validation field names to form field names
             const formField = error.field === 'firstName' ? 'first_name' :
-                            error.field === 'lastName' ? 'last_name' :
-                            error.field === 'dateOfBirth' ? 'date_of_birth' :
-                            error.field === 'emergencyContact' ? 'emergency_contact' :
-                            error.field === 'emergencyPhone' ? 'emergency_phone' :
-                            error.field
+              error.field === 'lastName' ? 'last_name' :
+                error.field === 'dateOfBirth' ? 'date_of_birth' :
+                  error.field === 'emergencyContact' ? 'emergency_contact' :
+                    error.field === 'emergencyPhone' ? 'emergency_phone' :
+                      error.field
             fieldErrorMap[formField] = error.message
           }
         })
@@ -127,7 +128,7 @@ export function EnhancedPatientForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Clear previous errors
     clearError()
     setValidationErrors([])
@@ -171,18 +172,18 @@ export function EnhancedPatientForm({
           {mode === 'create' ? 'Add New Patient' : 'Edit Patient'}
         </CardTitle>
         <CardDescription>
-          {mode === 'create' 
+          {mode === 'create'
             ? 'Enter patient information to create a new record'
             : 'Update patient information'
           }
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <FormLoadingOverlay loading={state.loading}>
+        <FormLoadingOverlay loading={loading}>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
-              <ValidationError 
+              <ValidationError
                 errors={validationErrors}
                 onRetry={() => {
                   setValidationErrors([])
@@ -202,9 +203,9 @@ export function EnhancedPatientForm({
             )}
 
             {/* Form Error Display */}
-            {state.error && (
+            {error && (
               <ErrorDisplay
-                error={state.error}
+                error={error}
                 onRetry={() => {
                   reset()
                   clearError()
@@ -216,7 +217,7 @@ export function EnhancedPatientForm({
             {/* Personal Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Personal Information</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">First Name *</Label>
@@ -319,7 +320,7 @@ export function EnhancedPatientForm({
             {/* Emergency Contact */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Emergency Contact</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="emergency_contact">Emergency Contact Name *</Label>
@@ -356,7 +357,7 @@ export function EnhancedPatientForm({
             {/* Medical Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Medical Information</h3>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="blood_type">Blood Type</Label>
                 <Select
@@ -395,19 +396,19 @@ export function EnhancedPatientForm({
             <div className="flex gap-3 pt-4">
               <LoadingButton
                 type="submit"
-                loading={state.loading}
+                loading={loading}
                 loadingText={mode === 'create' ? 'Creating...' : 'Updating...'}
                 className="flex-1"
               >
                 <Save className="h-4 w-4 mr-2" />
                 {mode === 'create' ? 'Create Patient' : 'Update Patient'}
               </LoadingButton>
-              
+
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleCancel}
-                disabled={state.loading}
+                disabled={loading}
                 className="flex-1"
               >
                 <X className="h-4 w-4 mr-2" />

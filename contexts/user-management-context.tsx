@@ -7,12 +7,13 @@ export interface SystemUser {
   id: string
   name: string
   phone?: string
-  role: 'receptionist' | 'nurse' | 'clinician' | 'pharmacist' | 'admin'
+  role: 'receptionist' | 'nurse' | 'clinician' | 'pharmacist' | 'admin' | 'doctor'
   department?: string
   status: 'active' | 'inactive' | 'suspended'
   permissions: string[]
   avatar?: string
   licenseNumber?: string
+  email?: string
   createdAt: string
   updatedAt: string
   lastLogin?: string

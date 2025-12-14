@@ -33,7 +33,7 @@ interface ServiceCatalogProps {
   role?: string
   onServiceSelect?: (service: Service) => void
   showPricing?: boolean
-  insuranceType?: 'NHIF' | 'SHA' | 'Cash'
+  insuranceType?: 'NHIF' | 'SHA' | 'Cash' | 'Private' | 'Mixed'
   patientType?: 'adult' | 'child' | 'senior'
 }
 
@@ -144,6 +144,8 @@ export function EnhancedServiceCatalog({
     switch (type) {
       case 'NHIF': return <Shield className="h-4 w-4" />
       case 'SHA': return <Shield className="h-4 w-4" />
+      case 'Private': return <Shield className="h-4 w-4" />
+      case 'Mixed': return <DollarSign className="h-4 w-4" />
       default: return <DollarSign className="h-4 w-4" />
     }
   }
@@ -152,6 +154,8 @@ export function EnhancedServiceCatalog({
     switch (type) {
       case 'NHIF': return 'bg-green-100 text-green-800'
       case 'SHA': return 'bg-blue-100 text-blue-800'
+      case 'Private': return 'bg-purple-100 text-purple-800'
+      case 'Mixed': return 'bg-yellow-100 text-yellow-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }

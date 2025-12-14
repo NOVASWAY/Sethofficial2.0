@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { 
-  TrendingUp, TrendingDown, Users, Calendar, DollarSign, 
+import {
+  TrendingUp, TrendingDown, Users, Calendar, DollarSign,
   Pill, Package, AlertTriangle, Clock, FileText, Activity,
   RefreshCw, Settings, BarChart3, PieChart, Wifi, WifiOff,
   Bell, BellOff, Zap, AlertCircle
@@ -26,16 +26,16 @@ interface MetricCardProps {
   lastUpdated?: number
 }
 
-function MetricCard({ 
-  title, 
-  value, 
-  change, 
-  icon: Icon, 
-  color, 
-  trend, 
-  loading, 
+function MetricCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+  color,
+  trend,
+  loading,
   realtime = false,
-  lastUpdated 
+  lastUpdated
 }: MetricCardProps) {
   const [isAnimating, setIsAnimating] = useState(false)
 
@@ -113,9 +113,9 @@ interface RealtimeDashboardOverviewProps {
   enableRealtime?: boolean
 }
 
-export function RealtimeDashboardOverview({ 
-  role, 
-  userId, 
+export function RealtimeDashboardOverview({
+  role,
+  userId,
   department,
   enableRealtime = true
 }: RealtimeDashboardOverviewProps) {
@@ -194,7 +194,7 @@ export function RealtimeDashboardOverview({
 
   const formatTimeSinceUpdate = (timestamp: number | null) => {
     if (!timestamp) return 'Never'
-    
+
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
     if (seconds < 60) return `${seconds}s ago`
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
@@ -384,7 +384,7 @@ export function RealtimeDashboardOverview({
               </AlertDescription>
             </Alert>
           )}
-          
+
           {metrics.outOfStockItems > 0 && (
             <Alert className="border-orange-500 bg-orange-50">
               <Package className="h-5 w-5 text-orange-600" />
@@ -404,13 +404,13 @@ export function RealtimeDashboardOverview({
         <MetricCard
           title="Today's Revenue"
           value={metrics ? `KSh ${metrics.todaysRevenue?.toLocaleString() || 0}` : 'KSh 0'}
-          change={metrics?.revenueChange}
+          change={(metrics?.revenueChange as number | undefined) ?? undefined}
           icon={DollarSign}
           color="text-green-600"
           trend={metrics?.revenueChange && metrics.revenueChange > 0 ? 'up' : metrics?.revenueChange && metrics.revenueChange < 0 ? 'down' : 'neutral'}
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
         <MetricCard
           title="Today's Consultations"
@@ -419,18 +419,18 @@ export function RealtimeDashboardOverview({
           color="text-blue-600"
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
         <MetricCard
           title="Total Patients"
           value={metrics?.totalPatients || 0}
-          change={metrics?.patientGrowth}
+          change={(metrics?.patientGrowth as number | undefined) ?? undefined}
           icon={Users}
           color="text-purple-600"
           trend={metrics?.patientGrowth && metrics.patientGrowth > 0 ? 'up' : metrics?.patientGrowth && metrics.patientGrowth < 0 ? 'down' : 'neutral'}
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
         <MetricCard
           title="Pending Prescriptions"
@@ -439,7 +439,7 @@ export function RealtimeDashboardOverview({
           color="text-orange-600"
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
       </div>
 
@@ -448,35 +448,35 @@ export function RealtimeDashboardOverview({
         <MetricCard
           title="Monthly Revenue"
           value={metrics ? `KSh ${metrics.monthlyRevenue?.toLocaleString() || 0}` : 'KSh 0'}
-          change={metrics?.revenueChange}
+          change={(metrics?.revenueChange as number | undefined) ?? undefined}
           icon={TrendingUp}
           color="text-green-600"
           trend={metrics?.revenueChange && metrics.revenueChange > 0 ? 'up' : metrics?.revenueChange && metrics.revenueChange < 0 ? 'down' : 'neutral'}
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
         <MetricCard
           title="Total Consultations"
           value={metrics?.totalConsultations || 0}
-          change={metrics?.consultationGrowth}
+          change={(metrics?.consultationGrowth as number | undefined) ?? undefined}
           icon={Calendar}
           color="text-blue-600"
           trend={metrics?.consultationGrowth && metrics.consultationGrowth > 0 ? 'up' : metrics?.consultationGrowth && metrics.consultationGrowth < 0 ? 'down' : 'neutral'}
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
         <MetricCard
           title="Total Prescriptions"
           value={metrics?.totalPrescriptions || 0}
-          change={metrics?.prescriptionGrowth}
+          change={(metrics?.prescriptionGrowth as number | undefined) ?? undefined}
           icon={Pill}
           color="text-purple-600"
           trend={metrics?.prescriptionGrowth && metrics.prescriptionGrowth > 0 ? 'up' : metrics?.prescriptionGrowth && metrics.prescriptionGrowth < 0 ? 'down' : 'neutral'}
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
         <MetricCard
           title="Low Stock Items"
@@ -485,7 +485,7 @@ export function RealtimeDashboardOverview({
           color="text-orange-600"
           loading={loading}
           realtime={realtimeEnabled}
-          lastUpdated={lastRealtimeUpdate}
+          lastUpdated={lastRealtimeUpdate ?? undefined}
         />
       </div>
 

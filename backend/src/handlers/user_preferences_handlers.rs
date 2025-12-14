@@ -252,7 +252,7 @@ pub async fn update_user_preferences(
     let language_clone = update_data_inner.language.clone();
     let timezone_clone = update_data_inner.timezone.clone();
     
-    let updated_preferences = match sqlx::query_as::<UserPreferences>(
+    let updated_preferences = match sqlx::query_as::<_, UserPreferences>(
         "UPDATE user_dashboard_preferences 
          SET layout_config = COALESCE($2, layout_config),
              custom_metrics = COALESCE($3, custom_metrics),
@@ -270,8 +270,8 @@ pub async fn update_user_preferences(
     )
     .bind(user_id)
     .bind(update_data_inner.layout_config)
-    .bind(update_data_inner.custom_metrics.as_deref())
-    .bind(update_data_inner.favorite_modules.as_deref())
+    .bind(update_data_inner.custom_metrics.as_ref().map(|v| v.as_slice()))
+    .bind(update_data_inner.favorite_modules.as_ref().map(|v| v.as_slice()))
     .bind(update_data_inner.refresh_interval)
     .bind(update_data_inner.auto_refresh)
     .bind(update_data_inner.theme.as_deref())
@@ -312,7 +312,7 @@ pub async fn update_user_preferences(
                     }
 
                     // Save updated preferences
-                    match sqlx::query_as::<UserPreferences>(
+                    match sqlx::query_as::<_, UserPreferences>(
                         "UPDATE user_dashboard_preferences 
                          SET layout_config = $2, custom_metrics = $3, favorite_modules = $4,
                              refresh_interval = $5, auto_refresh = $6, theme = $7, 
@@ -331,7 +331,7 @@ pub async fn update_user_preferences(
                     .bind(prefs.theme.as_deref())
                     .bind(prefs.language.as_deref())
                     .bind(prefs.timezone.as_deref())
-                    .fetch_one(&**pool)
+                    .fetch_one(pool.get_ref())
                     .await
                     {
                         Ok(updated_prefs) => updated_prefs,
@@ -434,7 +434,7 @@ pub async fn reset_user_preferences(
         "SELECT role FROM users WHERE id = $1"
     )
     .bind(user_id)
-    .fetch_one(&**pool)
+    .fetch_one(pool.get_ref())
     .await
     {
         Ok(role) => role,
@@ -552,7 +552,7 @@ async fn create_default_preferences(
 ) -> Result<UserPreferences, sqlx::Error> {
     let template = get_role_template(role);
 
-    let preferences = sqlx::query_as::<UserPreferences>(
+    let preferences = sqlx::query_as::<_, UserPreferences>(
         "INSERT INTO user_dashboard_preferences 
          (user_id, layout_config, custom_metrics, favorite_modules, 
           refresh_interval, auto_refresh, theme, language, timezone)

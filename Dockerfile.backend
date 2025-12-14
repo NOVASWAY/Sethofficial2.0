@@ -21,14 +21,10 @@ COPY backend/src ./src
 COPY backend/migrations ./migrations
 
 # Build the application
-# sqlx::query! macros require DATABASE_URL at compile time
-# We'll connect to the postgres service during build to prepare queries
-# Note: This requires the postgres service to be running during build
+# Note: DATABASE_URL should be provided as build arg when postgres is running
+# The docker-compose.yml uses network: host so backend can connect to postgres during build
 ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
-# Build the application
-# Note: sqlx::query! macros require DATABASE_URL at compile time
-# The database should be accessible during build
 RUN RUST_BACKTRACE=1 CARGO_BUILD_JOBS=2 cargo build --release
 
 # Runtime stage

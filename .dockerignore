@@ -1,0 +1,100 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+*.txt
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Node modules (will be installed in container)
+node_modules
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Build outputs
+.next
+out
+dist
+build
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage
+.nyc_output
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache
+.parcel-cache
+.eslintcache
+
+# Rust build artifacts (for backend)
+backend/target
+backend/.sqlx
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv
+env
+
+# Large data files
+*.csv
+*.xlsx
+*.xls
+uploads/*
+!uploads/.gitkeep
+
+# Monitoring (optional, can be included if needed)
+monitoring/prometheus_data
+monitoring/grafana_data
+

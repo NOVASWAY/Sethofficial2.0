@@ -15,7 +15,7 @@ interface RealtimeDashboardOptions {
 export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
   const { user } = useAuth()
   const { toast } = useToast()
-  
+
   const {
     enableRealtime = true,
     enableWebSocket = true,
@@ -36,7 +36,7 @@ export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
   const [lastRealtimeUpdate, setLastRealtimeUpdate] = useState<number | null>(null)
   const [realtimeMetrics, setRealtimeMetrics] = useState<any>(null)
   const [systemAlerts, setSystemAlerts] = useState<any[]>([])
-  
+
   // Refs for tracking updates
   const updateCountRef = useRef(0)
   const lastUpdateTimeRef = useRef<number>(0)
@@ -46,7 +46,7 @@ export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
     onConnect: () => {
       console.log('WebSocket connected for dashboard')
       setWsConnected(true)
-      
+
       if (enableActivityLogging) {
         // Log WebSocket connection
         console.log('Dashboard WebSocket connected')
@@ -63,7 +63,7 @@ export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
       toast({
         title: "Connection Error",
         description: "Lost connection to real-time updates. Some data may not be current.",
-        variant: "destructive",
+        variant: "error",
       })
     },
 
@@ -79,7 +79,7 @@ export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
         toast({
           title: "Dashboard Alert",
           description: data.alert.message,
-          variant: "destructive",
+          variant: "error",
         })
       }
     },
@@ -92,7 +92,7 @@ export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
       toast({
         title: "System Alert",
         description: data.message,
-        variant: data.severity === 'critical' ? 'destructive' : 'default',
+        variant: data.severity === 'critical' ? 'error' : 'default',
       })
     },
 
@@ -239,31 +239,31 @@ export function useRealtimeDashboard(options: RealtimeDashboardOptions = {}) {
     systemHealth: dashboardData.systemHealth,
     userPreferences: dashboardData.userPreferences,
     systemAlerts,
-    
+
     // State
     loading: dashboardData.loading,
     refreshing: dashboardData.refreshing,
     error: dashboardData.error,
     wsConnected,
     lastRealtimeUpdate,
-    
+
     // Actions
     refresh: requestRefresh,
     updatePreferences: dashboardData.updatePreferences,
     resetPreferences: dashboardData.resetPreferences,
     clearSystemAlerts,
-    
+
     // WebSocket actions
     subscribe: ws.subscribe,
     unsubscribe: ws.unsubscribe,
     requestDataUpdate: ws.requestDataUpdate,
-    
+
     // Utilities
     connectionStatus: getConnectionStatus(),
     isHealthy: dashboardData.isHealthy,
     hasAlerts: dashboardData.hasAlerts || systemAlerts.length > 0,
     canRefresh: dashboardData.canRefresh,
-    
+
     // Realtime specific
     realtimeEnabled: enableWebSocket,
     updateCount: updateCountRef.current,

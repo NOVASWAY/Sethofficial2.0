@@ -47,17 +47,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
-            <ErrorBoundary>
-              <AuthProvider>
-                <Providers>
-                  <AppStateProvider>
-                    <ServiceWorkerRegistration />
-                    <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-                    <Toaster />
-                  </AppStateProvider>
-                </Providers>
-              </AuthProvider>
-            </ErrorBoundary>
+        <ErrorBoundary>
+          <AuthProvider>
+            <Providers>
+              <AppStateProvider>
+                {/* <ServiceWorkerRegistration /> - Disabled to prevent caching issues */}
+                <ServiceWorkerRegistration />
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+                  {children}
+                </Suspense>
+                <Toaster />
+              </AppStateProvider>
+            </Providers>
+          </AuthProvider>
+        </ErrorBoundary>
         <ErrorBoundary>
           <Analytics />
         </ErrorBoundary>

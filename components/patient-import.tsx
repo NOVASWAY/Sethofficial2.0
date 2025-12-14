@@ -11,22 +11,22 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Download, X, Users, BarChart3 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { usePatientEnhanced } from '@/contexts/patient-context-enhanced'
-import { 
-  checkBatchDuplicates, 
-  isNameSimilar, 
-  isPhoneMatch, 
+import {
+  checkBatchDuplicates,
+  isNameSimilar,
+  isPhoneMatch,
   isOPNumberMatch,
   normalizeName,
   normalizePhone,
   normalizeOPNumber,
-  type DuplicateMatch 
+  type DuplicateMatch
 } from '@/lib/duplicate-detection'
 import { patientAPI } from '@/lib/api-client'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
-import { 
-  validatePhoneNumber, 
-  validateEmail, 
+import {
+  validatePhoneNumber,
+  validateEmail,
   validateAge,
   standardizeAddress,
   detectAndConvertDate,
@@ -125,7 +125,7 @@ export function PatientImport() {
   const calculateDOBFromAge = (age: string, referenceYear?: number): string => {
     const ageNum = parseInt(age)
     if (isNaN(ageNum)) return ''
-    
+
     const currentYear = referenceYear || new Date().getFullYear()
     const birthYear = currentYear - ageNum
     // Set a default birth date (January 1st of birth year)
@@ -153,7 +153,7 @@ export function PatientImport() {
           const nameParts = patient.name.split(' ')
           const firstName = nameParts[0] || ''
           const lastName = nameParts.slice(1).join(' ') || 'Patient'
-          
+
           let matchType = ''
           const matchedFields: string[] = []
 
@@ -297,12 +297,12 @@ export function PatientImport() {
       })
     } else {
       // Check for duplicate OP numbers in the same import batch
-      const duplicates = allPatients.filter((p, i) => 
-        i !== index && 
-        p.opNumber && 
+      const duplicates = allPatients.filter((p, i) =>
+        i !== index &&
+        p.opNumber &&
         p.opNumber.trim().toLowerCase() === patient.opNumber.trim().toLowerCase()
       )
-      
+
       if (duplicates.length > 0) {
         warnings.push(`Shared OP number (${duplicates.length + 1} family members) - will differentiate with suffix`)
         validationIssues.push({
@@ -373,7 +373,7 @@ export function PatientImport() {
     // Get headers using proper CSV parsing
     const headers = parseCSVLine(lines[0])
     const headersLower = headers.map(h => h.toLowerCase().trim())
-    
+
     // Use custom mappings if provided, otherwise auto-detect
     let nameIdx = -1
     let ageIdx = -1
@@ -422,7 +422,7 @@ export function PatientImport() {
     for (let i = 1; i < lines.length; i++) {
       // Use proper CSV parsing instead of simple split
       const values = parseCSVLine(lines[i])
-      
+
       if (values.length < 1) continue // Skip empty lines
 
       // Ensure we have enough values (pad with empty strings if missing)
@@ -433,19 +433,19 @@ export function PatientImport() {
       // Clean up values: remove trailing quotes and trim
       const cleanedValues = values.map(v => {
         let cleaned = v.trim()
-        
+
         // Remove surrounding quotes if present (handles both double and single quotes)
-        while ((cleaned.startsWith('"') && cleaned.endsWith('"')) || 
-               (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+        while ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+          (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
           cleaned = cleaned.slice(1, -1).trim()
         }
-        
+
         // Remove any trailing single quotes that might be left (handles cases like "value'")
         cleaned = cleaned.replace(/^["']+|["']+$/g, '').trim()
-        
+
         // Handle escaped quotes inside the value
         cleaned = cleaned.replace(/""/g, '"').replace(/''/g, "'")
-        
+
         return cleaned
       })
 
@@ -455,9 +455,9 @@ export function PatientImport() {
       // Handle full name splitting if mapped
       let name = ''
       if (mappings && mappings.length > 0) {
-        const nameMapping = mappings.find(m => 
-          m.databaseField === 'full_name' || 
-          m.databaseField === 'first_name' || 
+        const nameMapping = mappings.find(m =>
+          m.databaseField === 'full_name' ||
+          m.databaseField === 'first_name' ||
           m.databaseField === 'last_name'
         )
         if (nameMapping) {
@@ -511,7 +511,7 @@ export function PatientImport() {
           patients[dup.patientIndex].duplicates = []
         }
         patients[dup.patientIndex].duplicates!.push(dup)
-        
+
         const matchedPatient = patients[dup.patientIndex]
         const matchedFields = dup.matchedFields.join(', ')
         const score = Math.round(dup.similarityScore * 100)
@@ -539,9 +539,9 @@ export function PatientImport() {
     }
 
     // Check if this OP number is shared
-    const sameOPNumbers = patients.filter((p, i) => 
-      i <= index && 
-      p.opNumber && 
+    const sameOPNumbers = patients.filter((p, i) =>
+      i <= index &&
+      p.opNumber &&
       p.opNumber.trim().toLowerCase() === opNumber.trim().toLowerCase()
     )
 
@@ -560,26 +560,26 @@ export function PatientImport() {
     const nameParts = (patient.name || 'Unknown').trim().split(' ')
     const firstName = nameParts[0] || 'Unknown'
     const lastName = nameParts.slice(1).join(' ') || 'Patient'
-    
+
     // Calculate date of birth from age if provided
     let dateOfBirth = '1990-01-01' // Default
     if (patient.age && !isNaN(Number(patient.age))) {
       const birthYear = new Date().getFullYear() - Number(patient.age)
       dateOfBirth = `${birthYear}-01-01`
     }
-    
+
     // Use placeholder phone if missing (backend requires non-empty phone)
     let phone = patient.phoneNumber?.trim() || ''
     if (!phone || phone === 'Not provided') {
       phone = '0000000000' // Placeholder that backend will accept
     }
-    
+
     // Use "Not specified" if location is missing
     let location = patient.location?.trim()
     if (!location || location === '') {
       location = 'Not specified'
     }
-    
+
     return {
       patient_number: generateUniquePatientNumber(patient.opNumber, patients, index),
       first_name: firstName,
@@ -590,6 +590,7 @@ export function PatientImport() {
       location: location,
       emergency_contact: '',
       emergency_phone: '',
+      status: 'active' as const,
       // Note: status field removed as backend doesn't accept it in create_patient
     }
   }
@@ -615,14 +616,14 @@ export function PatientImport() {
     try {
       const text = await selectedFile.text()
       setRawCsvText(text)
-      
+
       // Extract headers using proper CSV parsing
       const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
       const lines = normalizedText.split('\n').filter(line => line.trim())
       if (lines.length > 0) {
         const headers = parseCSVLine(lines[0])
         setCsvHeaders(headers)
-        
+
         // Show mapping interface if headers are detected
         if (headers.length > 0) {
           setShowMapping(true)
@@ -646,16 +647,16 @@ export function PatientImport() {
   const processImportedData = async (patients: ImportedPatient[]) => {
     setImportedData(patients)
     setShowPreview(true)
-    
+
     const validCount = patients.filter(p => !p.errors || p.errors.length === 0).length
     const errorCount = patients.filter(p => p.errors && p.errors.length > 0).length
     const duplicateCount = patients.filter(p => p.duplicates && p.duplicates.length > 0).length
-    
+
     // Check against existing patients in database
     if (existingPatients.length > 0) {
       await checkExistingDuplicates(patients)
     }
-    
+
     toast({
       title: 'File Parsed Successfully',
       description: `Found ${patients.length} records: ${validCount} valid, ${errorCount} with errors${duplicateCount > 0 ? `, ${duplicateCount} possible duplicates` : ''}`,
@@ -665,7 +666,7 @@ export function PatientImport() {
   const handleMappingComplete = (mappings: FieldMapping[]) => {
     setFieldMappings(mappings)
     setShowMapping(false)
-    
+
     // Parse CSV with custom mappings
     const patients = parseCSV(rawCsvText, mappings)
     processImportedData(patients)
@@ -677,14 +678,14 @@ export function PatientImport() {
 
     try {
       const validPatients = importedData.filter(p => !p.errors || p.errors.length === 0)
-      
+
       // Process patients with unique patient numbers and default values
-      const processedPatients = validPatients.map((patient, index) => 
+      const processedPatients = validPatients.map((patient, index) =>
         processPatientForImport(patient, validPatients, index)
       )
-      
+
       // Count shared OP numbers
-      const sharedOPCount = validPatients.filter(p => 
+      const sharedOPCount = validPatients.filter(p =>
         p.warnings?.some(w => w.includes('Shared OP number'))
       ).length
 
@@ -695,7 +696,7 @@ export function PatientImport() {
         // Batch import with progress tracking
         const batchSize = 100
         const totalBatches = Math.ceil(processedPatients.length / batchSize)
-        
+
         setImportProgress({
           current: 0,
           total: processedPatients.length,
@@ -706,7 +707,7 @@ export function PatientImport() {
         })
 
         const result = await patientAPI.batchImport(processedPatients, batchSize)
-        
+
         if (result) {
           setImportProgress({
             current: result.imported + result.failed,
@@ -1021,7 +1022,7 @@ Grace Njeri,67,Nyeri,,`
                 {/* Data Quality Dashboard */}
                 {showQualityDashboard && (
                   <div className="border rounded-lg p-4 bg-muted/30">
-                    <DataQualityDashboard 
+                    <DataQualityDashboard
                       records={importedData.map(p => ({
                         first_name: p.name.split(' ')[0] || '',
                         last_name: p.name.split(' ').slice(1).join(' ') || '',
@@ -1114,12 +1115,12 @@ Grace Njeri,67,Nyeri,,`
                           onClick={() => {
                             // Prepare duplicate groups for merge component
                             const groups: typeof duplicateGroups = []
-                            
+
                             // Group duplicates from batch
                             const processed = new Set<number>()
                             importedData.forEach((patient, index) => {
                               if (processed.has(index)) return
-                              
+
                               if (patient.duplicates && patient.duplicates.length > 0) {
                                 const group = {
                                   patients: [
@@ -1140,7 +1141,7 @@ Grace Njeri,67,Nyeri,,`
                                   matchedFields: patient.duplicates[0].matchedFields,
                                   similarityScore: patient.duplicates[0].similarityScore,
                                 }
-                                
+
                                 patient.duplicates.forEach(dup => {
                                   const dupPatient = importedData[dup.patientIndex]
                                   group.patients.push({
@@ -1157,12 +1158,12 @@ Grace Njeri,67,Nyeri,,`
                                   })
                                   processed.add(dup.patientIndex)
                                 })
-                                
+
                                 groups.push(group)
                                 processed.add(index)
                               }
                             })
-                            
+
                             setDuplicateGroups(groups)
                             setShowDuplicateMerge(true)
                           }}

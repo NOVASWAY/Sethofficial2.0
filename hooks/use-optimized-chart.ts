@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState, useEffect } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 
 interface ChartDataPoint {
   [key: string]: any
@@ -51,7 +51,7 @@ export function useOptimizedChart<T extends ChartDataPoint>({
   // Memoize processed data
   const processedData = useMemo(() => {
     if (!shouldRender) return []
-    
+
     // Process data for chart consumption
     // Remove undefined/null values that can cause rendering issues
     return data.map(item => {
