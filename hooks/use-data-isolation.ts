@@ -260,11 +260,31 @@ export function useDataIsolation<T>(
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Generate user-specific filters
+  // Generate user-specific filters - memoize config object to prevent unnecessary recalculations
+  const configKey = useMemo(() => {
+    if (!user) return null
+    return `${config.userField}-${config.departmentField}-${config.assignedField}-${config.createdByField}-${user.id}`
+  }, [user?.id, config.userField, config.departmentField, config.assignedField, config.createdByField])
+
+  const permissionsKey = useMemo(() => {
+    const p = config.permissions
+    return `${p.canViewAll}-${p.canViewOwn}-${p.canViewDepartment}-${p.canViewAssigned}`
+  }, [
+    config.permissions.canViewAll,
+    config.permissions.canViewOwn,
+    config.permissions.canViewDepartment,
+    config.permissions.canViewAssigned
+  ])
+
   const userFilters = useMemo(() => {
     if (!user) return []
-    return generateDataFilters(user, config)
-  }, [user, config])
+    try {
+      return generateDataFilters(user, config)
+    } catch (error) {
+      console.error('Error generating data filters:', error)
+      return []
+    }
+  }, [user, configKey, permissionsKey])
 
   // Combine all filters
   const allFilters = useMemo(() => {
@@ -296,15 +316,13 @@ export function useDataIsolation<T>(
   const hasPermission = useMemo(() => {
     if (!user) return false
     
+    const p = config.permissions
     return {
-      canView: config.permissions.canViewAll || config.permissions.canViewOwn || 
-               config.permissions.canViewDepartment || config.permissions.canViewAssigned,
-      canEdit: config.permissions.canEditAll || config.permissions.canEditOwn || 
-               config.permissions.canEditDepartment || config.permissions.canEditAssigned,
-      canDelete: config.permissions.canDeleteAll || config.permissions.canDeleteOwn || 
-                 config.permissions.canDeleteDepartment || config.permissions.canDeleteAssigned
+      canView: p.canViewAll || p.canViewOwn || p.canViewDepartment || p.canViewAssigned,
+      canEdit: p.canEditAll || p.canEditOwn || p.canEditDepartment || p.canEditAssigned,
+      canDelete: p.canDeleteAll || p.canDeleteOwn || p.canDeleteDepartment || p.canDeleteAssigned
     }
-  }, [user, config.permissions])
+  }, [user, permissionsKey])
 
   // Get user-specific data count
   const dataCount = useMemo(() => {

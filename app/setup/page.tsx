@@ -233,6 +233,17 @@ export default function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <div className="flex justify-between items-start mb-2">
+            <Button 
+              onClick={handleSkipSetup}
+              variant="ghost"
+              size="sm"
+              className="text-sm"
+            >
+              ← Go to Login
+            </Button>
+            <div className="flex-1"></div>
+          </div>
           <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <Shield className="w-6 h-6 text-blue-600" />
           </div>

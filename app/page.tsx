@@ -34,6 +34,21 @@ export default function LoginPage() {
     setMounted(true)
   }, [])
 
+  // Prevent redirect to setup if user explicitly wants to access login
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      // If we're on root and get redirected to setup, stay on login page
+      if (window.location.pathname === '/setup' && !sessionStorage.getItem('setup_required')) {
+        // Allow manual navigation to setup, but don't auto-redirect from root
+        const currentPath = window.location.pathname
+        if (currentPath === '/setup' && document.referrer.includes('/setup')) {
+          // Already on setup, allow it
+          return
+        }
+      }
+    }
+  }, [mounted])
+
   // Redirect if already authenticated
   useEffect(() => {
     if (mounted && isAuthenticated && user) {

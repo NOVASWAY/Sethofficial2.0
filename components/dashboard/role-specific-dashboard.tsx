@@ -26,8 +26,13 @@ interface RoleSpecificDashboardProps {
 export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
   const { user } = useAuth()
   const router = useRouter()
-  const { patientsData } = usePatient()
-  const { medicines, stockMovements } = useInventory()
+  const patientContext = usePatient()
+  const inventoryContext = useInventory()
+  
+  // Safely extract context values with defaults
+  const patientsData = patientContext?.patientsData || new Map()
+  const medicines = inventoryContext?.medicines || []
+  const stockMovements = inventoryContext?.stockMovements || []
   
   const [activeTab, setActiveTab] = useState('overview')
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -54,23 +59,8 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
     }
   }
 
-  // Convert patients data to array for data isolation
-  const patientsArray = Array.from(patientsData.values())
-
-  // Use data isolation hooks
-  const { filteredData: filteredPatients, dataCount: patientCount } = useDataIsolation(
-    patientsArray,
-    {
-      userField: 'created_by',
-      departmentField: 'department',
-      assignedField: 'assigned_to',
-      createdByField: 'created_by',
-      permissions: getUserDataPermissions(role)
-    }
-  )
-
-  // Get role-specific data permissions
-  function getUserDataPermissions(role: string) {
+  // Get role-specific data permissions function
+  const getUserDataPermissions = React.useCallback((role: string) => {
     switch (role) {
       case 'admin':
         return {
@@ -163,12 +153,42 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
           canDeleteAssigned: false
         }
     }
-  }
+  }, [])
+
+  // Safely convert patients data to array for data isolation
+  const patientsArray = React.useMemo(() => {
+    if (!patientsData || typeof patientsData.values !== 'function') {
+      return []
+    }
+    try {
+      return Array.from(patientsData.values())
+    } catch (error) {
+      console.error('Error converting patients data to array:', error)
+      return []
+    }
+  }, [patientsData])
+
+  // Get role-specific data permissions (memoized)
+  const dataPermissions = React.useMemo(() => {
+    return getUserDataPermissions(role)
+  }, [role, getUserDataPermissions])
+
+  // Use data isolation hooks
+  const { filteredData: filteredPatients, dataCount: patientCount } = useDataIsolation(
+    patientsArray,
+    {
+      userField: 'created_by',
+      departmentField: 'department',
+      assignedField: 'assigned_to',
+      createdByField: 'created_by',
+      permissions: dataPermissions
+    }
+  )
 
   // Get role-specific metrics
   const getRoleMetrics = () => {
     const baseMetrics = [
-      { id: 'total_patients', label: 'Total Patients', icon: Users, value: patientCount.filtered, color: 'text-blue-600' },
+      { id: 'total_patients', label: 'Total Patients', icon: Users, value: patientCount?.filtered || 0, color: 'text-blue-600' },
       { id: 'today_consultations', label: 'Today\'s Consultations', icon: FileText, value: 12, color: 'text-green-600' },
       { id: 'pending_prescriptions', label: 'Pending Prescriptions', icon: Pill, value: 8, color: 'text-purple-600' },
       { id: 'low_stock_items', label: 'Low Stock Items', icon: AlertTriangle, value: 3, color: 'text-yellow-600' }
@@ -323,9 +343,10 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
     }
   }
 
-  const roleMetrics = getRoleMetrics()
-  const quickActions = getQuickActions()
-  const recentActivity = getRecentActivity()
+  // Memoize role-specific data to prevent unnecessary recalculations
+  const roleMetrics = React.useMemo(() => getRoleMetrics(), [role, patientCount])
+  const quickActions = React.useMemo(() => getQuickActions(), [role, router])
+  const recentActivity = React.useMemo(() => getRecentActivity(), [role])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -334,8 +355,16 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
     setIsRefreshing(false)
   }
 
+  // Show loading state if user is not available
   if (!user) {
-    return <div>Loading dashboard...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
