@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -86,7 +86,7 @@ const roleConfig = {
     label: "Administrator",
     icon: Shield,
     color: "bg-destructive",
-    permissions: ["patients", "appointments", "invoices", "pharmacy", "inventory", "reports", "settings", "users", "lab", "visits", "prescriptions"], // Added "visits" and "prescriptions" for full access
+    permissions: ["all"], // Admin has access to everything
   },
 }
 
@@ -176,15 +176,23 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   }
 
   // Use user-specific permissions if available, otherwise fall back to role defaults
+  // Admin users should have "all" permission to access everything
   const activePermissions = user?.permissions && user.permissions.length > 0
     ? user.permissions
     : (currentRole?.permissions || [])
+  
+  // Admin role should always have access to all modules
+  const isAdminUser = role === 'admin' || user?.role === 'admin'
 
-  const filteredNavigation = navigationItems.filter(
-    (item) =>
-      item.permissions.includes("all") ||
-      item.permissions.some((permission) => activePermissions.includes(permission)),
-  )
+  // Filter navigation items based on permissions
+  // Admin users see all navigation items
+  const filteredNavigation = isAdminUser
+    ? navigationItems // Admin sees everything
+    : navigationItems.filter(
+        (item) =>
+          item.permissions.includes("all") ||
+          item.permissions.some((permission) => activePermissions.includes(permission)),
+      )
 
   // Set mounted state
   useEffect(() => {
@@ -265,29 +273,44 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
     )
   }
 
-  // STRICT ROUTE GUARD: Check if user has permission for the current path
-  if (pathname && isAuthenticated && user) {
+  // ROUTE GUARD: Check if user has permission for the current path
+  // Only block access if we find a matching nav item AND the user doesn't have permission
+  // If no nav item is found, let the feature page handle it (it will show "Page Not Found")
+  // This ensures all users can access modules they have permission for
+  if (pathname && isAuthenticated && user && mounted) {
     const pathParts = pathname.split('/')
-    // pathParts: ["", "dashboard", "role", "feature"]
-    const currentFeature = pathParts[3] // e.g., "inventory", "prescriptions"
+    // pathParts: ["", "dashboard", "role", "feature", ...]
+    const currentFeature = pathParts[3] // e.g., "inventory", "prescriptions", "billing"
 
+    // Only check permissions for feature routes (not dashboard root)
     if (currentFeature) {
       // Find the navigation item that matches this feature
       const navItem = navigationItems.find(item => {
-        // Handle special mappings
+        // Handle special mappings for lab routes
         if (item.id === "lab-dashboard") return currentFeature === "lab" && !pathParts[4]
         if (item.id === "lab-queue") return currentFeature === "lab" && pathParts[4] === "queue"
         if (item.id === "lab-results") return currentFeature === "lab" && pathParts[4] === "results"
+        // Standard matching
         return item.id === currentFeature
       })
 
-      // If we found a nav item for this route, check permissions
+      // Only check permissions if we found a matching nav item in the navigation
+      // This ensures we're checking permissions for known routes
       if (navItem) {
-        const hasPermission = navItem.permissions.includes("all") ||
+        // Admin users bypass permission checks - they have access to everything
+        const hasPermission = isAdminUser ||
+          navItem.permissions.includes("all") ||
           navItem.permissions.some(p => activePermissions.includes(p))
 
         if (!hasPermission) {
           // User is trying to access a route they don't have permission for
+          console.warn('[RouteGuard] Access denied:', {
+            user: user.id,
+            role: user.role,
+            feature: currentFeature,
+            requiredPermissions: navItem.permissions,
+            userPermissions: activePermissions
+          })
           return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
               <div className="max-w-md w-full text-center space-y-4">
@@ -307,6 +330,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
           )
         }
       }
+      // If no nav item found, continue - let the feature page handle routing
+      // This allows access to routes that exist in featureComponents but aren't in navigation
     }
   }
 
@@ -396,8 +421,112 @@ function SidebarContent({
   handleLogout,
 }: SidebarContentProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const { t } = useTranslation()
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['core', 'patients'])) // Default expanded categories
+  const navRef = useRef<HTMLElement>(null)
+  const scrollPositionRef = useRef<number>(0)
+  const STORAGE_KEY = 'sidebar-scroll-position'
+
+  // Save scroll position to sessionStorage
+  const saveScrollPosition = () => {
+    const navElement = navRef.current
+    if (navElement) {
+      const scrollTop = navElement.scrollTop
+      scrollPositionRef.current = scrollTop
+      try {
+        sessionStorage.setItem(STORAGE_KEY, scrollTop.toString())
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+  }
+
+  // Restore scroll position from sessionStorage
+  const restoreScrollPosition = () => {
+    const navElement = navRef.current
+    if (!navElement) return
+
+    try {
+      const savedPosition = sessionStorage.getItem(STORAGE_KEY)
+      if (savedPosition) {
+        const position = parseInt(savedPosition, 10)
+        scrollPositionRef.current = position
+        // Use multiple attempts to ensure scroll is restored
+        requestAnimationFrame(() => {
+          if (navElement) {
+            navElement.scrollTop = position
+            // Double-check after a small delay
+            setTimeout(() => {
+              if (navElement && navElement.scrollTop !== position) {
+                navElement.scrollTop = position
+              }
+            }, 100)
+          }
+        })
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  // Auto-expand category containing the active item
+  useEffect(() => {
+    if (activeItem) {
+      // Find which category contains the active item from the full navigationItems array
+      const activeNavItem = navigationItems.find(item => item.id === activeItem)
+      const activeCategory = activeNavItem?.category
+      
+      if (activeCategory) {
+        setExpandedCategories(prev => {
+          // Always ensure the active category is expanded (even if user collapsed it)
+          // This provides better UX - users can see where they are
+          if (!prev.has(activeCategory)) {
+            const newSet = new Set(prev)
+            newSet.add(activeCategory)
+            return newSet
+          }
+          // Category is already expanded, no need to update
+          return prev
+        })
+      }
+    }
+  }, [activeItem, pathname]) // Removed filteredNavigation from deps since we use navigationItems directly
+
+  // Continuously save scroll position as user scrolls
+  useEffect(() => {
+    const navElement = navRef.current
+    if (!navElement) return
+
+    const handleScroll = () => {
+      scrollPositionRef.current = navElement.scrollTop
+      try {
+        sessionStorage.setItem(STORAGE_KEY, navElement.scrollTop.toString())
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+
+    navElement.addEventListener('scroll', handleScroll, { passive: true })
+    
+    return () => {
+      navElement.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
+  // Restore scroll position after route changes
+  useEffect(() => {
+    // Wait for DOM to be ready and categories to expand
+    const timeoutId = setTimeout(() => {
+      restoreScrollPosition()
+    }, 150)
+
+    return () => {
+      clearTimeout(timeoutId)
+      // Save scroll position before route change
+      saveScrollPosition()
+    }
+  }, [activeItem, pathname])
 
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => {
@@ -444,7 +573,7 @@ function SidebarContent({
       </div>
 
       {/* Navigation - Organized by Categories */}
-      <nav className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-4">
+      <nav ref={navRef} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-4">
         {Object.entries(
           filteredNavigation.reduce<Record<string, typeof filteredNavigation>>((acc, item) => {
             const category = (item as any).category || 'other'
@@ -504,9 +633,19 @@ function SidebarContent({
                         <Link
                           key={item.id}
                           href={targetPath}
+                          scroll={false}
                           onClick={(e) => {
-                            e.stopPropagation() // Prevent accordion toggle
-                            onClose?.()
+                            // Prevent accordion toggle from parent category button
+                            e.stopPropagation()
+                            // Save scroll position before navigation
+                            saveScrollPosition()
+                            // Only close sidebar on mobile (when onClose is provided)
+                            // This prevents desktop sidebar from closing when clicking grouped items
+                            if (onClose) {
+                              onClose()
+                            }
+                            // Debug: Log navigation (remove in production)
+                            console.log('[Navigation] Navigating to:', targetPath, 'Item:', item.id)
                           }}
                           className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors w-full text-left ${isActive
                             ? 'bg-secondary text-secondary-foreground'

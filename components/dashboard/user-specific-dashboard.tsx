@@ -48,8 +48,15 @@ interface UserSpecificDashboardProps {
 
 export function UserSpecificDashboard({ role }: UserSpecificDashboardProps) {
   const { user } = useAuth()
-  const { patientsData } = usePatient()
-  const { medicines, stockMovements } = useInventory()
+  const patientContext = usePatient()
+  const inventoryContext = useInventory()
+  
+  // Safely extract context values with defaults
+  const patientsData = patientContext?.patientsData instanceof Map 
+    ? patientContext.patientsData 
+    : new Map()
+  const medicines = inventoryContext?.medicines || []
+  const stockMovements = inventoryContext?.stockMovements || []
   
   const [preferences, setPreferences] = useState<UserPreferences>({
     dashboardLayout: 'detailed',

@@ -38,7 +38,7 @@ export function QueueManagement() {
       toast({
         variant: 'error',
         title: 'Validation Error',
-        description: 'Patient name and number are required',
+        description: 'Patient name and OP number are required',
       })
       return
     }
@@ -582,12 +582,12 @@ export function QueueManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="patientNumber">Patient Number *</Label>
+              <Label htmlFor="patientNumber">OP Number *</Label>
               <Input
                 id="patientNumber"
                 value={checkInData.patientNumber}
                 onChange={(e) => setCheckInData({ ...checkInData, patientNumber: e.target.value })}
-                placeholder="PAT-2025-0001"
+                placeholder="OP-2025-0001"
               />
             </div>
 

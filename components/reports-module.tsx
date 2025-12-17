@@ -207,10 +207,7 @@ export function ReportsModule() {
     setIsMounted(true)
   }, [])
 
-  if (!isMounted) {
-    return <DashboardSkeleton />
-  }
-
+  // IMPORTANT: All hooks must be called BEFORE any conditional returns
   // Context hooks for real data
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
   const { patients, getTotalPatients, getActivePatients } = usePatientEnhanced()
@@ -266,7 +263,29 @@ export function ReportsModule() {
   }
 
   // Real data calculations using useMemo
+  // IMPORTANT: Handle unmounted state inside useMemo to prevent errors
   const realData = useMemo(() => {
+    // Return empty data structure if not mounted to prevent errors
+    if (!isMounted || !invoices || !patients || !medicines || !purchaseOrders || !logs) {
+      return {
+        totalRevenue: 0,
+        revenueByMethod: 0,
+        outstandingBalance: 0,
+        totalPatients: 0,
+        activePatients: 0,
+        lowStockItems: [],
+        expiringItems: [],
+        totalOrdersValue: 0,
+        pendingOrdersCount: 0,
+        recentLogs: [],
+        monthlyRevenue: 0,
+        monthlyPatients: 0,
+        filteredInvoices: [],
+        filteredPatients: [],
+        filteredPurchaseOrders: [],
+      }
+    }
+
     // Financial data
     const totalRevenue = getTotalRevenue()
     const revenueByMethod = getRevenueByMethod('cash') // Default to cash method
@@ -332,7 +351,7 @@ export function ReportsModule() {
       filteredPatients,
       filteredPurchaseOrders,
     }
-  }, [invoices, patients, medicines, purchaseOrders, logs, getTotalRevenue, getRevenueByMethod, getOutstandingBalance, getTotalOrdersValue, getPendingOrdersCount, getLowStockMedicines, customDateRange])
+  }, [invoices, patients, medicines, purchaseOrders, logs, getTotalRevenue, getRevenueByMethod, getOutstandingBalance, getTotalOrdersValue, getPendingOrdersCount, getLowStockMedicines, customDateRange, isMounted])
 
   // Memoize filtered audit logs
   const filteredLogs = useMemo(() => {
@@ -435,6 +454,11 @@ export function ReportsModule() {
 
     fetchSHAClaims()
   }, [shaClaimsCacheKey, customDateRange])
+
+  // Conditional return AFTER all hooks are called
+  if (!isMounted) {
+    return <DashboardSkeleton />
+  }
 
   return (
     <div className="space-y-6">

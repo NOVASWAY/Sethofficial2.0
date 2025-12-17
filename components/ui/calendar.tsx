@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 
 interface CalendarProps {
   className?: string
-  selected?: Date
-  onSelect?: (date: Date | undefined) => void
+  selected?: Date | { from?: Date; to?: Date }
+  onSelect?: (date: Date | { from?: Date; to?: Date } | undefined) => void
   disabled?: (date: Date) => boolean
   mode?: 'single' | 'range'
   defaultMonth?: Date
@@ -67,7 +67,39 @@ function Calendar({
   const isSelected = (day: number) => {
     if (!selected) return false
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
-    return date.toDateString() === selected.toDateString()
+    
+    // Handle range mode
+    if (mode === 'range' && typeof selected === 'object' && 'from' in selected) {
+      const range = selected as { from?: Date; to?: Date }
+      if (range.from) {
+        const fromDate = range.from instanceof Date ? range.from : new Date(range.from)
+        if (!isNaN(fromDate.getTime()) && date.toDateString() === fromDate.toDateString()) {
+          return true
+        }
+      }
+      if (range.to) {
+        const toDate = range.to instanceof Date ? range.to : new Date(range.to)
+        if (!isNaN(toDate.getTime()) && date.toDateString() === toDate.toDateString()) {
+          return true
+        }
+      }
+      // Check if date is in range
+      if (range.from && range.to) {
+        const fromDate = range.from instanceof Date ? range.from : new Date(range.from)
+        const toDate = range.to instanceof Date ? range.to : new Date(range.to)
+        if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
+          return date >= fromDate && date <= toDate
+        }
+      }
+      return false
+    }
+    
+    // Handle single mode
+    // Ensure selected is a Date object
+    const selectedDate = selected instanceof Date ? selected : new Date(selected as any)
+    // Check if selectedDate is valid
+    if (isNaN(selectedDate.getTime())) return false
+    return date.toDateString() === selectedDate.toDateString()
   }
   
   const isToday = (day: number) => {

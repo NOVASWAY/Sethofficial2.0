@@ -48,12 +48,20 @@ export function FinancialOverview() {
     setIsMounted(true)
   }, [])
 
-  if (!isMounted) {
-    return <DashboardSkeleton />
-  }
-
   // Calculate real financial data from invoices
+  // IMPORTANT: All hooks must be called unconditionally - handle loading state in JSX instead
   const financialData = useMemo(() => {
+    // Return empty data structure if not mounted to prevent errors
+    if (!isMounted || !invoices) {
+      return {
+        overview: { totalRevenue: 0, totalExpenses: 0, netProfit: 0, profitMargin: 0, growthRate: 0 },
+        revenue: { cash: 0, mpesa: 0, sha: 0, nhif: 0, mixed: 0 },
+        expenses: { salaries: 0, supplies: 0, utilities: 0, maintenance: 0, other: 0 },
+        monthly: [],
+        transactions: { today: 0, thisWeek: 0, thisMonth: 0, avgTransaction: 0 },
+        patients: { total: 0, newThisMonth: 0, returning: 0 }
+      }
+    }
     const today = new Date()
     let startDate: Date
     let endDate = today
@@ -178,7 +186,7 @@ export function FinancialOverview() {
         }
       })(),
     }
-  }, [period, invoices, getTotalRevenue, getRevenueByMethod])
+  }, [period, invoices, getTotalRevenue, getRevenueByMethod, isMounted])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -223,6 +231,11 @@ export function FinancialOverview() {
     { name: "Maintenance", value: financialData.expenses.maintenance, color: "#06b6d4" },
     { name: "Other", value: financialData.expenses.other, color: "#6b7280" },
   ].map(item => ({ label: item.name, value: item.value, color: item.color }))
+
+  // Render loading skeleton if not mounted - AFTER all hooks and calculations
+  if (!isMounted) {
+    return <DashboardSkeleton />
+  }
 
   return (
     <div className="space-y-6">

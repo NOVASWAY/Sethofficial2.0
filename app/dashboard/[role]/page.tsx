@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, Suspense } from 'react'
+import { useState, useMemo, Suspense, useEffect } from 'react'
 import { RoleSpecificDashboard } from '@/components/dashboard/role-specific-dashboard'
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { useAuth } from '@/contexts/auth-context'
@@ -105,7 +105,6 @@ function DashboardContent({
 export default function DashboardRolePage() {
   const params = useParams()
   const { user } = useAuth()
-  const [dashboardType, setDashboardType] = useState<DashboardType>('role-specific')
   
   // Extract role from params safely
   const role = useMemo(() => {
@@ -119,14 +118,34 @@ export default function DashboardRolePage() {
     return role || user?.role || 'receptionist'
   }, [role, user?.role])
 
+  // Check if user is admin - only admins can access all dashboards
+  const isAdmin = useMemo(() => {
+    return dashboardRole === 'admin'
+  }, [dashboardRole])
+
+  // Normal users (non-admin) can only access user-specific dashboard
+  const [dashboardType, setDashboardType] = useState<DashboardType>(
+    isAdmin ? 'role-specific' : 'user-specific'
+  )
+
+  // Force normal users to user-specific dashboard
+  useEffect(() => {
+    if (!isAdmin && dashboardType !== 'user-specific') {
+      setDashboardType('user-specific')
+    }
+  }, [isAdmin, dashboardType])
+
   return (
     <DashboardLayout role={dashboardRole}>
       <div className="space-y-6">
-        <DashboardSwitcher 
-          dashboardType={dashboardType}
-          onDashboardChange={setDashboardType}
-          dashboardRole={dashboardRole}
-        />
+        {/* Only show dashboard switcher for admin users */}
+        {isAdmin && (
+          <DashboardSwitcher 
+            dashboardType={dashboardType}
+            onDashboardChange={setDashboardType}
+            dashboardRole={dashboardRole}
+          />
+        )}
         
         <Suspense fallback={
           <Card>
