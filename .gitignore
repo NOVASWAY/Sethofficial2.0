@@ -31,3 +31,5 @@ coverage/
 # Editor
 .vscode/
 .idea/
+# Local Netlify folder
+.netlify
