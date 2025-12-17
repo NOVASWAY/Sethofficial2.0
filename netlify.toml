@@ -10,9 +10,7 @@
   
   # Publish directory - Netlify Next.js plugin handles this automatically
   # The plugin will set the correct output directory
-  
-  # Ignore backend directory during build
-  ignore = "backend/**"
+  # Note: Backend directory is automatically ignored as Next.js only builds front-end files
 
 # Build environment variables
 [build.environment]
