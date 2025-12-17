@@ -292,6 +292,21 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   // Only block access if we find a matching nav item AND the user doesn't have permission
   // If no nav item is found, let the feature page handle it (it will show "Page Not Found")
   // This ensures all users can access modules they have permission for
+  
+  // Debug: Log route guard check
+  useEffect(() => {
+    if (pathname && isAuthenticated && user && mounted) {
+      console.log('[RouteGuard] Checking access:', {
+        pathname,
+        role,
+        userRole: user?.role,
+        isAdminUser,
+        willBypassGuard: isAdminUser
+      })
+    }
+  }, [pathname, isAuthenticated, user, mounted, role, isAdminUser])
+
+  // Completely skip route guard for admin users
   if (pathname && isAuthenticated && user && mounted && !isAdminUser) {
     // Skip route guard entirely for admin users - they have access to everything
     const pathParts = pathname.split('/')
@@ -347,6 +362,9 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       // If no nav item found, continue - let the feature page handle routing
       // This allows access to routes that exist in featureComponents but aren't in navigation
     }
+  } else if (pathname && isAuthenticated && user && mounted && isAdminUser) {
+    // Admin user - log that we're bypassing the guard
+    console.log('[RouteGuard] Admin user - bypassing route guard for:', pathname)
   }
 
   return (
