@@ -14,15 +14,6 @@
   # Ignore backend directory during build
   ignore = "backend/**"
 
-# Skip submodules during build (fixes broken submodule references)
-[build.processing]
-  skip_processing = false
-
-# Git configuration
-[build.environment]
-  # Skip submodules to avoid errors
-  GIT_SUBMODULE_STRATEGY = "none"
-
 # Build environment variables
 [build.environment]
   # Node.js version (matches package.json engines requirement)
@@ -33,6 +24,9 @@
   
   # Disable Next.js telemetry
   NEXT_TELEMETRY_DISABLED = "1"
+  
+  # Skip submodules to avoid errors (fixes broken submodule references)
+  GIT_SUBMODULE_STRATEGY = "none"
 
 # Plugin configuration for Next.js
 # This plugin automatically handles Next.js routing, ISR, and API routes
