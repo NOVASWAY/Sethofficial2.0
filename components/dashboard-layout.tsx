@@ -196,16 +196,21 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
 
   // Debug logging for admin access
   useEffect(() => {
+    console.log('[DashboardLayout] State check:', {
+      role,
+      userRole: user?.role,
+      isAdminUser,
+      isAuthenticated,
+      mounted,
+      pathname,
+      navigationItemsCount: navigationItems.length,
+      filteredNavigationCount: filteredNavigation?.length || 0,
+      activePermissions: activePermissions
+    })
     if (isAdminUser) {
-      console.log('[DashboardLayout] Admin user detected:', {
-        role,
-        userRole: user?.role,
-        isAdminUser,
-        navigationItemsCount: navigationItems.length,
-        filteredNavigationCount: filteredNavigation?.length || 0
-      })
+      console.log('[DashboardLayout] ✅ Admin user detected - should have full access')
     }
-  }, [isAdminUser, role, user?.role, filteredNavigation])
+  }, [isAdminUser, role, user?.role, filteredNavigation, isAuthenticated, mounted, pathname, activePermissions])
 
   // Set mounted state
   useEffect(() => {
@@ -255,6 +260,19 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
     }
   }, [mounted, user, role, router, pathname])
 
+  // Debug: Log route guard check (must be before any conditional returns)
+  useEffect(() => {
+    if (pathname && isAuthenticated && user && mounted) {
+      console.log('[RouteGuard] Checking access:', {
+        pathname,
+        role,
+        userRole: user?.role,
+        isAdminUser,
+        willBypassGuard: isAdminUser
+      })
+    }
+  }, [pathname, isAuthenticated, user, mounted, role, isAdminUser])
+
   const handleLogout = () => {
     logout()
   }
@@ -292,19 +310,6 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   // Only block access if we find a matching nav item AND the user doesn't have permission
   // If no nav item is found, let the feature page handle it (it will show "Page Not Found")
   // This ensures all users can access modules they have permission for
-  
-  // Debug: Log route guard check
-  useEffect(() => {
-    if (pathname && isAuthenticated && user && mounted) {
-      console.log('[RouteGuard] Checking access:', {
-        pathname,
-        role,
-        userRole: user?.role,
-        isAdminUser,
-        willBypassGuard: isAdminUser
-      })
-    }
-  }, [pathname, isAuthenticated, user, mounted, role, isAdminUser])
 
   // Completely skip route guard for admin users
   if (pathname && isAuthenticated && user && mounted && !isAdminUser) {
