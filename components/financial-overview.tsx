@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -39,20 +39,18 @@ import { DashboardSkeleton } from "@/components/ui/loading"
 export function FinancialOverview() {
   const [period, setPeriod] = useState("thisMonth")
   const [viewType, setViewType] = useState("overview")
-  const [isMounted, setIsMounted] = useState(false)
   const { toast } = useToast()
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
 
-  // Ensure component is mounted to prevent hydration mismatch
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
+  // IMPORTANT: All hooks must be called unconditionally before any conditional logic
+  // Ensure invoices is always an array to prevent hook order issues - memoize to keep stable
+  const safeInvoices = useMemo(() => invoices || [], [invoices])
 
   // Calculate real financial data from invoices
   // IMPORTANT: All hooks must be called unconditionally - handle loading state in JSX instead
   const financialData = useMemo(() => {
-    // Return empty data structure if not mounted to prevent errors
-    if (!isMounted || !invoices) {
+    // Return empty data structure if invoices not available to prevent errors
+    if (!safeInvoices || safeInvoices.length === 0) {
       return {
         overview: { totalRevenue: 0, totalExpenses: 0, netProfit: 0, profitMargin: 0, growthRate: 0 },
         revenue: { cash: 0, mpesa: 0, sha: 0, nhif: 0, mixed: 0 },
@@ -93,7 +91,7 @@ export function FinancialOverview() {
     const nhifRevenue = getRevenueByMethod('nhif', startDateStr, endDateStr)
     const mixedRevenue = getRevenueByMethod('mixed', startDateStr, endDateStr)
 
-    const filteredInvoices = invoices.filter(inv => {
+    const filteredInvoices = safeInvoices.filter(inv => {
       const invDate = new Date(inv.date)
       return invDate >= startDate && invDate <= endDate
     })
@@ -166,7 +164,7 @@ export function FinancialOverview() {
 
         for (const patientId of uniquePatientIds) {
           // Check if this patient has any invoices before the current period
-          const hasPreviousInvoices = invoices.some(inv => {
+          const hasPreviousInvoices = safeInvoices.some(inv => {
             if (inv.patientId !== patientId) return false
             const invDate = new Date(inv.date)
             return invDate < startDate
@@ -186,7 +184,7 @@ export function FinancialOverview() {
         }
       })(),
     }
-  }, [period, invoices, getTotalRevenue, getRevenueByMethod, isMounted])
+  }, [period, safeInvoices, getTotalRevenue, getRevenueByMethod])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -232,13 +230,17 @@ export function FinancialOverview() {
     { name: "Other", value: financialData.expenses.other, color: "#6b7280" },
   ].map(item => ({ label: item.name, value: item.value, color: item.color }))
 
-  // Render loading skeleton if not mounted - AFTER all hooks and calculations
-  if (!isMounted) {
-    return <DashboardSkeleton />
-  }
-
+  // CRITICAL FIX: Always render the same JSX structure to ensure hooks are called in the same order
+  // Handle loading state within JSX using conditional rendering
+  // Only show skeleton when invoices is undefined (not loaded yet), not when it's an empty array
+  const isLoading = invoices === undefined
+  
   return (
-    <div className="space-y-6">
+    <>
+      {isLoading ? (
+        <DashboardSkeleton />
+      ) : (
+        <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -578,7 +580,9 @@ export function FinancialOverview() {
           />
         </CardContent>
       </Card>
-    </div>
+        </div>
+      )}
+    </>
   )
 }
 

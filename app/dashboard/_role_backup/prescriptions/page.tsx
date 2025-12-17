@@ -29,7 +29,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { prescriptionAPI, patientAPI, userAPI, pharmacyAPI } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
+import { getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { ListSkeleton } from "@/components/ui/loading"
 

@@ -196,16 +196,10 @@ export function ReportsModule() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [customDateRange, setCustomDateRange] = useState<DateRange>({ from: undefined, to: undefined })
-  const [isMounted, setIsMounted] = useState(false)
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const { toast } = useToast()
-
-  // Ensure component is mounted to prevent hydration mismatch
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
 
   // IMPORTANT: All hooks must be called BEFORE any conditional returns
   // Context hooks for real data
@@ -214,6 +208,13 @@ export function ReportsModule() {
   const { medicines, getLowStockMedicines } = useInventory()
   const { purchaseOrders, getTotalOrdersValue, getPendingOrdersCount } = usePurchaseOrders()
   const { logs } = useAuditLog()
+
+  // Ensure data is always treated as arrays/objects to prevent hook order issues
+  const safeInvoices = invoices || []
+  const safePatients = patients || []
+  const safeMedicines = medicines || []
+  const safePurchaseOrders = purchaseOrders || []
+  const safeLogs = logs || []
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -263,10 +264,10 @@ export function ReportsModule() {
   }
 
   // Real data calculations using useMemo
-  // IMPORTANT: Handle unmounted state inside useMemo to prevent errors
+  // IMPORTANT: Handle data availability inside useMemo to prevent errors
   const realData = useMemo(() => {
-    // Return empty data structure if not mounted to prevent errors
-    if (!isMounted || !invoices || !patients || !medicines || !purchaseOrders || !logs) {
+    // Return empty data structure if data not loaded yet (undefined) to prevent errors
+    if (invoices === undefined || patients === undefined || medicines === undefined || purchaseOrders === undefined || logs === undefined) {
       return {
         totalRevenue: 0,
         revenueByMethod: 0,
@@ -292,12 +293,12 @@ export function ReportsModule() {
     const outstandingBalance = getOutstandingBalance()
 
     // Patient data
-    const totalPatients = patients.length
-    const activePatients = patients.length // All patients are considered active in the current system
+    const totalPatients = safePatients.length
+    const activePatients = safePatients.length // All patients are considered active in the current system
 
     // Inventory data
     const lowStockItems = getLowStockMedicines()
-    const expiringItems = medicines.filter(med => {
+    const expiringItems = safeMedicines.filter(med => {
       if (!med.batches || med.batches.length === 0) return false
       const thirtyDaysFromNow = new Date()
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
@@ -312,22 +313,22 @@ export function ReportsModule() {
     const pendingOrdersCount = getPendingOrdersCount()
 
     // Audit log data
-    const recentLogs = logs.slice(0, 50) // Last 50 logs
+    const recentLogs = safeLogs.slice(0, 50) // Last 50 logs
 
     // Calculate filtered data based on custom date range
-    const filteredInvoices = invoices.filter(inv =>
+    const filteredInvoices = safeInvoices.filter(inv =>
       isDateInRange(inv.createdAt, customDateRange)
     )
 
-    const filteredPatients = patients.filter(patient =>
+    const filteredPatients = safePatients.filter(patient =>
       isDateInRange(patient.created_at, customDateRange)
     )
 
-    const filteredLogs = logs.filter(log =>
+    const filteredLogs = safeLogs.filter(log =>
       isDateInRange(log.timestamp, customDateRange)
     )
 
-    const filteredPurchaseOrders = purchaseOrders.filter(po =>
+    const filteredPurchaseOrders = safePurchaseOrders.filter(po =>
       isDateInRange(po.orderDate, customDateRange)
     )
 
@@ -351,7 +352,7 @@ export function ReportsModule() {
       filteredPatients,
       filteredPurchaseOrders,
     }
-  }, [invoices, patients, medicines, purchaseOrders, logs, getTotalRevenue, getRevenueByMethod, getOutstandingBalance, getTotalOrdersValue, getPendingOrdersCount, getLowStockMedicines, customDateRange, isMounted])
+  }, [invoices, patients, medicines, purchaseOrders, logs, getTotalRevenue, getRevenueByMethod, getOutstandingBalance, getTotalOrdersValue, getPendingOrdersCount, getLowStockMedicines, customDateRange])
 
   // Memoize filtered audit logs
   const filteredLogs = useMemo(() => {
@@ -455,12 +456,15 @@ export function ReportsModule() {
     fetchSHAClaims()
   }, [shaClaimsCacheKey, customDateRange])
 
-  // Conditional return AFTER all hooks are called
-  if (!isMounted) {
-    return <DashboardSkeleton />
-  }
-
+  // Render loading state in JSX to ensure hooks are always called in same order
+  // Only show skeleton when data is undefined (not loaded yet), not when it's empty
+  const isLoading = invoices === undefined || patients === undefined || medicines === undefined || purchaseOrders === undefined || logs === undefined
+  
   return (
+    <>
+      {isLoading ? (
+        <DashboardSkeleton />
+      ) : (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -913,6 +917,8 @@ export function ReportsModule() {
         </CardContent>
       </Card>
     </div>
+      )}
+    </>
   )
 }
 

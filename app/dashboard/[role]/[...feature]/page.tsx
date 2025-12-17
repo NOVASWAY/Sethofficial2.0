@@ -17,7 +17,15 @@ const featureComponents: Record<string, () => Promise<{ default: React.Component
   'consultation': () => import('@/components/consultation-module').then(mod => ({ default: mod.ConsultationModule })),
   'pharmacy': () => import('@/components/pharmacy-management').then(mod => ({ default: mod.PharmacyManagement })),
   'inventory': () => import('@/app/dashboard/_role_backup/inventory/page').then(mod => ({ default: mod.default })),
-  'prescriptions': () => import('@/app/dashboard/_role_backup/prescriptions/page').then(mod => ({ default: mod.default })),
+  'prescriptions': () => import('@/app/dashboard/_role_backup/prescriptions/page').then(mod => {
+    if (!mod || !mod.default) {
+      throw new Error('Prescriptions module did not export a default component')
+    }
+    return { default: mod.default }
+  }).catch(error => {
+    console.error('[FeaturePage] Error loading prescriptions module:', error)
+    throw error
+  }),
   'visits': () => import('@/app/dashboard/_role_backup/visits/page').then(mod => ({ default: mod.default })),
   'registration': () => import('@/app/dashboard/_role_backup/registration/page').then(mod => ({ default: mod.default })),
   'invoices': () => import('@/app/dashboard/_role_backup/invoices/page').then(mod => ({ default: mod.default })),
@@ -97,7 +105,47 @@ function FeatureContent() {
     )
   }
   
-  const DynamicComponent = dynamic(ComponentLoader, {
+  // Wrap ComponentLoader to handle errors during import
+  // This ensures we catch both import() failures and module loading errors
+  const SafeComponentLoader = () => {
+    return Promise.resolve().then(async () => {
+      try {
+        // Call the component loader function
+        if (typeof ComponentLoader !== 'function') {
+          throw new Error(`ComponentLoader for "${featureKey}" is not a function`)
+        }
+        const module = await ComponentLoader()
+        if (!module || !module.default) {
+          throw new Error(`Module for "${featureKey}" did not export a default component`)
+        }
+        return module
+      } catch (error) {
+        console.error(`[FeaturePage] Error loading module for "${featureKey}":`, error)
+        console.error('[FeaturePage] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+        // Return a fallback component
+        return {
+          default: () => (
+            <div className="min-h-screen flex items-center justify-center p-8">
+              <div className="text-center space-y-4">
+                <h1 className="text-2xl font-bold">Error Loading Module</h1>
+                <p className="text-muted-foreground">
+                  Failed to load the "{featureKey || 'unknown'}" module.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Error: {error instanceof Error ? error.message : String(error)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Please check the browser console for more details.
+                </p>
+              </div>
+            </div>
+          )
+        }
+      }
+    })
+  }
+  
+  const DynamicComponent = dynamic(SafeComponentLoader, {
     loading: () => <CardSkeleton />,
     ssr: false,
   })
@@ -106,24 +154,7 @@ function FeatureContent() {
   
   // Some components need the role prop, others don't
   // React components can safely ignore extra props they don't use
-  try {
-    return <DynamicComponent role={dashboardRole} />
-  } catch (error) {
-    console.error('[FeaturePage] Error loading component:', error)
-    return (
-      <div className="min-h-screen flex items-center justify-center p-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold">Error Loading Page</h1>
-          <p className="text-muted-foreground">
-            There was an error loading the "{featureKey || 'unknown'}" page.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Please check the console for more details.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  return <DynamicComponent role={dashboardRole} />
 }
 
 export default function FeaturePage() {
