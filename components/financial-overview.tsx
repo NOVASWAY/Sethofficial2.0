@@ -43,14 +43,11 @@ export function FinancialOverview() {
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
 
   // IMPORTANT: All hooks must be called unconditionally before any conditional logic
-  // Ensure invoices is always an array to prevent hook order issues - memoize to keep stable
-  const safeInvoices = useMemo(() => invoices || [], [invoices])
-
   // Calculate real financial data from invoices
   // IMPORTANT: All hooks must be called unconditionally - handle loading state in JSX instead
   const financialData = useMemo(() => {
     // Return empty data structure if invoices not available to prevent errors
-    if (!safeInvoices || safeInvoices.length === 0) {
+    if (!invoices || invoices.length === 0) {
       return {
         overview: { totalRevenue: 0, totalExpenses: 0, netProfit: 0, profitMargin: 0, growthRate: 0 },
         revenue: { cash: 0, mpesa: 0, sha: 0, nhif: 0, mixed: 0 },
@@ -91,7 +88,7 @@ export function FinancialOverview() {
     const nhifRevenue = getRevenueByMethod('nhif', startDateStr, endDateStr)
     const mixedRevenue = getRevenueByMethod('mixed', startDateStr, endDateStr)
 
-    const filteredInvoices = safeInvoices.filter(inv => {
+    const filteredInvoices = invoices.filter(inv => {
       const invDate = new Date(inv.date)
       return invDate >= startDate && invDate <= endDate
     })
@@ -164,7 +161,7 @@ export function FinancialOverview() {
 
         for (const patientId of uniquePatientIds) {
           // Check if this patient has any invoices before the current period
-          const hasPreviousInvoices = safeInvoices.some(inv => {
+          const hasPreviousInvoices = invoices.some(inv => {
             if (inv.patientId !== patientId) return false
             const invDate = new Date(inv.date)
             return invDate < startDate
@@ -184,7 +181,7 @@ export function FinancialOverview() {
         }
       })(),
     }
-  }, [period, safeInvoices, getTotalRevenue, getRevenueByMethod])
+  }, [period, invoices, getTotalRevenue, getRevenueByMethod])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
