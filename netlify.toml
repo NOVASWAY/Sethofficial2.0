@@ -16,8 +16,8 @@
 
 # Build environment variables
 [build.environment]
-  # Node.js version (matches package.json engines requirement)
-  NODE_VERSION = "18.0.0"
+  # Node.js version (Next.js requires >= 18.17.0)
+  NODE_VERSION = "18.17.0"
   
   # NPM version
   NPM_VERSION = "8.0.0"
