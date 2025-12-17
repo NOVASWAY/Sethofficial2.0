@@ -177,25 +177,12 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
 
   // Use user-specific permissions if available, otherwise fall back to role defaults
   // Admin users should have "all" permission to access everything
-  const activePermissions = user?.permissions && user.permissions.length > 0
+  const activePermissions = user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0
     ? user.permissions
     : (currentRole?.permissions || [])
   
   // Admin role should always have access to all modules
   const isAdminUser = role === 'admin' || user?.role === 'admin'
-
-  // Debug logging for admin access
-  useEffect(() => {
-    if (isAdminUser) {
-      console.log('[DashboardLayout] Admin user detected:', {
-        role,
-        userRole: user?.role,
-        isAdminUser,
-        navigationItemsCount: navigationItems.length,
-        filteredNavigationCount: filteredNavigation.length
-      })
-    }
-  }, [isAdminUser, role, user?.role, filteredNavigation.length])
 
   // Filter navigation items based on permissions
   // Admin users see all navigation items
@@ -206,6 +193,19 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
           item.permissions.includes("all") ||
           item.permissions.some((permission) => activePermissions.includes(permission)),
       )
+
+  // Debug logging for admin access
+  useEffect(() => {
+    if (isAdminUser) {
+      console.log('[DashboardLayout] Admin user detected:', {
+        role,
+        userRole: user?.role,
+        isAdminUser,
+        navigationItemsCount: navigationItems.length,
+        filteredNavigationCount: filteredNavigation?.length || 0
+      })
+    }
+  }, [isAdminUser, role, user?.role, filteredNavigation])
 
   // Set mounted state
   useEffect(() => {
