@@ -1,0 +1,59 @@
+# Netlify Configuration for Next.js Application
+# This file configures Netlify to build and deploy your Next.js frontend
+
+[build]
+  # Build command for Next.js
+  command = "npm run build"
+  
+  # Publish directory - Netlify Next.js plugin handles this automatically
+  # The plugin will set the correct output directory
+
+# Build environment variables
+[build.environment]
+  # Node.js version (matches package.json engines requirement)
+  NODE_VERSION = "18.0.0"
+  
+  # NPM version
+  NPM_VERSION = "8.0.0"
+  
+  # Disable Next.js telemetry
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Plugin configuration for Next.js
+# This plugin automatically handles Next.js routing, ISR, and API routes
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Headers for security and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Cache static assets
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Note: Environment variables should be set in Netlify Dashboard:
+# Site settings > Build & deploy > Environment variables
+# 
+# Required environment variables (set these in Netlify UI):
+# - NEXT_PUBLIC_API_URL (your backend API URL)
+# - NEXT_PUBLIC_ENVIRONMENT (production)
+# - Any other NEXT_PUBLIC_* variables your app needs
+#
+# Example:
+# NEXT_PUBLIC_API_URL = "https://your-api-backend.com"
+# NEXT_PUBLIC_ENVIRONMENT = "production"
+

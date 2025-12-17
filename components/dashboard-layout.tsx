@@ -471,6 +471,7 @@ function SidebarContent({
   }
 
   // Auto-expand category containing the active item
+  // This ensures the category stays open when navigating to items within it
   useEffect(() => {
     if (activeItem) {
       // Find which category contains the active item from the full navigationItems array
@@ -479,19 +480,36 @@ function SidebarContent({
       
       if (activeCategory) {
         setExpandedCategories(prev => {
-          // Always ensure the active category is expanded (even if user collapsed it)
-          // This provides better UX - users can see where they are
+          // Always ensure the active category is expanded
+          // This prevents the category from collapsing when clicking on items within it
           if (!prev.has(activeCategory)) {
             const newSet = new Set(prev)
             newSet.add(activeCategory)
             return newSet
           }
-          // Category is already expanded, no need to update
+          // Category is already expanded, keep it expanded
           return prev
         })
       }
     }
   }, [activeItem, pathname]) // Removed filteredNavigation from deps since we use navigationItems directly
+
+  // Prevent category collapse when clicking on navigation items within that category
+  // This ensures categories stay open when navigating between items in the same group
+  const handleCategoryToggle = (category: string, e?: React.MouseEvent) => {
+    // Prevent toggle if this category contains the active item
+    const activeNavItem = navigationItems.find(item => item.id === activeItem)
+    const activeCategory = activeNavItem?.category
+    
+    // Don't allow collapsing the category that contains the active item
+    if (category === activeCategory && expandedCategories.has(category)) {
+      e?.preventDefault()
+      e?.stopPropagation()
+      return
+    }
+    
+    toggleCategory(category)
+  }
 
   // Continuously save scroll position as user scrolls
   useEffect(() => {
@@ -531,6 +549,18 @@ function SidebarContent({
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => {
       const newSet = new Set(prev)
+      
+      // Find the active category to prevent collapsing it
+      const activeNavItem = navigationItems.find(item => item.id === activeItem)
+      const activeCategory = activeNavItem?.category
+      
+      // Prevent collapsing the category that contains the active item
+      if (category === activeCategory && newSet.has(category)) {
+        // Don't allow collapsing the active category
+        return prev
+      }
+      
+      // Toggle the category
       if (newSet.has(category)) {
         newSet.delete(category)
       } else {
