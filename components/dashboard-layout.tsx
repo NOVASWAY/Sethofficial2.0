@@ -222,9 +222,10 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
     }
   }, [mounted, isAuthenticated, isLoading, router])
 
-  // Redirect if role doesn't match
+  // Redirect if role doesn't match (but allow admin users to access any role's dashboard)
   useEffect(() => {
-    if (mounted && user && user.role !== role) {
+    if (mounted && user && user.role !== role && user.role !== 'admin') {
+      // Admin users can access any role's dashboard, so skip redirect for them
       // PRESERVE THE SUBPATH when redirecting!
       if (pathname) {
         const pathParts = pathname.split('/')
@@ -294,12 +295,14 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         return item.id === currentFeature
       })
 
-      // Only check permissions if we found a matching nav item in the navigation
-      // This ensures we're checking permissions for known routes
-      if (navItem) {
-        // Admin users bypass permission checks - they have access to everything
-        const hasPermission = isAdminUser ||
-          navItem.permissions.includes("all") ||
+      // Admin users have access to everything - skip permission checks
+      if (isAdminUser) {
+        // Admin can access any route, continue to render
+        // No need to check permissions
+      } else if (navItem) {
+        // Only check permissions if we found a matching nav item in the navigation
+        // This ensures we're checking permissions for known routes
+        const hasPermission = navItem.permissions.includes("all") ||
           navItem.permissions.some(p => activePermissions.includes(p))
 
         if (!hasPermission) {
