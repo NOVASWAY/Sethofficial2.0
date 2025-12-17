@@ -2,11 +2,26 @@
 # This file configures Netlify to build and deploy your Next.js frontend
 
 [build]
-  # Build command for Next.js
+  # Build command for Next.js (front-end only)
   command = "npm run build"
+  
+  # Base directory - root contains front-end
+  base = "."
   
   # Publish directory - Netlify Next.js plugin handles this automatically
   # The plugin will set the correct output directory
+  
+  # Ignore backend directory during build
+  ignore = "backend/**"
+
+# Skip submodules during build (fixes broken submodule references)
+[build.processing]
+  skip_processing = false
+
+# Git configuration
+[build.environment]
+  # Skip submodules to avoid errors
+  GIT_SUBMODULE_STRATEGY = "none"
 
 # Build environment variables
 [build.environment]

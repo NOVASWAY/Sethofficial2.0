@@ -33,3 +33,6 @@ coverage/
 .idea/
 # Local Netlify folder
 .netlify
+
+# Empty/broken submodule directories
+consolespy/
