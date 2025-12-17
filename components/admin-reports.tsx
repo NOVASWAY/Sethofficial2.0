@@ -262,7 +262,7 @@ export function AdminReports({ role }: AdminReportsProps) {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip formatter={(value) => [`KSh ${value.toLocaleString()}`, ""]} />
+                      <Tooltip formatter={(value) => [`KSh ${(value ?? 0).toLocaleString()}`, ""]} />
                       <Bar dataKey="revenue" fill="#8b5cf6" name="Revenue" />
                       <Bar dataKey="expenses" fill="#f97316" name="Expenses" />
                     </BarChart>
@@ -281,7 +281,7 @@ export function AdminReports({ role }: AdminReportsProps) {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip formatter={(value) => [`KSh ${value.toLocaleString()}`, "Profit"]} />
+                      <Tooltip formatter={(value) => [`KSh ${(value ?? 0).toLocaleString()}`, "Profit"]} />
                       <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} />
                     </LineChart>
                   </ResponsiveContainer>
