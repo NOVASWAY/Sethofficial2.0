@@ -202,7 +202,13 @@ export function AdvancedSearch({
                     <Calendar
                       mode="single"
                       selected={dateRange.from instanceof Date ? dateRange.from : undefined}
-                      onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
+                      onSelect={(date) => {
+                        if (date instanceof Date) {
+                          setDateRange(prev => ({ ...prev, from: date }))
+                        } else {
+                          setDateRange(prev => ({ ...prev, from: undefined }))
+                        }
+                      }}
                     />
                   </PopoverContent>
                 </Popover>
@@ -223,7 +229,13 @@ export function AdvancedSearch({
                     <Calendar
                       mode="single"
                       selected={dateRange.to instanceof Date ? dateRange.to : undefined}
-                      onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
+                      onSelect={(date) => {
+                        if (date instanceof Date) {
+                          setDateRange(prev => ({ ...prev, to: date }))
+                        } else {
+                          setDateRange(prev => ({ ...prev, to: undefined }))
+                        }
+                      }}
                     />
                   </PopoverContent>
                 </Popover>
