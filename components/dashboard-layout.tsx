@@ -184,6 +184,19 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   // Admin role should always have access to all modules
   const isAdminUser = role === 'admin' || user?.role === 'admin'
 
+  // Debug logging for admin access
+  useEffect(() => {
+    if (isAdminUser) {
+      console.log('[DashboardLayout] Admin user detected:', {
+        role,
+        userRole: user?.role,
+        isAdminUser,
+        navigationItemsCount: navigationItems.length,
+        filteredNavigationCount: filteredNavigation.length
+      })
+    }
+  }, [isAdminUser, role, user?.role, filteredNavigation.length])
+
   // Filter navigation items based on permissions
   // Admin users see all navigation items
   const filteredNavigation = isAdminUser
@@ -275,10 +288,12 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   }
 
   // ROUTE GUARD: Check if user has permission for the current path
+  // Admin users completely bypass all route guard checks
   // Only block access if we find a matching nav item AND the user doesn't have permission
   // If no nav item is found, let the feature page handle it (it will show "Page Not Found")
   // This ensures all users can access modules they have permission for
-  if (pathname && isAuthenticated && user && mounted) {
+  if (pathname && isAuthenticated && user && mounted && !isAdminUser) {
+    // Skip route guard entirely for admin users - they have access to everything
     const pathParts = pathname.split('/')
     // pathParts: ["", "dashboard", "role", "feature", ...]
     const currentFeature = pathParts[3] // e.g., "inventory", "prescriptions", "billing"
@@ -295,13 +310,9 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         return item.id === currentFeature
       })
 
-      // Admin users have access to everything - skip permission checks
-      if (isAdminUser) {
-        // Admin can access any route, continue to render
-        // No need to check permissions
-      } else if (navItem) {
-        // Only check permissions if we found a matching nav item in the navigation
-        // This ensures we're checking permissions for known routes
+      // Only check permissions if we found a matching nav item in the navigation
+      // This ensures we're checking permissions for known routes
+      if (navItem) {
         const hasPermission = navItem.permissions.includes("all") ||
           navItem.permissions.some(p => activePermissions.includes(p))
 
