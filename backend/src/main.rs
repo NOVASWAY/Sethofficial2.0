@@ -123,11 +123,8 @@ async fn main() -> std::io::Result<()> {
     eprintln!("📡 Server will listen on: {}", bind_address);
     eprintln!("🌍 Environment: {}", if cfg!(debug_assertions) { "development" } else { "production" });
 
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://clinic_user:clinic_password@postgres:5432/clinic_management".to_string());
-
-    eprintln!("🔗 Connecting to database...");
-    let db_pool = match sqlx::PgPool::connect(&database_url).await {
+    eprintln!("🔗 Connecting to database (with pool settings)...");
+    let db_pool = match database::create_pool().await {
         Ok(pool) => {
             eprintln!("✅ Database connection established");
             pool
