@@ -460,7 +460,30 @@ function SidebarContent({
   const router = useRouter()
   const pathname = usePathname()
   const { t } = useTranslation()
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['core', 'patients'])) // Default expanded categories
+  const EXPANDED_STORAGE_KEY = 'sidebar-expanded-categories'
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => {
+    // 1) Try restore from sessionStorage (persists across navigation/remounts)
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem(EXPANDED_STORAGE_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) {
+            return new Set(parsed.filter((v) => typeof v === 'string'))
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 2) Sensible defaults + ensure the active category starts expanded
+    const defaults = new Set<string>(['core', 'patients'])
+    const activeNavItem = navigationItems.find((item) => item.id === activeItem)
+    const activeCategory = activeNavItem?.category
+    if (activeCategory) defaults.add(activeCategory)
+    return defaults
+  })
   const navRef = useRef<HTMLElement>(null)
   const scrollPositionRef = useRef<number>(0)
   const STORAGE_KEY = 'sidebar-scroll-position'
@@ -603,6 +626,13 @@ function SidebarContent({
       } else {
         newSet.add(category)
       }
+
+      // Persist expansion state so navigation doesn't collapse groups
+      try {
+        sessionStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(Array.from(newSet)))
+      } catch (e) {
+        // Ignore storage errors
+      }
       return newSet
     })
   }
@@ -664,7 +694,7 @@ function SidebarContent({
                 {/* Category Header - Collapsible */}
                 <button
                   type="button"
-                  onClick={() => toggleCategory(category)}
+                  onClick={(e) => handleCategoryToggle(category, e)}
                   className="w-full px-2 sm:px-3 py-1.5 border-b border-sidebar-border/50 flex items-center justify-between hover:bg-sidebar-accent/50 rounded-t-md transition-colors"
                 >
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
