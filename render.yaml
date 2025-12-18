@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: seth-clinic-backend
+    env: docker
+    rootDir: backend
+    dockerfilePath: backend/Dockerfile.prod
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      # PORT is injected by Render automatically; backend reads PORT from env.
+      - key: JWT_SECRET
+        generateValue: true
+      # Allow calls from your Netlify frontend (set this after you know the URL)
+      - key: CORS_ORIGINS
+        value: http://localhost:3000
+      # Pool tuning (safe defaults; adjust after observing metrics)
+      - key: DB_POOL_MAX_CONNECTIONS
+        value: "10"
+      - key: DB_POOL_TIMEOUT_SECONDS
+        value: "30"
+      # DATABASE_URL will be wired from the managed Postgres below
+      - key: DATABASE_URL
+        fromDatabase:
+          name: seth-clinic-postgres
+          property: connectionString
+
+databases:
+  - name: seth-clinic-postgres
+    plan: starter
+    databaseName: clinic_management
+    user: clinic_user
+
