@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse, HttpRequest};
 use serde_json::json;
+use sqlx::query_as;
 use uuid::Uuid;
 
 use crate::mfa::{MfaService, MfaVerificationRequest, MfaEnrollmentRequest};
@@ -41,11 +42,10 @@ pub async fn setup_totp(
         .map_err(|_| AppError::Authentication("Invalid user ID".to_string()))?;
 
     // Get user details
-    let user = sqlx::query_as!(
-        crate::models::User,
-        "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1",
-        user_id
+    let user = query_as::<_, crate::models::User>(
+        "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1"
     )
+    .bind(user_id)
     .fetch_one(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -98,11 +98,10 @@ pub async fn verify_mfa(
     ).await?;
 
     // Generate JWT token for the user
-    let user = sqlx::query_as!(
-        crate::models::User,
-        "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1",
-        user_id
+    let user = query_as::<_, crate::models::User>(
+        "SELECT id, username, email, role, name, department, permissions, is_active, created_at, updated_at, password_hash FROM users WHERE id = $1"
     )
+    .bind(user_id)
     .fetch_one(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;

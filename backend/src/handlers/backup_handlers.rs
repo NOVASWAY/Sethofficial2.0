@@ -4,6 +4,7 @@ use crate::backup::{BackupRequest, BackupService, BackupConfig};
 use crate::error::{ApiError, ApiResponse};
 use crate::database::DatabasePool;
 use crate::middleware::auth::get_current_user;
+use sqlx::Row;
 
 /// Create a new backup
 pub async fn create_backup(
@@ -139,10 +140,8 @@ pub async fn delete_backup(
     let backup_id = path.into_inner();
     
     // Delete backup job
-    let deleted = sqlx::query!(
-        "DELETE FROM backup_jobs WHERE id = $1",
-        backup_id
-    )
+    let deleted = sqlx::query("DELETE FROM backup_jobs WHERE id = $1")
+        .bind(backup_id)
     .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to delete backup: {}", e))))?;
@@ -227,7 +226,7 @@ pub async fn get_backup_config(
     data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, ApiError> {
     // Get configuration from database
-    let config_row = sqlx::query!(
+    let config_row = sqlx::query(
         r#"
         SELECT enabled, schedule, retention_days, backup_path, compression, include_files, max_backup_size_mb
         FROM backup_config
@@ -240,14 +239,22 @@ pub async fn get_backup_config(
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to get backup config: {}", e))))?;
 
     let backup_config = if let Some(row) = config_row {
+        let enabled: bool = row.try_get("enabled").unwrap_or(true);
+        let schedule: String = row.try_get("schedule").unwrap_or_else(|_| "0 2 * * *".to_string());
+        let retention_days: i32 = row.try_get("retention_days").unwrap_or(30);
+        let backup_path: String = row.try_get("backup_path").unwrap_or_else(|_| "./backups".to_string());
+        let compression: bool = row.try_get("compression").unwrap_or(true);
+        let include_files: bool = row.try_get("include_files").unwrap_or(true);
+        let max_backup_size_mb: i32 = row.try_get("max_backup_size_mb").unwrap_or(1024);
+
         BackupConfig {
-            enabled: row.enabled,
-            cron_expression: row.schedule,
-            retention_days: row.retention_days as u32,
-            backup_path: row.backup_path,
-            compression: row.compression,
-            include_files: row.include_files,
-            max_backup_size_mb: row.max_backup_size_mb as u64,
+            enabled,
+            cron_expression: schedule,
+            retention_days: retention_days as u32,
+            backup_path,
+            compression,
+            include_files,
+            max_backup_size_mb: max_backup_size_mb as u64,
         }
     } else {
         // Return default if no config exists
@@ -453,10 +460,8 @@ pub async fn delete_backup_schedule(
 ) -> Result<HttpResponse, ApiError> {
     let schedule_id = path.into_inner();
 
-    let deleted = sqlx::query!(
-        "DELETE FROM backup_schedules WHERE id = $1",
-        schedule_id
-    )
+    let deleted = sqlx::query("DELETE FROM backup_schedules WHERE id = $1")
+        .bind(schedule_id)
     .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to delete backup schedule: {}", e))))?;
@@ -481,14 +486,14 @@ pub async fn toggle_backup_schedule(
 ) -> Result<HttpResponse, ApiError> {
     let schedule_id = path.into_inner();
 
-    let updated = sqlx::query!(
+    let updated = sqlx::query(
         r#"
         UPDATE backup_schedules 
         SET enabled = NOT enabled, updated_at = NOW()
         WHERE id = $1
-        "#,
-        schedule_id
+        "#
     )
+    .bind(schedule_id)
     .execute(&data.db_pool)
     .await
     .map_err(|e| ApiError::internal_error(Some(format!("Failed to toggle backup schedule: {}", e))))?;

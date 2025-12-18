@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, HttpRequest};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 use chrono::{Utc, Duration};
 use validator::Validate;
@@ -30,10 +30,8 @@ pub async fn request_password_reset(
     req.validate().map_err(|e| AppError::Validation(e))?;
 
     // Find user by email
-    let user = sqlx::query!(
-        "SELECT id, username, email, name FROM users WHERE email = $1 AND is_active = true",
-        req.email
-    )
+    let user = sqlx::query("SELECT id, username, email, name FROM users WHERE email = $1 AND is_active = true")
+    .bind(&req.email)
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -49,6 +47,9 @@ pub async fn request_password_reset(
     }
 
     let user = user.unwrap();
+    let user_id: Uuid = user.get("id");
+    let user_email: String = user.get("email");
+    let user_name: String = user.get("name");
     
     // Generate reset token
     let token = Uuid::new_v4().to_string();
@@ -72,7 +73,7 @@ pub async fn request_password_reset(
         VALUES ($1, $2, $3, $4::inet, $5)
         "#
     )
-    .bind(user.id)
+    .bind(user_id)
     .bind(&token)
     .bind(expires_at)
     .bind(ip_address.as_deref())
@@ -118,7 +119,7 @@ pub async fn request_password_reset(
         </body>
         </html>
         "#,
-        user.name,
+        user_name,
         reset_url,
         reset_url
     );
@@ -127,7 +128,7 @@ pub async fn request_password_reset(
     if let Ok(config) = crate::services::email_service::EmailConfig::from_env() {
         if let Ok(email_service) = EmailService::new(config) {
             if let Err(e) = email_service.send_email(
-                &user.email,
+                &user_email,
                 "Password Reset Request",
                 &email_html,
                 Some(&format!("Reset your password: {}", reset_url)),
@@ -153,14 +154,14 @@ pub async fn reset_password(
     req.validate().map_err(|e| AppError::Validation(e))?;
 
     // Find token
-    let token_data = sqlx::query!(
+    let token_data = sqlx::query(
         r#"
         SELECT user_id, expires_at, used
         FROM password_reset_tokens
         WHERE token = $1
-        "#,
-        req.token
+        "#
     )
+    .bind(&req.token)
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -178,7 +179,8 @@ pub async fn reset_password(
     };
 
     // Check if token is used
-    if token_data.used {
+    let used: bool = token_data.try_get("used").unwrap_or(false);
+    if used {
         return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -188,7 +190,8 @@ pub async fn reset_password(
     }
 
     // Check if token is expired
-    if Utc::now() > token_data.expires_at {
+    let expires_at: chrono::DateTime<chrono::Utc> = token_data.get("expires_at");
+    if Utc::now() > expires_at {
         return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -205,27 +208,28 @@ pub async fn reset_password(
         .map_err(|e| AppError::Internal(format!("Failed to hash password: {}", e)))?;
 
     // Update user password and mark token as used
-    sqlx::query!(
+    let user_id: Uuid = token_data.get("user_id");
+    sqlx::query(
         r#"
         UPDATE users
         SET password_hash = $1, updated_at = NOW()
         WHERE id = $2
-        "#,
-        password_hash,
-        token_data.user_id
+        "#
     )
+    .bind(&password_hash)
+    .bind(user_id)
     .execute(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE password_reset_tokens
         SET used = true, used_at = NOW()
         WHERE token = $1
-        "#,
-        req.token
+        "#
     )
+    .bind(&req.token)
     .execute(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -242,21 +246,22 @@ pub async fn verify_reset_token(
     token: web::Path<String>,
     data: web::Data<crate::AppState>,
 ) -> Result<HttpResponse, AppError> {
-    let token_data = sqlx::query!(
+    let token_data = sqlx::query(
         r#"
         SELECT expires_at, used
         FROM password_reset_tokens
         WHERE token = $1
-        "#,
-        token.into_inner()
+        "#
     )
+    .bind(token.into_inner())
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
 
     match token_data {
         Some(t) => {
-            if t.used {
+            let used: bool = t.try_get("used").unwrap_or(false);
+            if used {
                 return Ok(HttpResponse::BadRequest().json(ApiResponse::<serde_json::Value> {
                     success: false,
                     data: Some(serde_json::json!({ "valid": false, "reason": "used" })),
@@ -265,7 +270,8 @@ pub async fn verify_reset_token(
                 }))
             }
 
-            if Utc::now() > t.expires_at {
+            let expires_at: chrono::DateTime<chrono::Utc> = t.get("expires_at");
+            if Utc::now() > expires_at {
                 return Ok(HttpResponse::BadRequest().json(ApiResponse::<serde_json::Value> {
                     success: false,
                     data: Some(serde_json::json!({ "valid": false, "reason": "expired" })),

@@ -126,16 +126,16 @@ impl BackupScheduler {
     async fn update_schedule_after_run(&self, schedule_id: Uuid, last_run: DateTime<Utc>) -> Result<(), ApiError> {
         let next_run = self.calculate_next_run_time(&last_run).await?;
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE backup_schedules 
             SET last_run_at = $1, next_run_at = $2, updated_at = NOW()
             WHERE id = $3
-            "#,
-            last_run,
-            next_run,
-            schedule_id
+            "#
         )
+        .bind(last_run)
+        .bind(next_run)
+        .bind(schedule_id)
         .execute(&self.pool)
         .await
         .map_err(|e| ApiError::internal_error(Some(format!("Failed to update schedule: {}", e))))?;
@@ -172,19 +172,19 @@ impl BackupScheduler {
         let schedule_id = Uuid::new_v4();
         let next_run = self.calculate_next_run_time(&Utc::now()).await?;
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO backup_schedules (id, name, backup_type, cron_expression, enabled, retention_days, next_run_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#,
-            schedule_id,
-            schedule.name,
-            schedule.backup_type as _,
-            schedule.cron_expression,
-            schedule.enabled,
-            schedule.retention_days as i32,
-            next_run
+            "#
         )
+        .bind(schedule_id)
+        .bind(&schedule.name)
+        .bind(&schedule.backup_type)
+        .bind(&schedule.cron_expression)
+        .bind(schedule.enabled)
+        .bind(schedule.retention_days as i32)
+        .bind(next_run)
         .execute(&self.pool)
         .await
         .map_err(|e| ApiError::internal_error(Some(format!("Failed to create backup schedule: {}", e))))?;
@@ -194,19 +194,19 @@ impl BackupScheduler {
 
     /// Update a backup schedule
     pub async fn update_schedule(&self, schedule_id: Uuid, schedule: &BackupSchedule) -> Result<(), ApiError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE backup_schedules 
             SET name = $1, backup_type = $2, cron_expression = $3, enabled = $4, retention_days = $5, updated_at = NOW()
             WHERE id = $6
-            "#,
-            schedule.name,
-            schedule.backup_type as _,
-            schedule.cron_expression,
-            schedule.enabled,
-            schedule.retention_days as i32,
-            schedule_id
+            "#
         )
+        .bind(&schedule.name)
+        .bind(&schedule.backup_type)
+        .bind(&schedule.cron_expression)
+        .bind(schedule.enabled)
+        .bind(schedule.retention_days as i32)
+        .bind(schedule_id)
         .execute(&self.pool)
         .await
         .map_err(|e| ApiError::internal_error(Some(format!("Failed to update backup schedule: {}", e))))?;
@@ -216,10 +216,8 @@ impl BackupScheduler {
 
     /// Delete a backup schedule
     pub async fn delete_schedule(&self, schedule_id: Uuid) -> Result<(), ApiError> {
-        sqlx::query!(
-            "DELETE FROM backup_schedules WHERE id = $1",
-            schedule_id
-        )
+        sqlx::query("DELETE FROM backup_schedules WHERE id = $1")
+        .bind(schedule_id)
         .execute(&self.pool)
         .await
         .map_err(|e| ApiError::internal_error(Some(format!("Failed to delete backup schedule: {}", e))))?;
@@ -229,15 +227,15 @@ impl BackupScheduler {
 
     /// Enable/disable a backup schedule
     pub async fn toggle_schedule(&self, schedule_id: Uuid, enabled: bool) -> Result<(), ApiError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE backup_schedules 
             SET enabled = $1, updated_at = NOW()
             WHERE id = $2
-            "#,
-            enabled,
-            schedule_id
+            "#
         )
+        .bind(enabled)
+        .bind(schedule_id)
         .execute(&self.pool)
         .await
         .map_err(|e| ApiError::internal_error(Some(format!("Failed to toggle backup schedule: {}", e))))?;

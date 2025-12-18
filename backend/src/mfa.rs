@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, FromRow};
+use sqlx::{FromRow, PgPool, Row};
 use uuid::Uuid;
 use chrono::{Utc, DateTime, Duration};
 use totp_lite::totp_custom;
@@ -118,7 +118,7 @@ impl MfaService {
 
     /// Get user's MFA status
     pub async fn get_user_mfa_status(&self, user_id: Uuid) -> Result<UserMfaStatus, AppError> {
-        let user_row = sqlx::query!(
+        let user_row = sqlx::query(
             r#"
             SELECT 
                 COALESCE(mfa_enabled, false) as mfa_enabled,
@@ -130,14 +130,15 @@ impl MfaService {
                  WHERE user_id = $1 AND used = false AND expires_at > NOW()), 0)::bigint as recovery_codes_count
             FROM users
             WHERE id = $1
-            "#,
-            user_id
+            "#
         )
+        .bind(user_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
 
-        let mfa_method = user_row.mfa_method.map(|m: String| {
+        let mfa_method_db: Option<String> = user_row.try_get("mfa_method").ok();
+        let mfa_method = mfa_method_db.map(|m| {
             match m.as_str() {
                 "totp" => MfaMethod::Totp,
                 "sms" => MfaMethod::Sms,
@@ -146,13 +147,19 @@ impl MfaService {
             }
         });
 
+        let mfa_enabled: bool = user_row.try_get("mfa_enabled").unwrap_or(false);
+        let totp_secret_configured: bool = user_row.try_get("totp_secret_configured").unwrap_or(false);
+        let phone_number: Option<String> = user_row.try_get("phone_number").ok();
+        let email_verified: bool = user_row.try_get("email_verified").unwrap_or(false);
+        let recovery_codes_count: i64 = user_row.try_get("recovery_codes_count").unwrap_or(0);
+
         Ok(UserMfaStatus {
-            mfa_enabled: user_row.mfa_enabled.unwrap_or(false),
+            mfa_enabled,
             mfa_method,
-            totp_secret_configured: user_row.totp_secret_configured.unwrap_or(false),
-            phone_number: user_row.phone_number,
-            email_verified: user_row.email_verified.unwrap_or(false),
-            recovery_codes_count: user_row.recovery_codes_count.unwrap_or(0),
+            totp_secret_configured,
+            phone_number,
+            email_verified,
+            recovery_codes_count,
         })
     }
 
@@ -176,17 +183,17 @@ impl MfaService {
         );
 
         // Store secret in database (in production, encrypt this)
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE users 
             SET mfa_secret = $1, 
                 mfa_method = 'totp',
                 updated_at = NOW()
             WHERE id = $2
-            "#,
-            secret,
-            user_id
+            "#
         )
+        .bind(&secret)
+        .bind(user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -203,14 +210,14 @@ impl MfaService {
     /// Verify TOTP code
     pub async fn verify_totp(&self, user_id: Uuid, code: &str) -> Result<bool, AppError> {
         // Get user's TOTP secret
-        let user = sqlx::query!(
+        let user = sqlx::query(
             r#"
             SELECT mfa_secret, COALESCE(mfa_enabled, false) as mfa_enabled
             FROM users
             WHERE id = $1
-            "#,
-            user_id
+            "#
         )
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -220,12 +227,14 @@ impl MfaService {
             None => return Ok(false),
         };
 
-        if !user.mfa_enabled.unwrap_or(false) {
+        let mfa_enabled: bool = user.try_get("mfa_enabled").unwrap_or(false);
+        if !mfa_enabled {
             return Ok(false);
         }
 
-        let secret = match &user.mfa_secret {
-            Some(s) => s.clone(),
+        let secret: Option<String> = user.try_get("mfa_secret").ok();
+        let secret = match secret {
+            Some(s) => s,
             None => return Ok(false),
         };
 
@@ -253,14 +262,14 @@ impl MfaService {
     /// Verify SMS code
     pub async fn verify_sms(&self, user_id: Uuid, session_token: &str, code: &str) -> Result<bool, AppError> {
         // Get user's phone number
-        let user = sqlx::query!(
+        let user = sqlx::query(
             r#"
             SELECT phone_number, COALESCE(mfa_enabled, false) as mfa_enabled
             FROM users
             WHERE id = $1
-            "#,
-            user_id
+            "#
         )
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -270,11 +279,13 @@ impl MfaService {
             None => return Ok(false),
         };
 
-        if !user.mfa_enabled.unwrap_or(false) {
+        let mfa_enabled: bool = user.try_get("mfa_enabled").unwrap_or(false);
+        if !mfa_enabled {
             return Ok(false);
         }
 
-        let phone_number = match user.phone_number {
+        let phone_number: Option<String> = user.try_get("phone_number").ok();
+        let phone_number = match phone_number {
             Some(p) => p,
             None => return Ok(false),
         };
@@ -318,14 +329,14 @@ impl MfaService {
 
         // Store hashed codes in database
         for hash in hashed_codes {
-            sqlx::query!(
+            sqlx::query(
                 r#"
                 INSERT INTO mfa_recovery_codes (user_id, code_hash, expires_at)
                 VALUES ($1, $2, NOW() + INTERVAL '1 year')
-                "#,
-                user_id,
-                hash
+                "#
             )
+            .bind(user_id)
+            .bind(hash)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::Database(e))?;
@@ -359,7 +370,7 @@ impl MfaService {
         let code_hash = Self::hash_recovery_code(code);
 
         // Check if code exists and is unused
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             UPDATE mfa_recovery_codes
             SET used = true, used_at = NOW()
@@ -368,10 +379,10 @@ impl MfaService {
               AND used = false 
               AND expires_at > NOW()
             RETURNING id
-            "#,
-            user_id,
-            code_hash
+            "#
         )
+        .bind(user_id)
+        .bind(code_hash)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -417,16 +428,15 @@ impl MfaService {
         user_agent: Option<&str>,
     ) -> Result<Uuid, AppError> {
         // Get session
-        let session = sqlx::query_as!(
-            MfaSession,
+        let session = sqlx::query_as::<_, MfaSession>(
             r#"
             SELECT id, user_id, session_token, mfa_verified, created_at, expires_at,
                    ip_address::text as ip_address, user_agent, verified_at
             FROM mfa_sessions
             WHERE session_token = $1 AND expires_at > NOW()
-            "#,
-            session_token
+            "#
         )
+        .bind(session_token)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -476,27 +486,27 @@ impl MfaService {
         }
 
         // Mark session as verified
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE mfa_sessions
             SET mfa_verified = true, verified_at = NOW()
             WHERE id = $1
-            "#,
-            session.id
+            "#
         )
+        .bind(session.id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
 
         // Enable MFA for user if not already enabled
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE users
             SET mfa_enabled = true, updated_at = NOW()
             WHERE id = $1 AND mfa_enabled = false
-            "#,
-            session.user_id
+            "#
         )
+        .bind(session.user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -506,16 +516,15 @@ impl MfaService {
 
     /// Get MFA session status
     pub async fn get_mfa_session(&self, session_token: &str) -> Result<MfaSession, AppError> {
-        let session = sqlx::query_as!(
-            MfaSession,
+        let session = sqlx::query_as::<_, MfaSession>(
             r#"
             SELECT id, user_id, session_token, mfa_verified, created_at, expires_at,
                    ip_address::text as ip_address, user_agent, verified_at
             FROM mfa_sessions
             WHERE session_token = $1
-            "#,
-            session_token
+            "#
         )
+        .bind(session_token)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
@@ -528,27 +537,27 @@ impl MfaService {
 
     /// Disable MFA for user
     pub async fn disable_mfa(&self, user_id: Uuid) -> Result<(), AppError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE users
             SET mfa_enabled = false, mfa_method = NULL, mfa_secret = NULL, updated_at = NOW()
             WHERE id = $1
-            "#,
-            user_id
+            "#
         )
+        .bind(user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;
 
         // Invalidate all recovery codes
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE mfa_recovery_codes
             SET used = true, used_at = NOW()
             WHERE user_id = $1 AND used = false
-            "#,
-            user_id
+            "#
         )
+        .bind(user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Database(e))?;

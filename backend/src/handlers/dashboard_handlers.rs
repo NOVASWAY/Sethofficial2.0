@@ -402,37 +402,32 @@ async fn calculate_user_metrics(
     )
     .bind(start_of_month)
     .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    .await?;
 
-    let today_consultations = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM consultations WHERE date = $1",
-        today
+    let today_consultations = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM consultations WHERE date = $1"
     )
+    .bind(today)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let pending_prescriptions = sqlx::query_scalar!(
+    let pending_prescriptions = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM prescriptions WHERE status = 'pending'"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let low_stock_items = sqlx::query_scalar!(
+    let low_stock_items = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE current_stock <= minimum_stock"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let out_of_stock_items = sqlx::query_scalar!(
+    let out_of_stock_items = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE current_stock = 0"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     // Role-specific calculations
     let (total_revenue, monthly_revenue, revenue_change, active_users, system_health, critical_alerts, pending_tasks) = 
@@ -472,27 +467,24 @@ async fn calculate_user_metrics(
                     0.0
                 };
 
-                let active_users = sqlx::query_scalar!(
+                let active_users = sqlx::query_scalar::<_, i64>(
                     "SELECT COUNT(*) FROM users WHERE is_active = true"
                 )
                 .fetch_one(pool)
-                .await?
-                .unwrap_or(0);
+                .await?;
 
                 let system_health = 98.5; // Mock system health
-                let critical_alerts = sqlx::query_scalar!(
+                let critical_alerts = sqlx::query_scalar::<_, i64>(
                     "SELECT COUNT(*) FROM medicines WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days'"
                 )
                 .fetch_one(pool)
-                .await?
-                .unwrap_or(0);
+                .await?;
 
-                let pending_tasks = sqlx::query_scalar!(
+                let pending_tasks = sqlx::query_scalar::<_, i64>(
                     "SELECT COUNT(*) FROM prescriptions WHERE status = 'pending'"
                 )
                 .fetch_one(pool)
-                .await?
-                .unwrap_or(0);
+                .await?;
 
                 (total_revenue, monthly_revenue, revenue_change, active_users, system_health, critical_alerts, pending_tasks)
             }
@@ -555,37 +547,33 @@ async fn calculate_role_metrics(
     .fetch_one(pool)
     .await?;
 
-    let today_consultations = sqlx::query_scalar!(
+    let today_consultations = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM consultations c 
          JOIN users u ON c.doctor_id = u.id 
-         WHERE u.role = $1 AND c.date = $2",
-        role,
-        today
+         WHERE u.role = $1 AND c.date = $2"
     )
+    .bind(role)
+    .bind(today)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let pending_prescriptions = sqlx::query_scalar!(
+    let pending_prescriptions = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM prescriptions WHERE status = 'pending'"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let low_stock_items = sqlx::query_scalar!(
+    let low_stock_items = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE current_stock <= minimum_stock"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let out_of_stock_items = sqlx::query_scalar!(
+    let out_of_stock_items = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE current_stock = 0"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let total_revenue_result = sqlx::query_scalar::<_, Option<BigDecimal>>(
         "SELECT COALESCE(SUM(i.total_amount), 0) FROM invoices i 
@@ -603,21 +591,19 @@ async fn calculate_role_metrics(
     let total_revenue = total_revenue_result;
     let monthly_revenue = total_revenue_result;
     let revenue_change = 0.0; // Simplified
-    let active_users = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM users WHERE role = $1 AND is_active = true",
-        role
+    let active_users = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM users WHERE role = $1 AND is_active = true"
     )
+    .bind(role)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let system_health = 100.0; // Mock
-    let critical_alerts = sqlx::query_scalar!(
+    let critical_alerts = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days'"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let pending_tasks = pending_prescriptions;
 
@@ -655,37 +641,33 @@ async fn calculate_department_metrics(
     .fetch_one(pool)
     .await?;
 
-    let today_consultations = sqlx::query_scalar!(
+    let today_consultations = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM consultations c 
          JOIN users u ON c.doctor_id = u.id 
-         WHERE u.department = $1 AND c.date = $2",
-        department,
-        today
+         WHERE u.department = $1 AND c.date = $2"
     )
+    .bind(department)
+    .bind(today)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let pending_prescriptions = sqlx::query_scalar!(
+    let pending_prescriptions = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM prescriptions WHERE status = 'pending'"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let low_stock_items = sqlx::query_scalar!(
+    let low_stock_items = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE current_stock <= minimum_stock"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
-    let out_of_stock_items = sqlx::query_scalar!(
+    let out_of_stock_items = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE current_stock = 0"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let total_revenue_result = sqlx::query_scalar::<_, Option<BigDecimal>>(
         "SELECT COALESCE(SUM(i.total_amount), 0) FROM invoices i 
@@ -703,21 +685,19 @@ async fn calculate_department_metrics(
     let total_revenue = total_revenue_result;
     let monthly_revenue = total_revenue_result;
     let revenue_change = 0.0; // Simplified
-    let active_users = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM users WHERE department = $1 AND is_active = true",
-        department
+    let active_users = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM users WHERE department = $1 AND is_active = true"
     )
+    .bind(department)
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let system_health = 100.0; // Mock
-    let critical_alerts = sqlx::query_scalar!(
+    let critical_alerts = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM medicines WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days'"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let pending_tasks = pending_prescriptions;
 
@@ -742,7 +722,7 @@ async fn calculate_system_health(
     pool: &PgPool,
 ) -> Result<SystemHealth, sqlx::Error> {
     // Test database connection
-    let database_status = match sqlx::query_scalar!("SELECT 1").fetch_one(pool).await {
+    let database_status = match sqlx::query_scalar::<_, i64>("SELECT 1").fetch_one(pool).await {
         Ok(_) => "healthy".to_string(),
         Err(_) => "unhealthy".to_string(),
     };
@@ -753,12 +733,11 @@ async fn calculate_system_health(
     let memory_usage = 67.8; // percentage
     let cpu_usage = 23.4; // percentage
     let disk_usage = 45.6; // percentage
-    let active_connections = sqlx::query_scalar!(
+    let active_connections = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'"
     )
     .fetch_one(pool)
-    .await?
-    .unwrap_or(0);
+    .await?;
 
     let uptime = 86400; // Mock uptime in seconds
 

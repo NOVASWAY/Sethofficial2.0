@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Result, HttpRequest};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 use std::collections::HashMap;
 
@@ -28,7 +28,7 @@ pub struct DataAccessValidation {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct IsolationRule {
     pub id: Uuid,
     pub role: String,
@@ -82,12 +82,10 @@ pub async fn get_filtered_patients(
     };
 
     // Get user details
-    let user = match sqlx::query!(
-        "SELECT role, department FROM users WHERE id = $1",
-        claims.user_id
-    )
-    .fetch_one(&**pool)
-    .await
+    let user = match sqlx::query("SELECT role, department FROM users WHERE id = $1")
+        .bind(claims.user_id)
+        .fetch_one(&**pool)
+        .await
     {
         Ok(user) => user,
         Err(_) => {
@@ -116,8 +114,9 @@ pub async fn get_filtered_patients(
     let search_term = query.get("search");
 
     // Build query based on user role and permissions
-    let department = user.department.as_str();
-    let patients = match build_filtered_patients_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, search_term).await {
+    let role: String = user.get("role");
+    let department: String = user.get("department");
+    let patients = match build_filtered_patients_query(&**pool, &claims.user_id, &role, &department, limit, offset, status_filter, search_term).await {
         Ok(patients) => patients,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -181,12 +180,10 @@ pub async fn get_filtered_consultations(
     };
 
     // Get user details
-    let user = match sqlx::query!(
-        "SELECT role, department FROM users WHERE id = $1",
-        claims.user_id
-    )
-    .fetch_one(&**pool)
-    .await
+    let user = match sqlx::query("SELECT role, department FROM users WHERE id = $1")
+        .bind(claims.user_id)
+        .fetch_one(&**pool)
+        .await
     {
         Ok(user) => user,
         Err(_) => {
@@ -216,8 +213,9 @@ pub async fn get_filtered_consultations(
     let date_to = query.get("date_to").and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Build query based on user role and permissions
-    let department = user.department.as_str();
-    let consultations = match build_filtered_consultations_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, date_from, date_to).await {
+    let role: String = user.get("role");
+    let department: String = user.get("department");
+    let consultations = match build_filtered_consultations_query(&**pool, &claims.user_id, &role, &department, limit, offset, status_filter, date_from, date_to).await {
         Ok(consultations) => consultations,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -281,12 +279,10 @@ pub async fn get_filtered_prescriptions(
     };
 
     // Get user details
-    let user = match sqlx::query!(
-        "SELECT role, department FROM users WHERE id = $1",
-        claims.user_id
-    )
-    .fetch_one(&**pool)
-    .await
+    let user = match sqlx::query("SELECT role, department FROM users WHERE id = $1")
+        .bind(claims.user_id)
+        .fetch_one(&**pool)
+        .await
     {
         Ok(user) => user,
         Err(_) => {
@@ -314,8 +310,9 @@ pub async fn get_filtered_prescriptions(
     let status_filter = query.get("status");
 
     // Build query based on user role and permissions
-    let department = user.department.as_str();
-    let prescriptions = match build_filtered_prescriptions_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter).await {
+    let role: String = user.get("role");
+    let department: String = user.get("department");
+    let prescriptions = match build_filtered_prescriptions_query(&**pool, &claims.user_id, &role, &department, limit, offset, status_filter).await {
         Ok(prescriptions) => prescriptions,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -379,12 +376,10 @@ pub async fn get_filtered_invoices(
     };
 
     // Get user details
-    let user = match sqlx::query!(
-        "SELECT role, department FROM users WHERE id = $1",
-        claims.user_id
-    )
-    .fetch_one(&**pool)
-    .await
+    let user = match sqlx::query("SELECT role, department FROM users WHERE id = $1")
+        .bind(claims.user_id)
+        .fetch_one(&**pool)
+        .await
     {
         Ok(user) => user,
         Err(_) => {
@@ -414,8 +409,9 @@ pub async fn get_filtered_invoices(
     let date_to = query.get("date_to").and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
     // Build query based on user role and permissions
-    let department = user.department.as_str();
-    let invoices = match build_filtered_invoices_query(&**pool, &claims.user_id, &user.role, department, limit, offset, status_filter, date_from, date_to).await {
+    let role: String = user.get("role");
+    let department: String = user.get("department");
+    let invoices = match build_filtered_invoices_query(&**pool, &claims.user_id, &role, &department, limit, offset, status_filter, date_from, date_to).await {
         Ok(invoices) => invoices,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
@@ -479,12 +475,10 @@ pub async fn validate_data_access(
     };
 
     // Get user details
-    let user = match sqlx::query!(
-        "SELECT role, department FROM users WHERE id = $1",
-        claims.user_id
-    )
-    .fetch_one(&**pool)
-    .await
+    let user = match sqlx::query("SELECT role, department FROM users WHERE id = $1")
+        .bind(claims.user_id)
+        .fetch_one(&**pool)
+        .await
     {
         Ok(user) => user,
         Err(_) => {
@@ -497,15 +491,16 @@ pub async fn validate_data_access(
         }
     };
 
+    let role: String = user.get("role");
+
     // Get isolation rules for the user's role and entity type
-    let isolation_rule = match sqlx::query_as!(
-        IsolationRule,
+    let isolation_rule = match sqlx::query_as::<_, IsolationRule>(
         "SELECT id, role, entity_type, filter_rules, permissions, is_active
          FROM data_isolation_rules 
-         WHERE role = $1 AND entity_type = $2 AND is_active = true",
-        user.role,
-        validation_data.entity_type
+         WHERE role = $1 AND entity_type = $2 AND is_active = true"
     )
+    .bind(&role)
+    .bind(&validation_data.entity_type)
     .fetch_optional(&**pool)
     .await
     {

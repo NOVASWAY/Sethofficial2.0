@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Result, HttpRequest};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 use std::collections::HashMap;
 
@@ -563,54 +563,64 @@ async fn check_patient_duplicates(
     let mut duplicates = Vec::new();
 
     // Check for exact name matches
-    let name_matches = sqlx::query!(
+    let name_matches = sqlx::query(
         "SELECT id, first_name, last_name, phone, date_of_birth 
          FROM patients 
-         WHERE LOWER(first_name) = LOWER($1) AND LOWER(last_name) = LOWER($2)",
-        patient_data.first_name,
-        patient_data.last_name
+         WHERE LOWER(first_name) = LOWER($1) AND LOWER(last_name) = LOWER($2)"
     )
+    .bind(&patient_data.first_name)
+    .bind(&patient_data.last_name)
     .fetch_all(pool)
     .await?;
 
     for record in name_matches {
+        let id: Uuid = record.get("id");
+        let first_name: String = record.get("first_name");
+        let last_name: String = record.get("last_name");
+        let phone: Option<String> = record.try_get("phone").ok();
+        let date_of_birth: Option<chrono::NaiveDate> = record.try_get("date_of_birth").ok();
         duplicates.push(DuplicateRecord {
-            id: record.id,
+            id,
             match_type: "exact_name".to_string(),
             match_fields: vec!["first_name".to_string(), "last_name".to_string()],
             match_score: 1.0,
             record_data: serde_json::json!({
-                "first_name": record.first_name,
-                "last_name": record.last_name,
-                "phone_number": record.phone,
-                "date_of_birth": record.date_of_birth
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone_number": phone,
+                "date_of_birth": date_of_birth
             }),
         });
     }
 
     // Check for phone number matches
-    let phone_matches = sqlx::query!(
+    let phone_matches = sqlx::query(
         "SELECT id, first_name, last_name, phone, date_of_birth 
          FROM patients 
-         WHERE phone = $1",
-        patient_data.phone
+         WHERE phone = $1"
     )
+    .bind(&patient_data.phone)
     .fetch_all(pool)
     .await?;
 
     for record in phone_matches {
+        let id: Uuid = record.get("id");
+        let first_name: String = record.get("first_name");
+        let last_name: String = record.get("last_name");
+        let phone: Option<String> = record.try_get("phone").ok();
+        let date_of_birth: Option<chrono::NaiveDate> = record.try_get("date_of_birth").ok();
         // Avoid duplicate entries
-        if !duplicates.iter().any(|d| d.id == record.id) {
+        if !duplicates.iter().any(|d| d.id == id) {
             duplicates.push(DuplicateRecord {
-                id: record.id,
+                id,
                 match_type: "phone_number".to_string(),
                 match_fields: vec!["phone_number".to_string()],
                 match_score: 0.9,
                 record_data: serde_json::json!({
-                    "first_name": record.first_name,
-                    "last_name": record.last_name,
-                    "phone_number": record.phone,
-                    "date_of_birth": record.date_of_birth
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "phone_number": phone,
+                    "date_of_birth": date_of_birth
                 }),
             });
         }
@@ -618,28 +628,33 @@ async fn check_patient_duplicates(
 
     // Check for insurance number matches
     if let Some(insurance) = &patient_data.insurance_number {
-        let insurance_matches = sqlx::query!(
+        let insurance_matches = sqlx::query(
             "SELECT id, first_name, last_name, phone, date_of_birth 
              FROM patients 
-             WHERE insurance_number = $1",
-            insurance
+             WHERE insurance_number = $1"
         )
+        .bind(insurance)
         .fetch_all(pool)
         .await?;
 
         for record in insurance_matches {
+            let id: Uuid = record.get("id");
+            let first_name: String = record.get("first_name");
+            let last_name: String = record.get("last_name");
+            let phone: Option<String> = record.try_get("phone").ok();
+            let date_of_birth: Option<chrono::NaiveDate> = record.try_get("date_of_birth").ok();
             // Avoid duplicate entries
-            if !duplicates.iter().any(|d| d.id == record.id) {
+            if !duplicates.iter().any(|d| d.id == id) {
                 duplicates.push(DuplicateRecord {
-                    id: record.id,
+                    id,
                     match_type: "insurance_number".to_string(),
                     match_fields: vec!["insurance_number".to_string()],
                     match_score: 0.95,
                     record_data: serde_json::json!({
-                        "first_name": record.first_name,
-                        "last_name": record.last_name,
-                        "phone_number": record.phone,
-                        "date_of_birth": record.date_of_birth
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "phone_number": phone,
+                        "date_of_birth": date_of_birth
                     }),
                 });
             }
@@ -668,25 +683,29 @@ async fn check_user_duplicates(
     let mut duplicates = Vec::new();
 
     // Check for username matches
-    let username_matches = sqlx::query!(
+    let username_matches = sqlx::query(
         "SELECT id, username, role, department 
          FROM users 
-         WHERE username = $1",
-        user_data.username
+         WHERE username = $1"
     )
+    .bind(&user_data.username)
     .fetch_all(pool)
     .await?;
 
     for record in username_matches {
+        let id: Uuid = record.get("id");
+        let username: String = record.get("username");
+        let role: Option<String> = record.try_get("role").ok();
+        let department: Option<String> = record.try_get("department").ok();
         duplicates.push(DuplicateRecord {
-            id: record.id,
+            id,
             match_type: "username".to_string(),
             match_fields: vec!["username".to_string()],
             match_score: 1.0,
             record_data: serde_json::json!({
-                "username": record.username,
-                "role": record.role,
-                "department": record.department
+                "username": username,
+                "role": role,
+                "department": department
             }),
         });
     }

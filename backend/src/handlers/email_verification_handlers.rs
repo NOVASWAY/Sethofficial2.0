@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, HttpRequest};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 use chrono::{Utc, Duration};
 use validator::Validate;
@@ -21,14 +21,14 @@ pub async fn verify_email(
     let token_value = token.into_inner();
 
     // Find token
-    let token_data = sqlx::query!(
+    let token_data = sqlx::query(
         r#"
         SELECT user_id, email, expires_at, used
         FROM email_verification_tokens
         WHERE token = $1
-        "#,
-        token_value
+        "#
     )
+    .bind(&token_value)
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -46,7 +46,8 @@ pub async fn verify_email(
     };
 
     // Check if token is used
-    if token_data.used {
+    let used: bool = token_data.try_get("used").unwrap_or(false);
+    if used {
         return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -56,7 +57,8 @@ pub async fn verify_email(
     }
 
     // Check if token is expired
-    if Utc::now() > token_data.expires_at {
+    let expires_at: chrono::DateTime<chrono::Utc> = token_data.get("expires_at");
+    if Utc::now() > expires_at {
         return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -66,26 +68,27 @@ pub async fn verify_email(
     }
 
     // Mark email as verified and token as used
-    sqlx::query!(
+    let user_id: Uuid = token_data.get("user_id");
+    sqlx::query(
         r#"
         UPDATE users
         SET email_verified = true, updated_at = NOW()
         WHERE id = $1
-        "#,
-        token_data.user_id
+        "#
     )
+    .bind(user_id)
     .execute(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE email_verification_tokens
         SET used = true, used_at = NOW()
         WHERE token = $1
-        "#,
-        token_value
+        "#
     )
+    .bind(&token_value)
     .execute(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -105,10 +108,8 @@ pub async fn resend_verification(
     req.validate().map_err(|e| AppError::Validation(e))?;
 
     // Find user by email
-    let user = sqlx::query!(
-        "SELECT id, username, email, name, email_verified FROM users WHERE email = $1 AND is_active = true",
-        req.email
-    )
+    let user = sqlx::query("SELECT id, username, email, name, email_verified FROM users WHERE email = $1 AND is_active = true")
+    .bind(&req.email)
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -126,7 +127,8 @@ pub async fn resend_verification(
     let user = user.unwrap();
 
     // Check if already verified
-    if user.email_verified {
+    let email_verified: bool = user.try_get("email_verified").unwrap_or(false);
+    if email_verified {
         return Ok(HttpResponse::Ok().json(ApiResponse::<()> {
             success: true,
             data: None,
@@ -140,17 +142,21 @@ pub async fn resend_verification(
     let expires_at = Utc::now() + Duration::days(7);
 
     // Store token in database
-    sqlx::query!(
+    let user_id: Uuid = user.get("id");
+    let user_email: String = user.get("email");
+    let user_name: String = user.get("name");
+
+    sqlx::query(
         r#"
         INSERT INTO email_verification_tokens (user_id, token, email, expires_at)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (token) DO NOTHING
-        "#,
-        user.id,
-        token,
-        user.email,
-        expires_at
+        "#
     )
+    .bind(user_id)
+    .bind(&token)
+    .bind(&user_email)
+    .bind(expires_at)
     .execute(&data.db_pool)
     .await
     .map_err(|e| AppError::Database(e))?;
@@ -192,7 +198,7 @@ pub async fn resend_verification(
         </body>
         </html>
         "#,
-        user.name,
+        user_name,
         verify_url,
         verify_url
     );
@@ -201,7 +207,7 @@ pub async fn resend_verification(
     if let Ok(config) = crate::services::email_service::EmailConfig::from_env() {
         if let Ok(email_service) = EmailService::new(config) {
             if let Err(e) = email_service.send_email(
-                &user.email,
+                &user_email,
                 "Verify Your Email Address",
                 &email_html,
                 Some(&format!("Verify your email: {}", verify_url)),

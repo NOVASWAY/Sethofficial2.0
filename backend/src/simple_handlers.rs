@@ -145,21 +145,21 @@ pub async fn create_user(
     };
 
     // Insert user
-    match sqlx::query!(
+    match sqlx::query(
         "INSERT INTO users (id, username, email, password_hash, role, name, department, permissions, is_active, created_at, updated_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-        Uuid::new_v4(),
-        username,
-        email,
-        password_hash,
-        role,
-        name,
-        department,
-        json!(["read"]), // Default permissions
-        true,
-        chrono::Utc::now(),
-        chrono::Utc::now()
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
     )
+    .bind(Uuid::new_v4())
+    .bind(username)
+    .bind(email)
+    .bind(password_hash)
+    .bind(role)
+    .bind(name)
+    .bind(department)
+    .bind(json!(["read"])) // Default permissions
+    .bind(true)
+    .bind(chrono::Utc::now())
+    .bind(chrono::Utc::now())
     .execute(&state.db_pool)
     .await
     {

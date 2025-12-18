@@ -449,10 +449,8 @@ pub async fn reset_user_preferences(
     };
 
     // Delete existing preferences
-    match sqlx::query!(
-        "DELETE FROM user_dashboard_preferences WHERE user_id = $1",
-        user_id
-    )
+    match sqlx::query("DELETE FROM user_dashboard_preferences WHERE user_id = $1")
+        .bind(user_id)
     .execute(&**pool)
     .await
     {

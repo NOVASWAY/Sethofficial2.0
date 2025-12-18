@@ -90,40 +90,43 @@ pub async fn upload_avatar(
     let description = format!("Avatar for user {}", _claims.username);
     let is_public = false;
 
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO files (
             filename, original_filename, file_path, file_size, mime_type, file_type,
             entity_type, entity_id, uploaded_by, description, is_public
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id, created_at
-        "#,
-        new_filename,
-        filename,
-        &file_path.to_string_lossy(),
-        file_size,
-        content_type,
-        file_type,
-        entity_type,
-        entity_id,
-        uploaded_by,
-        description,
-        is_public
+        "#
     )
+    .bind(&new_filename)
+    .bind(&filename)
+    .bind(file_path.to_string_lossy().to_string())
+    .bind(file_size)
+    .bind(&content_type)
+    .bind(&file_type)
+    .bind(&entity_type)
+    .bind(entity_id)
+    .bind(uploaded_by)
+    .bind(&description)
+    .bind(is_public)
     .fetch_one(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
+    let inserted_id: Uuid = result.get("id");
+    let created_at: chrono::DateTime<chrono::Utc> = result.get("created_at");
+
     Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
         data: Some(json!({
-        "id": result.id,
+        "id": inserted_id,
         "filename": new_filename,
         "original_filename": filename,
         "file_size": file_size,
         "mime_type": content_type,
         "file_type": file_type,
-        "created_at": result.created_at
+        "created_at": created_at
     })),
         message: Some("File uploaded successfully".to_string()),
         error: None,
@@ -241,34 +244,37 @@ pub async fn upload_document(
     let uploaded_by = Uuid::parse_str(&_claims.sub).unwrap_or_default();
     let is_public = false;
 
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO files (
             filename, original_filename, file_path, file_size, mime_type, file_type,
             entity_type, entity_id, uploaded_by, description, is_public
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id, created_at
-        "#,
-        new_filename,
-        filename,
-        &file_path.to_string_lossy(),
-        file_size,
-        content_type,
-        file_type,
-        entity_type,
-        entity_id,
-        uploaded_by,
-        description,
-        is_public
+        "#
     )
+    .bind(&new_filename)
+    .bind(&filename)
+    .bind(file_path.to_string_lossy().to_string())
+    .bind(file_size)
+    .bind(&content_type)
+    .bind(&file_type)
+    .bind(&entity_type)
+    .bind(entity_id)
+    .bind(uploaded_by)
+    .bind(&description)
+    .bind(is_public)
     .fetch_one(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
 
+    let inserted_id: Uuid = result.get("id");
+    let created_at: chrono::DateTime<chrono::Utc> = result.get("created_at");
+
     Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
         data: Some(json!({
-        "id": result.id,
+        "id": inserted_id,
         "filename": new_filename,
         "original_filename": filename,
         "file_size": file_size,
@@ -277,7 +283,7 @@ pub async fn upload_document(
         "entity_type": entity_type,
         "entity_id": entity_id,
         "description": description,
-        "created_at": result.created_at
+        "created_at": created_at
     })),
         message: Some("File uploaded successfully".to_string()),
         error: None,
@@ -294,15 +300,15 @@ pub async fn get_file(
 
     let file_id = path.into_inner();
 
-    let file = sqlx::query!(
+    let file = sqlx::query(
         r#"
         SELECT id, filename, original_filename, file_path, file_size, mime_type, file_type,
                entity_type, entity_id, uploaded_by, description, is_public, created_at
         FROM files
         WHERE id = $1
-        "#,
-        file_id
+        "#
     )
+    .bind(file_id)
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
@@ -310,7 +316,9 @@ pub async fn get_file(
     match file {
         Some(file) => {
             // Check if user has access to this file
-            if !file.is_public.unwrap_or(false) && file.uploaded_by != Some(Uuid::parse_str(&_claims.sub).unwrap_or_default()) {
+            let is_public: bool = file.try_get("is_public").unwrap_or(false);
+            let uploaded_by: Option<Uuid> = file.try_get("uploaded_by").ok();
+            if !is_public && uploaded_by != Some(Uuid::parse_str(&_claims.sub).unwrap_or_default()) {
                 return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -322,19 +330,19 @@ pub async fn get_file(
             Ok(HttpResponse::Ok().json(ApiResponse {
         success: true,
         data: Some(json!({
-                "id": file.id,
-                "filename": file.filename,
-                "original_filename": file.original_filename,
-                "file_path": file.file_path,
-                "file_size": file.file_size,
-                "mime_type": file.mime_type,
-                "file_type": file.file_type,
-                "entity_type": file.entity_type,
-                "entity_id": file.entity_id,
-                "uploaded_by": file.uploaded_by,
-                "description": file.description,
-                "is_public": file.is_public,
-            "created_at": file.created_at
+                "id": file.get::<Uuid,_>("id"),
+                "filename": file.get::<String,_>("filename"),
+                "original_filename": file.get::<String,_>("original_filename"),
+                "file_path": file.get::<String,_>("file_path"),
+                "file_size": file.get::<i64,_>("file_size"),
+                "mime_type": file.get::<String,_>("mime_type"),
+                "file_type": file.get::<String,_>("file_type"),
+                "entity_type": file.get::<String,_>("entity_type"),
+                "entity_id": file.get::<Uuid,_>("entity_id"),
+                "uploaded_by": uploaded_by,
+                "description": file.try_get::<String,_>("description").ok(),
+                "is_public": is_public,
+            "created_at": file.get::<chrono::DateTime<chrono::Utc>,_>("created_at")
         })),
         message: Some("File retrieved successfully".to_string()),
         error: None,
@@ -464,14 +472,14 @@ pub async fn delete_file(
     let file_id = path.into_inner();
 
     // Get file info first
-    let file = sqlx::query!(
+    let file = sqlx::query(
         r#"
         SELECT filename, file_path, uploaded_by
         FROM files
         WHERE id = $1
-        "#,
-        file_id
+        "#
     )
+    .bind(file_id)
     .fetch_optional(&data.db_pool)
     .await
     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;
@@ -479,7 +487,9 @@ pub async fn delete_file(
     match file {
         Some(file) => {
             // Check if user has permission to delete this file
-            if file.uploaded_by != Some(Uuid::parse_str(&_claims.sub).unwrap_or_default()) {
+            let uploaded_by: Option<Uuid> = file.try_get("uploaded_by").ok();
+            let file_path: String = file.get("file_path");
+            if uploaded_by != Some(Uuid::parse_str(&_claims.sub).unwrap_or_default()) {
                 return Ok(HttpResponse::Forbidden().json(ApiResponse::<()> {
             success: false,
             data: None,
@@ -489,17 +499,15 @@ pub async fn delete_file(
             }
 
             // Delete file from disk
-            let file_path = Path::new(&file.file_path);
+            let file_path = Path::new(&file_path);
             if file_path.exists() {
                 fs::remove_file(file_path)
                     .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Failed to delete file: {}", e)))?;
             }
 
             // Delete file record from database
-            sqlx::query!(
-                "DELETE FROM files WHERE id = $1",
-                file_id
-            )
+            sqlx::query("DELETE FROM files WHERE id = $1")
+                .bind(file_id)
             .execute(&data.db_pool)
             .await
             .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Database error: {}", e)))?;

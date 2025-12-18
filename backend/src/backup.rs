@@ -140,18 +140,18 @@ impl BackupService {
         match self.perform_backup(&backup_job, &request).await {
             Ok((file_path, file_size)) => {
                 // Update backup job with success
-                sqlx::query!(
+                sqlx::query(
                     r#"
                     UPDATE backup_jobs 
                     SET status = $1, completed_at = $2, file_path = $3, file_size_bytes = $4
                     WHERE id = $5
-                    "#,
-                    BackupStatus::Completed as _,
-                    Utc::now(),
-                    file_path,
-                    file_size as i64,
-                    backup_id
+                    "#
                 )
+                .bind(BackupStatus::Completed)
+                .bind(Utc::now())
+                .bind(&file_path)
+                .bind(file_size as i64)
+                .bind(backup_id)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| ApiError::internal_error(Some(format!("Failed to update backup job: {}", e))))?;
@@ -173,17 +173,17 @@ impl BackupService {
             }
             Err(e) => {
                 // Update backup job with failure
-                sqlx::query!(
+                sqlx::query(
                     r#"
                     UPDATE backup_jobs 
                     SET status = $1, completed_at = $2, error_message = $3
                     WHERE id = $4
-                    "#,
-                    BackupStatus::Failed as _,
-                    Utc::now(),
-                    e.to_string(),
-                    backup_id
+                    "#
                 )
+                .bind(BackupStatus::Failed)
+                .bind(Utc::now())
+                .bind(e.to_string())
+                .bind(backup_id)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| ApiError::internal_error(Some(format!("Failed to update backup job: {}", e))))?;
@@ -360,13 +360,13 @@ impl BackupService {
     pub async fn cleanup_old_backups(&self) -> Result<u64, ApiError> {
         let cutoff_date = Utc::now() - chrono::Duration::days(self.config.retention_days as i64);
         
-        let deleted_count = sqlx::query!(
+        let deleted_count = sqlx::query(
             r#"
             DELETE FROM backup_jobs 
             WHERE started_at < $1 AND status = 'completed'
-            "#,
-            cutoff_date
+            "#
         )
+        .bind(cutoff_date)
         .execute(&self.pool)
         .await
         .map_err(|e| ApiError::internal_error(Some(format!("Failed to cleanup old backups: {}", e))))?
