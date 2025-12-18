@@ -2,7 +2,6 @@ services:
   - type: web
     name: seth-clinic-backend
     env: docker
-    rootDir: backend
     dockerfilePath: backend/Dockerfile.prod
     plan: starter
     autoDeploy: true
