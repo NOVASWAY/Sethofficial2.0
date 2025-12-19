@@ -52,15 +52,30 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
 pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     eprintln!("🔄 Running database migrations...");
     info!("Running database migrations...");
-    match sqlx::migrate!(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations")).run(pool).await {
-        Ok(_) => {
-            eprintln!("✅ Database migrations completed successfully");
-            info!("✅ Database migrations completed successfully");
-            Ok(())
+    
+    // Use runtime migration API instead of compile-time macro
+    // This allows us to specify the migrations path at runtime
+    let migrations_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+    eprintln!("📁 Migrations path: {}", migrations_path.display());
+    
+    match sqlx::migrate::Migrator::new(&migrations_path).await {
+        Ok(migrator) => {
+            match migrator.run(pool).await {
+                Ok(_) => {
+                    eprintln!("✅ Database migrations completed successfully");
+                    info!("✅ Database migrations completed successfully");
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("❌ Migration error: {}", e);
+                    eprintln!("❌ Migration error details: {:?}", e);
+                    Err(e)
+                }
+            }
         }
         Err(e) => {
-            eprintln!("❌ Migration error: {}", e);
-            eprintln!("❌ Migration error details: {:?}", e);
+            eprintln!("❌ Failed to create migrator: {}", e);
+            eprintln!("❌ Migrations path: {}", migrations_path.display());
             Err(e)
         }
     }
