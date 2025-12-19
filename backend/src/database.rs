@@ -52,7 +52,7 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
 pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     eprintln!("🔄 Running database migrations...");
     info!("Running database migrations...");
-    match sqlx::migrate!("./migrations").run(pool).await {
+    match sqlx::migrate!("migrations").run(pool).await {
         Ok(_) => {
             eprintln!("✅ Database migrations completed successfully");
             info!("✅ Database migrations completed successfully");
