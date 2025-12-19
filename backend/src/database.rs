@@ -47,9 +47,12 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
     Ok(pool)
 }
 
-pub async fn run_migrations(_pool: &DatabasePool) -> Result<(), sqlx::Error> {
-    info!("Skipping database migrations for now...");
-    // TODO: Add migration logic back when needed
+pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
+    info!("Running database migrations...");
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await?;
+    info!("✅ Database migrations completed successfully");
     Ok(())
 }
 

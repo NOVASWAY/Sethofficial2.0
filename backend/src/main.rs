@@ -136,6 +136,14 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
+    // Run database migrations
+    eprintln!("🔄 Running database migrations...");
+    if let Err(e) = database::run_migrations(&db_pool).await {
+        eprintln!("❌ Failed to run migrations: {}", e);
+        eprintln!("❌ Exiting...");
+        std::process::exit(1);
+    }
+
     // Initialize AuthService
     let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string());
     let jwt_expiration_hours = env::var("JWT_EXPIRATION_HOURS")

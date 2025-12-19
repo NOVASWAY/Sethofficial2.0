@@ -38,6 +38,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
+COPY --from=builder /app/migrations ./migrations
 
 # Railway injects PORT; backend should read PORT env var (fallbacks handled in app)
 EXPOSE 8080
