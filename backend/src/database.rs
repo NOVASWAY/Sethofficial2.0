@@ -10,6 +10,8 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://clinic_user:clinic_password@localhost:5432/clinic_management".to_string());
     
+    eprintln!("🔗 DATABASE_URL is set: {}", if database_url.is_empty() { "NO (empty)" } else { "YES" });
+    eprintln!("🔗 Connecting to database...");
     info!("Connecting to database: {}", database_url.replace(&database_url.split('@').nth(0).unwrap_or(""), "***"));
 
     // Pool tuning (defaults chosen to match env.example + sane fallbacks)
