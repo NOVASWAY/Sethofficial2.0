@@ -48,12 +48,20 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
 }
 
 pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
+    eprintln!("🔄 Running database migrations...");
     info!("Running database migrations...");
-    sqlx::migrate!("./migrations")
-        .run(pool)
-        .await?;
-    info!("✅ Database migrations completed successfully");
-    Ok(())
+    match sqlx::migrate!("./migrations").run(pool).await {
+        Ok(_) => {
+            eprintln!("✅ Database migrations completed successfully");
+            info!("✅ Database migrations completed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("❌ Migration error: {}", e);
+            eprintln!("❌ Migration error details: {:?}", e);
+            Err(e)
+        }
+    }
 }
 
 pub async fn health_check(pool: &DatabasePool) -> Result<bool, sqlx::Error> {
