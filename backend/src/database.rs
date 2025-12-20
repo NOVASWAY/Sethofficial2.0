@@ -56,22 +56,30 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     // Find migrations directory at runtime
     // Try multiple locations in order of preference:
     // 1. Environment variable MIGRATIONS_PATH
-    // 2. ./migrations (relative to current working directory) - works in Docker
-    // 3. CARGO_MANIFEST_DIR/migrations (compile-time path fallback)
+    // 2. /app/migrations (absolute path - Docker WORKDIR is /app)
+    // 3. ./migrations (relative to current working directory)
+    // 4. CARGO_MANIFEST_DIR/migrations (compile-time path fallback)
     let migrations_path = if let Ok(env_path) = env::var("MIGRATIONS_PATH") {
         std::path::PathBuf::from(env_path)
-    } else if let Ok(cwd) = std::env::current_dir() {
-        let cwd_migrations = cwd.join("migrations");
-        if cwd_migrations.exists() && cwd_migrations.is_dir() {
-            eprintln!("📁 Using migrations from current directory: {}", cwd_migrations.display());
-            cwd_migrations
+    } else {
+        // Try /app/migrations first (Docker WORKDIR)
+        let app_migrations = std::path::PathBuf::from("/app/migrations");
+        if app_migrations.exists() && app_migrations.is_dir() {
+            eprintln!("📁 Using migrations from /app/migrations");
+            app_migrations
+        } else if let Ok(cwd) = std::env::current_dir() {
+            let cwd_migrations = cwd.join("migrations");
+            if cwd_migrations.exists() && cwd_migrations.is_dir() {
+                eprintln!("📁 Using migrations from current directory: {}", cwd_migrations.display());
+                cwd_migrations
+            } else {
+                eprintln!("⚠️  ./migrations not found in current dir ({:?}), trying CARGO_MANIFEST_DIR", cwd);
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
+            }
         } else {
-            eprintln!("⚠️  ./migrations not found in current dir, trying CARGO_MANIFEST_DIR");
+            eprintln!("⚠️  Could not get current directory, using CARGO_MANIFEST_DIR");
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
         }
-    } else {
-        eprintln!("⚠️  Could not get current directory, using CARGO_MANIFEST_DIR");
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
     };
     
     eprintln!("📁 Migrations path: {}", migrations_path.display());
