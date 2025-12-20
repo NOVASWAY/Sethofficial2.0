@@ -24,6 +24,9 @@ COPY backend/src ./src
 COPY backend/migrations ./migrations
 COPY backend/scripts ./scripts
 
+# Verify migrations directory was copied
+RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
+
 RUN cargo build --release
 
 FROM debian:bookworm-slim
@@ -39,6 +42,9 @@ WORKDIR /app
 
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
 COPY --from=builder /app/migrations ./migrations
+
+# Verify migrations are present in runtime stage
+RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1)
 
 # Railway injects PORT; backend should read PORT env var (fallbacks handled in app)
 EXPOSE 8080
