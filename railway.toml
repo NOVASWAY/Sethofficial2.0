@@ -1,0 +1,51 @@
+# Railway Configuration File
+# This file configures Railway to build and deploy the Rust backend service
+
+[build]
+# Use Dockerfile for building (explicitly specify Dockerfile)
+builder = "DOCKERFILE"
+# Path to Dockerfile (relative to repository root)
+dockerfilePath = "Dockerfile"
+# Build context is the repository root (monorepo structure)
+# Railway will use the root directory as build context
+
+[deploy]
+# Start command is handled by Dockerfile CMD
+# Railway will use the CMD from Dockerfile
+# No need to specify startCommand when using Dockerfile
+
+# Health check configuration
+# Railway will use the HEALTHCHECK from Dockerfile
+# But we can also configure it here if needed
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+
+# Service configuration
+[service]
+# Service name (can be overridden in Railway dashboard)
+name = "seth-clinic-backend"
+
+# Environment variables (these should be set in Railway dashboard, but listed here for reference)
+# DATABASE_URL - PostgreSQL connection string (auto-provided by Railway PostgreSQL service)
+# JWT_SECRET - Secret key for JWT tokens
+# CORS_ORIGINS - Allowed CORS origins
+# PORT - Automatically set by Railway
+# HOST - Defaults to 0.0.0.0
+
+# Build settings
+[build.settings]
+# Increase build timeout if needed (in seconds)
+# Default is 1800 (30 minutes)
+buildTimeout = 3600
+
+# Enable build caching for faster subsequent builds
+enableCache = true
+
+# Watch patterns - trigger redeploy on file changes
+# Only watch backend files to avoid unnecessary redeploys
+watchPatterns = [
+  "backend/**",
+  "Dockerfile",
+  "railway.toml"
+]
+
