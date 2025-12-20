@@ -58,7 +58,8 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     let migrations_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
     eprintln!("📁 Migrations path: {}", migrations_path.display());
     
-    match sqlx::migrate::Migrator::new(&migrations_path).await {
+    // Convert PathBuf to &Path for Migrator::new()
+    match sqlx::migrate::Migrator::new(migrations_path.as_path()).await {
         Ok(migrator) => {
             match migrator.run(pool).await {
                 Ok(_) => {
@@ -69,14 +70,14 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
                 Err(e) => {
                     eprintln!("❌ Migration error: {}", e);
                     eprintln!("❌ Migration error details: {:?}", e);
-                    Err(e)
+                    Err(e.into())
                 }
             }
         }
         Err(e) => {
             eprintln!("❌ Failed to create migrator: {}", e);
             eprintln!("❌ Migrations path: {}", migrations_path.display());
-            Err(e)
+            Err(e.into())
         }
     }
 }
