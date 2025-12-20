@@ -22,7 +22,8 @@ RUN cargo build --release && rm -rf src
 # Copy actual backend source
 COPY backend/src ./src
 COPY backend/migrations ./migrations
-COPY backend/scripts ./scripts
+# Note: scripts directory is optional and not needed for build
+# COPY backend/scripts ./scripts
 
 # Verify migrations directory was copied
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
