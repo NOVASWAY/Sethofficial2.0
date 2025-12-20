@@ -53,10 +53,52 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     eprintln!("🔄 Running database migrations...");
     info!("Running database migrations...");
     
-    // Use runtime migration API instead of compile-time macro
-    // This allows us to specify the migrations path at runtime
-    let migrations_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+    // Find migrations directory at runtime
+    // Try multiple locations in order of preference:
+    // 1. Environment variable MIGRATIONS_PATH
+    // 2. ./migrations (relative to current working directory) - works in Docker
+    // 3. CARGO_MANIFEST_DIR/migrations (compile-time path fallback)
+    let migrations_path = if let Ok(env_path) = env::var("MIGRATIONS_PATH") {
+        std::path::PathBuf::from(env_path)
+    } else if let Ok(cwd) = std::env::current_dir() {
+        let cwd_migrations = cwd.join("migrations");
+        if cwd_migrations.exists() && cwd_migrations.is_dir() {
+            eprintln!("📁 Using migrations from current directory: {}", cwd_migrations.display());
+            cwd_migrations
+        } else {
+            eprintln!("⚠️  ./migrations not found in current dir, trying CARGO_MANIFEST_DIR");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
+        }
+    } else {
+        eprintln!("⚠️  Could not get current directory, using CARGO_MANIFEST_DIR");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
+    };
+    
     eprintln!("📁 Migrations path: {}", migrations_path.display());
+    eprintln!("📁 Path exists: {}", migrations_path.exists());
+    eprintln!("📁 Current working directory: {:?}", std::env::current_dir());
+    
+    // List current directory contents for debugging
+    if let Ok(cwd) = std::env::current_dir() {
+        eprintln!("📂 Contents of current directory ({:?}):", cwd);
+        if let Ok(entries) = std::fs::read_dir(&cwd) {
+            for entry in entries.flatten() {
+                eprintln!("   - {:?}", entry.path());
+            }
+        }
+    }
+    
+    // List migrations directory if it exists
+    if migrations_path.exists() {
+        eprintln!("📂 Contents of migrations directory:");
+        if let Ok(entries) = std::fs::read_dir(&migrations_path) {
+            for entry in entries.flatten() {
+                eprintln!("   - {:?}", entry.path());
+            }
+        }
+    } else {
+        eprintln!("❌ Migrations directory does not exist at: {}", migrations_path.display());
+    }
     
     // Convert PathBuf to &Path for Migrator::new()
     match sqlx::migrate::Migrator::new(migrations_path.as_path()).await {
