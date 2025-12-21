@@ -22,6 +22,10 @@ COPY backend/Cargo.toml backend/Cargo.lock* ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release && rm -rf src
 
+# Cache busting: Create a marker file to force rebuild of COPY layers
+# This ensures Railway doesn't use cached layers with old COPY commands
+RUN echo "build-$(date +%s)" > /tmp/.cache-bust && cat /tmp/.cache-bust
+
 # Copy actual backend source
 # IMPORTANT: Only copy src and migrations - scripts directory is intentionally excluded
 # This prevents Railway build failures when scripts directory is not in build context
