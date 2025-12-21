@@ -126,11 +126,14 @@ async fn main() -> std::io::Result<()> {
     // Connect to database with retry logic (Railway database may take time to be ready)
     eprintln!("🔗 Connecting to database (with pool settings)...");
     let db_pool = {
-        let mut retries = 5;
+        let mut retries = 10; // Increased retries for Railway
+        let mut attempt = 0;
         let mut pool_result = database::create_pool().await;
         
         while pool_result.is_err() && retries > 0 {
-            eprintln!("⚠️  Database connection failed, retrying in 5 seconds... ({} retries left)", retries);
+            attempt += 1;
+            eprintln!("⚠️  Database connection failed (attempt {}), retrying in 5 seconds... ({} retries left)", attempt, retries);
+            eprintln!("⚠️  Error: {:?}", pool_result.as_ref().err());
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
             pool_result = database::create_pool().await;
             retries -= 1;
@@ -138,12 +141,17 @@ async fn main() -> std::io::Result<()> {
         
         match pool_result {
             Ok(pool) => {
-                eprintln!("✅ Database connection established");
+                eprintln!("✅ Database connection established after {} attempts", attempt + 1);
                 pool
             }
             Err(e) => {
-                eprintln!("❌ Failed to connect to database after retries: {}", e);
-                eprintln!("❌ DATABASE_URL: {}", env::var("DATABASE_URL").unwrap_or_else(|_| "NOT SET".to_string()));
+                eprintln!("❌ Failed to connect to database after {} attempts: {}", attempt + 1, e);
+                eprintln!("❌ DATABASE_URL length: {}", env::var("DATABASE_URL").unwrap_or_else(|_| "NOT SET".to_string()).len());
+                eprintln!("❌ DATABASE_URL preview: {}", {
+                    let url = env::var("DATABASE_URL").unwrap_or_else(|_| "NOT SET".to_string());
+                    if url.len() > 50 { format!("{}...", &url[..50]) } else { url }
+                });
+                eprintln!("❌ Full error details: {:?}", e);
                 eprintln!("❌ Exiting...");
                 std::process::exit(1);
             }
