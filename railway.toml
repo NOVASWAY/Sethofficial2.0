@@ -7,6 +7,8 @@
 builder = "DOCKERFILE"
 # Path to Dockerfile (relative to repository root)
 dockerfilePath = "Dockerfile"
+# Force rebuild by disabling cache (uncomment if Railway cache issues persist)
+# buildCommand = "docker build --no-cache -f Dockerfile ."
 
 # Watch patterns - trigger redeploy only when backend files change
 # This is important for monorepos to avoid unnecessary redeploys
