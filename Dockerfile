@@ -66,6 +66,10 @@ RUN ls -lh /usr/local/bin/clinic-management-backend && \
 # Verify migrations are present in runtime stage
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1)
 
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Railway injects PORT; backend should read PORT env var (fallbacks handled in app)
 # EXPOSE is informational - Railway uses PORT env var dynamically
 EXPOSE 8080
@@ -76,7 +80,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Use explicit path to binary
-CMD ["/usr/local/bin/clinic-management-backend"]
+# Use entrypoint script for better logging
+CMD ["/usr/local/bin/entrypoint.sh"]
 
 
