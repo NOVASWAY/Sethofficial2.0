@@ -11,6 +11,8 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
         .unwrap_or_else(|_| "postgresql://clinic_user:clinic_password@localhost:5432/clinic_management".to_string());
     
     eprintln!("🔗 DATABASE_URL is set: {}", if database_url.is_empty() { "NO (empty)" } else { "YES" });
+    eprintln!("🔗 DATABASE_URL length: {} characters", database_url.len());
+    eprintln!("🔗 DATABASE_URL starts with: {}", if database_url.len() > 20 { &database_url[..20] } else { &database_url });
     eprintln!("🔗 Connecting to database...");
     info!("Connecting to database: {}", database_url.replace(&database_url.split('@').nth(0).unwrap_or(""), "***"));
 
