@@ -112,8 +112,16 @@ async fn websocket_handler_wrapper(
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    // Log immediately - before anything else - to catch early failures
+    eprintln!("🚀 Application starting...");
+    eprintln!("📦 Binary location: {:?}", std::env::current_exe());
+    eprintln!("📂 Working directory: {:?}", std::env::current_dir());
+    
     dotenvy::dotenv().ok();
+    eprintln!("✅ Environment loaded");
+    
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    eprintln!("✅ Logger initialized");
 
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
