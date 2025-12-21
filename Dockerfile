@@ -29,8 +29,9 @@ RUN echo "build-$(date +%s)" > /tmp/.cache-bust && cat /tmp/.cache-bust
 # Copy actual backend source
 # IMPORTANT: Only copy src and migrations - scripts directory is intentionally excluded
 # This prevents Railway build failures when scripts directory is not in build context
-COPY backend/src ./src
+# Changed order to break Railway's cache (migrations first, then src)
 COPY backend/migrations ./migrations
+COPY backend/src ./src
 
 # Verify migrations directory was copied
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
