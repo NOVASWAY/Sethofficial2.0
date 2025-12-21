@@ -56,7 +56,9 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
-COPY --from=builder /app/migrations ./migrations
+
+# CRITICAL: Copy migrations from builder stage - use absolute path
+COPY --from=builder /app/migrations /app/migrations
 
 # Verify binary exists and is executable
 RUN ls -lh /usr/local/bin/clinic-management-backend && \
@@ -64,7 +66,11 @@ RUN ls -lh /usr/local/bin/clinic-management-backend && \
     /usr/local/bin/clinic-management-backend --version || echo "Binary exists but --version failed (this is OK if binary doesn't support it)"
 
 # Verify migrations are present in runtime stage
-RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1)
+RUN echo "=== Verifying migrations directory ===" && \
+    ls -la /app/migrations/ | head -10 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1) && \
+    echo "=== Migrations directory verified ===" && \
+    echo "Migration files found:" && \
+    ls -1 /app/migrations/*.sql | head -5
 
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
