@@ -1,10 +1,14 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
+# Version: 2.0 - Restructured to break Railway cache (scripts excluded via .dockerignore)
 
 FROM rust:1.88-slim AS builder
 
-# Cache busting: Force rebuild when Dockerfile changes
-ARG CACHE_BUST=1
+# Force complete cache invalidation - Railway was using cached layers with old COPY commands
+ARG RAILWAY_BUILD_VERSION=2.0
+ARG BUILD_TIMESTAMP
+RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
+    echo "Build Timestamp: ${BUILD_TIMESTAMP:-$(date -u +%Y%m%d%H%M%S)}" > /tmp/.railway-build-version
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
@@ -22,18 +26,18 @@ COPY backend/Cargo.toml backend/Cargo.lock* ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release && rm -rf src
 
-# CRITICAL: Force cache invalidation with unique build ID
-# This breaks Railway's aggressive caching of COPY layers
-ARG BUILD_ID
-RUN echo "Build ID: ${BUILD_ID:-$(date +%s)}" > /tmp/build-id.txt && cat /tmp/build-id.txt
+# CRITICAL: Copy backend files - .dockerignore excludes backend/scripts
+# Using explicit paths and verification to ensure scripts is never copied
+COPY backend/src/ ./src/
+COPY backend/migrations/ ./migrations/
 
-# Copy backend source files in a single operation to break cache
-# .dockerignore ensures backend/scripts is excluded from build context
-# Using trailing slashes and explicit directory structure
-COPY backend/src ./src
-COPY backend/migrations ./migrations
-# Explicitly verify scripts is NOT copied (should fail if scripts exists in context)
-RUN test ! -d ./scripts || (echo "ERROR: scripts directory should not exist!" && exit 1)
+# Verify scripts directory does NOT exist (should pass if .dockerignore worked)
+RUN if [ -d "./scripts" ]; then \
+        echo "ERROR: scripts directory should not exist! .dockerignore may not be working." && \
+        exit 1; \
+    else \
+        echo "✓ Verified: scripts directory correctly excluded by .dockerignore"; \
+    fi
 
 # Verify migrations directory was copied
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
