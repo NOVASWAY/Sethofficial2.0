@@ -3,6 +3,9 @@
 
 FROM rust:1.88-slim as builder
 
+# Cache busting: Force rebuild when Dockerfile changes
+ARG CACHE_BUST=1
+
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -20,10 +23,10 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release && rm -rf src
 
 # Copy actual backend source
+# IMPORTANT: Only copy src and migrations - scripts directory is intentionally excluded
+# This prevents Railway build failures when scripts directory is not in build context
 COPY backend/src ./src
 COPY backend/migrations ./migrations
-# Note: scripts directory is not needed for build - intentionally excluded
-# This prevents Railway build failures when scripts directory is not in build context
 
 # Verify migrations directory was copied
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
