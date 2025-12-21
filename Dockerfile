@@ -23,6 +23,7 @@ RUN cargo build --release && rm -rf src
 COPY backend/src ./src
 COPY backend/migrations ./migrations
 # Note: scripts directory is not needed for build - intentionally excluded
+# This prevents Railway build failures when scripts directory is not in build context
 
 # Verify migrations directory was copied
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
