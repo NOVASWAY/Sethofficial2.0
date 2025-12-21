@@ -1,7 +1,7 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
 
-FROM rust:1.88-slim as builder
+FROM rust:1.88-slim AS builder
 
 # Cache busting: Force rebuild when Dockerfile changes
 ARG CACHE_BUST=1
