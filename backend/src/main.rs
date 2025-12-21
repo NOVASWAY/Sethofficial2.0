@@ -123,16 +123,30 @@ async fn main() -> std::io::Result<()> {
     eprintln!("📡 Server will listen on: {}", bind_address);
     eprintln!("🌍 Environment: {}", if cfg!(debug_assertions) { "development" } else { "production" });
 
+    // Connect to database with retry logic (Railway database may take time to be ready)
     eprintln!("🔗 Connecting to database (with pool settings)...");
-    let db_pool = match database::create_pool().await {
-        Ok(pool) => {
-            eprintln!("✅ Database connection established");
-            pool
+    let db_pool = {
+        let mut retries = 5;
+        let mut pool_result = database::create_pool().await;
+        
+        while pool_result.is_err() && retries > 0 {
+            eprintln!("⚠️  Database connection failed, retrying in 5 seconds... ({} retries left)", retries);
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            pool_result = database::create_pool().await;
+            retries -= 1;
         }
-        Err(e) => {
-            eprintln!("❌ Failed to connect to database: {}", e);
-            eprintln!("❌ Exiting...");
-            std::process::exit(1);
+        
+        match pool_result {
+            Ok(pool) => {
+                eprintln!("✅ Database connection established");
+                pool
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to connect to database after retries: {}", e);
+                eprintln!("❌ DATABASE_URL: {}", env::var("DATABASE_URL").unwrap_or_else(|_| "NOT SET".to_string()));
+                eprintln!("❌ Exiting...");
+                std::process::exit(1);
+            }
         }
     };
 
@@ -140,6 +154,8 @@ async fn main() -> std::io::Result<()> {
     eprintln!("🔄 Running database migrations...");
     if let Err(e) = database::run_migrations(&db_pool).await {
         eprintln!("❌ Failed to run migrations: {}", e);
+        eprintln!("❌ Migration error details: {:?}", e);
+        eprintln!("❌ This will create tables in the database. Check DATABASE_URL and database permissions.");
         eprintln!("❌ Exiting...");
         std::process::exit(1);
     }
