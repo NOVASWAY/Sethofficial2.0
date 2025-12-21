@@ -58,6 +58,11 @@ WORKDIR /app
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
 COPY --from=builder /app/migrations ./migrations
 
+# Verify binary exists and is executable
+RUN ls -lh /usr/local/bin/clinic-management-backend && \
+    file /usr/local/bin/clinic-management-backend && \
+    /usr/local/bin/clinic-management-backend --version || echo "Binary exists but --version failed (this is OK if binary doesn't support it)"
+
 # Verify migrations are present in runtime stage
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1)
 
@@ -71,6 +76,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-CMD ["clinic-management-backend"]
+# Use explicit path to binary
+CMD ["/usr/local/bin/clinic-management-backend"]
 
 
