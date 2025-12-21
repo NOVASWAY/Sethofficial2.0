@@ -110,9 +110,37 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
         eprintln!("❌ Migrations directory does not exist at: {}", migrations_path.display());
     }
     
+    // Use sqlx::migrate! macro if path exists, otherwise use runtime Migrator
+    // The migrate! macro requires compile-time path, but Migrator::new() works at runtime
+    eprintln!("🔧 Creating migrator from path: {}", migrations_path.display());
+    
+    // Ensure the path is canonicalized and exists
+    let canonical_path = if migrations_path.exists() {
+        match std::fs::canonicalize(&migrations_path) {
+            Ok(canonical) => {
+                eprintln!("📁 Canonical migrations path: {}", canonical.display());
+                canonical
+            }
+            Err(e) => {
+                eprintln!("⚠️  Could not canonicalize path, using as-is: {}", e);
+                migrations_path.clone()
+            }
+        }
+    } else {
+        eprintln!("❌ Migrations path does not exist: {}", migrations_path.display());
+        return Err(sqlx::Error::Configuration(
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Migrations directory not found: {}", migrations_path.display())
+            ))
+        ));
+    };
+    
     // Convert PathBuf to &Path for Migrator::new()
-    match sqlx::migrate::Migrator::new(migrations_path.as_path()).await {
+    match sqlx::migrate::Migrator::new(canonical_path.as_path()).await {
         Ok(migrator) => {
+            eprintln!("✅ Migrator created successfully");
+            eprintln!("🔄 Running migrations...");
             match migrator.run(pool).await {
                 Ok(_) => {
                     eprintln!("✅ Database migrations completed successfully");
@@ -120,7 +148,8 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
                     Ok(())
                 }
                 Err(e) => {
-                    eprintln!("❌ Migration error: {}", e);
+                    eprintln!("❌ Migration execution error: {}", e);
+                    eprintln!("❌ Migration error type: {:?}", e);
                     eprintln!("❌ Migration error details: {:?}", e);
                     Err(e.into())
                 }
@@ -128,7 +157,8 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
         }
         Err(e) => {
             eprintln!("❌ Failed to create migrator: {}", e);
-            eprintln!("❌ Migrations path: {}", migrations_path.display());
+            eprintln!("❌ Migrations path attempted: {}", canonical_path.display());
+            eprintln!("❌ Error type: {:?}", e);
             Err(e.into())
         }
     }
