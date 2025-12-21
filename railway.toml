@@ -16,14 +16,16 @@ watchPatterns = [
   "railway.toml"
 ]
 
-# Note: Railway automatically detects Dockerfile and uses it
-# The CMD from Dockerfile will be used as the start command
-# HEALTHCHECK from Dockerfile will be used for health checks
-#
+[deploy]
+# Railway will use the HEALTHCHECK from Dockerfile
+# Start command is defined in Dockerfile CMD
+# Health check path: /health
+
 # Environment variables should be set in Railway dashboard:
-# - DATABASE_URL (auto-provided by Railway PostgreSQL service)
-# - JWT_SECRET (set manually)
-# - CORS_ORIGINS (set manually)
-# - PORT (automatically set by Railway)
-# - HOST (defaults to 0.0.0.0)
+# - DATABASE_URL (auto-provided by Railway PostgreSQL service - link the Postgres service)
+# - JWT_SECRET (set manually - use a strong random string)
+# - CORS_ORIGINS (set manually - e.g., "https://your-frontend.netlify.app,http://localhost:3000")
+# - PORT (automatically set by Railway - do not override)
+# - HOST (defaults to 0.0.0.0 - do not override)
+# - REDIS_URL (optional - only if using Redis)
 

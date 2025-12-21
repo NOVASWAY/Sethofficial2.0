@@ -48,10 +48,14 @@ COPY --from=builder /app/migrations ./migrations
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1)
 
 # Railway injects PORT; backend should read PORT env var (fallbacks handled in app)
+# EXPOSE is informational - Railway uses PORT env var dynamically
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD sh -c 'curl -f "http://localhost:${PORT:-8080}/health" || exit 1'
+# Healthcheck: Railway-friendly format
+# Uses PORT env var that Railway provides, with fallback to 8080
+# Start period gives time for migrations and DB connection
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 CMD ["clinic-management-backend"]
 
