@@ -22,16 +22,18 @@ COPY backend/Cargo.toml backend/Cargo.lock* ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release && rm -rf src
 
-# Cache busting: Create a marker file to force rebuild of COPY layers
-# This ensures Railway doesn't use cached layers with old COPY commands
-RUN echo "build-$(date +%s)" > /tmp/.cache-bust && cat /tmp/.cache-bust
+# CRITICAL: Force cache invalidation with unique build ID
+# This breaks Railway's aggressive caching of COPY layers
+ARG BUILD_ID
+RUN echo "Build ID: ${BUILD_ID:-$(date +%s)}" > /tmp/build-id.txt && cat /tmp/build-id.txt
 
-# Copy actual backend source
-# IMPORTANT: Only copy src and migrations - scripts directory is intentionally excluded
-# This prevents Railway build failures when scripts directory is not in build context
-# Changed order to break Railway's cache (migrations first, then src)
-COPY backend/migrations ./migrations
+# Copy backend source files in a single operation to break cache
+# .dockerignore ensures backend/scripts is excluded from build context
+# Using trailing slashes and explicit directory structure
 COPY backend/src ./src
+COPY backend/migrations ./migrations
+# Explicitly verify scripts is NOT copied (should fail if scripts exists in context)
+RUN test ! -d ./scripts || (echo "ERROR: scripts directory should not exist!" && exit 1)
 
 # Verify migrations directory was copied
 RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)

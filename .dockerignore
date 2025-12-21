@@ -78,6 +78,10 @@ temp
 backend/target
 backend/.sqlx
 
+# Explicitly exclude scripts directory from Docker build context
+# This prevents Railway from trying to copy it
+backend/scripts
+
 # Python
 __pycache__
 *.pyc
