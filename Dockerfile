@@ -58,6 +58,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
 
 # CRITICAL: Copy migrations from builder stage - use absolute path
+# Note: COPY preserves directory structure, so /app/migrations becomes /app/migrations
 COPY --from=builder /app/migrations /app/migrations
 
 # Verify binary exists and is executable
