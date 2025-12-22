@@ -167,31 +167,15 @@ async fn main() -> std::io::Result<()> {
     };
 
     // Run database migrations
-    // TODO: Fix migrations - temporarily disabled to allow service to start
-    let skip_migrations = env::var("SKIP_MIGRATIONS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(false);
-    
-    if skip_migrations {
-        eprintln!("⚠️  Migrations skipped (SKIP_MIGRATIONS=true)");
-        eprintln!("⚠️  WARNING: Database tables may not exist. Fix migrations before using the service.");
-    } else {
-        eprintln!("🔄 Running database migrations...");
-        match database::run_migrations(&db_pool).await {
-            Ok(_) => {
-                eprintln!("✅ Migrations completed successfully");
-            }
-            Err(e) => {
-                eprintln!("❌ Failed to run migrations: {}", e);
-                eprintln!("❌ Migration error details: {:?}", e);
-                eprintln!("⚠️  Service will continue without migrations (temporary workaround)");
-                eprintln!("⚠️  Set SKIP_MIGRATIONS=true to suppress this warning");
-                // Don't exit - allow service to start without migrations for now
-                // TODO: Fix migrations and re-enable this check
-            }
-        }
+    eprintln!("🔄 Running database migrations...");
+    if let Err(e) = database::run_migrations(&db_pool).await {
+        eprintln!("❌ Failed to run migrations: {}", e);
+        eprintln!("❌ Migration error details: {:?}", e);
+        eprintln!("❌ This will create tables in the database. Check DATABASE_URL and database permissions.");
+        eprintln!("❌ Exiting...");
+        std::process::exit(1);
     }
+    eprintln!("✅ Migrations completed successfully");
 
     // Initialize AuthService
     let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string());
