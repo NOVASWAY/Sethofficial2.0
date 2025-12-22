@@ -47,8 +47,21 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/target/release/clinic-management-backend /app/
 
-# Copy migrations
-COPY --from=builder /app/migrations ./migrations
+# CRITICAL: Copy migrations from builder stage - use absolute path
+COPY --from=builder /app/migrations /app/migrations
+
+# Verify migrations were copied
+RUN echo "=== Verifying migrations in Dockerfile.backend ===" && \
+    ls -la /app/ && \
+    if [ -d "/app/migrations" ]; then \
+        echo "✓ Migrations directory exists" && \
+        ls -la /app/migrations/ && \
+        echo "Migration files:" && \
+        ls -1 /app/migrations/*.sql || echo "WARNING: No .sql files found!"; \
+    else \
+        echo "❌ ERROR: Migrations directory NOT found!" && \
+        exit 1; \
+    fi
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/uploads /app/logs && \
