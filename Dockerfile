@@ -5,7 +5,7 @@
 FROM rust:1.88-slim AS builder
 
 # Force complete cache invalidation - Railway was using cached layers with old COPY commands
-ARG RAILWAY_BUILD_VERSION=2.0
+ARG RAILWAY_BUILD_VERSION=3.0
 ARG BUILD_TIMESTAMP
 RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
     echo "Build Timestamp: ${BUILD_TIMESTAMP:-$(date -u +%Y%m%d%H%M%S)}" > /tmp/.railway-build-version
@@ -39,8 +39,12 @@ RUN if [ -d "./scripts" ]; then \
         echo "✓ Verified: scripts directory correctly excluded by .dockerignore"; \
     fi
 
-# Verify migrations directory was copied
-RUN ls -la migrations/ | head -5 || (echo "ERROR: migrations directory not found!" && exit 1)
+# Verify migrations directory was copied in builder stage
+RUN echo "=== Verifying migrations in builder stage ===" && \
+    ls -la migrations/ || (echo "ERROR: migrations directory not found in builder!" && exit 1) && \
+    echo "Migration files in builder:" && \
+    ls -1 migrations/*.sql && \
+    echo "=== Migrations verified in builder stage ==="
 
 RUN cargo build --release
 
@@ -58,20 +62,42 @@ WORKDIR /app
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
 
 # CRITICAL: Copy migrations from builder stage - use absolute path
-# Note: COPY preserves directory structure, so /app/migrations becomes /app/migrations
+# Copy the entire migrations directory with all .sql files
 COPY --from=builder /app/migrations /app/migrations
+
+# Immediately verify migrations were copied (before any other operations)
+RUN echo "=== IMMEDIATE VERIFICATION: Migrations after COPY ===" && \
+    ls -la /app/ && \
+    echo "---" && \
+    if [ -d "/app/migrations" ]; then \
+        echo "✓ Migrations directory exists" && \
+        ls -la /app/migrations/ && \
+        echo "Migration .sql files:" && \
+        ls -1 /app/migrations/*.sql || echo "WARNING: No .sql files found!"; \
+    else \
+        echo "❌ ERROR: Migrations directory NOT found at /app/migrations!" && \
+        echo "Contents of /app:" && \
+        ls -la /app/ && \
+        exit 1; \
+    fi && \
+    echo "=== Migrations verification complete ==="
 
 # Verify binary exists and is executable
 RUN ls -lh /usr/local/bin/clinic-management-backend && \
     file /usr/local/bin/clinic-management-backend && \
     /usr/local/bin/clinic-management-backend --version || echo "Binary exists but --version failed (this is OK if binary doesn't support it)"
 
-# Verify migrations are present in runtime stage
-RUN echo "=== Verifying migrations directory ===" && \
-    ls -la /app/migrations/ | head -10 || (echo "ERROR: migrations directory not found in runtime stage!" && exit 1) && \
-    echo "=== Migrations directory verified ===" && \
-    echo "Migration files found:" && \
-    ls -1 /app/migrations/*.sql | head -5
+# Additional verification - count migration files
+RUN echo "=== Final migrations verification ===" && \
+    MIGRATION_COUNT=$(ls -1 /app/migrations/*.sql 2>/dev/null | wc -l) && \
+    echo "Migration files count: ${MIGRATION_COUNT}" && \
+    if [ "${MIGRATION_COUNT}" -eq "0" ]; then \
+        echo "❌ ERROR: No migration files found!" && \
+        exit 1; \
+    else \
+        echo "✓ Found ${MIGRATION_COUNT} migration file(s)" && \
+        ls -1 /app/migrations/*.sql; \
+    fi
 
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
