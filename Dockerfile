@@ -1,14 +1,18 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
-# Version: 3.1 - Use inline entrypoint script to avoid COPY issues with Railway build context
+# Version: 4.0 - FORCE CACHE BUST: Inline entrypoint script, aggressive cache invalidation
 
 FROM rust:1.88-slim AS builder
 
-# Force complete cache invalidation - Railway was using cached layers with old COPY commands
-ARG RAILWAY_BUILD_VERSION=3.1
+# AGGRESSIVE cache invalidation - Force Railway to rebuild everything
+# Using timestamp and random value to ensure cache is always busted
+ARG RAILWAY_BUILD_VERSION=4.0
 ARG BUILD_TIMESTAMP
+ARG CACHE_BUST=$(date +%s)
 RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
-    echo "Build Timestamp: ${BUILD_TIMESTAMP:-$(date -u +%Y%m%d%H%M%S)}" > /tmp/.railway-build-version
+    echo "Build Timestamp: ${BUILD_TIMESTAMP:-$(date -u +%Y%m%d%H%M%S)}" > /tmp/.railway-build-version && \
+    echo "Cache Bust: ${CACHE_BUST}" > /tmp/.cache-bust && \
+    echo "=== FORCING FRESH BUILD - CACHE BUSTED ==="
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
