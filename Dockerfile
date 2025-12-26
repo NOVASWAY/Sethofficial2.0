@@ -1,11 +1,11 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
-# Version: 2.0 - Restructured to break Railway cache (scripts excluded via .dockerignore)
+# Version: 3.1 - Use inline entrypoint script to avoid COPY issues with Railway build context
 
 FROM rust:1.88-slim AS builder
 
 # Force complete cache invalidation - Railway was using cached layers with old COPY commands
-ARG RAILWAY_BUILD_VERSION=3.0
+ARG RAILWAY_BUILD_VERSION=3.1
 ARG BUILD_TIMESTAMP
 RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
     echo "Build Timestamp: ${BUILD_TIMESTAMP:-$(date -u +%Y%m%d%H%M%S)}" > /tmp/.railway-build-version
