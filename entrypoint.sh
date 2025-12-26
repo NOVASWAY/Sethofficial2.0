@@ -10,7 +10,8 @@ echo "=========================================="
 echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Working directory: $(pwd)"
 echo "Binary location: $(which clinic-management-backend || echo 'NOT IN PATH')"
-echo "Binary exists: $([ -f /usr/local/bin/clinic-management-backend ] && echo 'YES' || echo 'NO')"
+echo "Binary exists at /usr/local/bin: $([ -f /usr/local/bin/clinic-management-backend ] && echo 'YES' || echo 'NO')"
+echo "Binary exists at /app: $([ -f /app/clinic-management-backend ] && echo 'YES' || echo 'NO')"
 echo "Environment variables:"
 echo "  PORT: ${PORT:-NOT SET}"
 echo "  DATABASE_URL: ${DATABASE_URL:+SET (${#DATABASE_URL} chars)}"
@@ -38,6 +39,13 @@ echo "=========================================="
 echo "ENTRYPOINT: Executing binary..."
 echo "=========================================="
 
-# Execute the binary and capture output
-exec /usr/local/bin/clinic-management-backend
+# Execute the binary - try /usr/local/bin first, then /app
+if [ -f "/usr/local/bin/clinic-management-backend" ]; then
+    exec /usr/local/bin/clinic-management-backend
+elif [ -f "/app/clinic-management-backend" ]; then
+    exec /app/clinic-management-backend
+else
+    echo "❌ ERROR: Binary not found at /usr/local/bin/clinic-management-backend or /app/clinic-management-backend" >&2
+    exit 1
+fi
 

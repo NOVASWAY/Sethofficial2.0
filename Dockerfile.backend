@@ -63,6 +63,10 @@ RUN echo "=== Verifying migrations in Dockerfile.backend ===" && \
         exit 1; \
     fi
 
+# Copy entrypoint script (needs to be done before switching user)
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Create necessary directories and set permissions
 RUN mkdir -p /app/uploads /app/logs && \
     chmod +x /app/clinic-management-backend && \
@@ -74,9 +78,10 @@ USER clinic
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+# Health check - increased start period to allow migrations to run
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Run the application
-CMD ["./clinic-management-backend"]
+# Use entrypoint script for better logging and migration verification
+# Note: entrypoint.sh expects binary at /usr/local/bin/, but we'll adjust it
+CMD ["/usr/local/bin/entrypoint.sh"]
