@@ -1,14 +1,16 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
-# Version: 5.0 - FINAL FIX: Ensure migrations run and database has tables
-# This version MUST run migrations on startup - critical for functionality
+# Version: 6.0 - CRITICAL: Migrations MUST be copied - Railway cache issue
+# This version adds explicit verification that WILL FAIL if migrations missing
+# Railway was using cached build - this forces complete rebuild
 
 FROM rust:1.88-slim AS builder
 
 # AGGRESSIVE cache invalidation - Force Railway to rebuild everything
 # Using timestamp and random value to ensure cache is always busted
-ARG RAILWAY_BUILD_VERSION=5.0
+ARG RAILWAY_BUILD_VERSION=6.0
 ARG FORCE_REBUILD=$(date +%s%N)
+ARG MIGRATIONS_REQUIRED=true
 ARG BUILD_TIMESTAMP
 ARG CACHE_BUST=$(date +%s)
 RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
@@ -67,11 +69,28 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Copy binary to both locations for compatibility
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
+COPY --from=builder /app/target/release/clinic-management-backend /app/clinic-management-backend
 
 # CRITICAL: Copy migrations from builder stage - use absolute path
 # Copy the entire migrations directory with all .sql files
+# This MUST succeed or the build will fail
 COPY --from=builder /app/migrations /app/migrations
+
+# FAIL THE BUILD IMMEDIATELY if migrations are missing
+RUN if [ ! -d "/app/migrations" ]; then \
+        echo "❌ CRITICAL ERROR: /app/migrations directory missing after COPY!" && \
+        echo "This build MUST fail - migrations are required!" && \
+        exit 1; \
+    fi && \
+    if [ ! -f "/app/migrations/001_initial_schema.sql" ]; then \
+        echo "❌ CRITICAL ERROR: Migration file 001_initial_schema.sql not found!" && \
+        echo "Listing /app/migrations contents:" && \
+        ls -la /app/migrations/ || true && \
+        exit 1; \
+    fi && \
+    echo "✅ Migrations directory verified - contains required files"
 
 # Immediately verify migrations were copied (before any other operations)
 RUN echo "=== IMMEDIATE VERIFICATION: Migrations after COPY ===" && \
