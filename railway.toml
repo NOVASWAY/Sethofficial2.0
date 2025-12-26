@@ -14,10 +14,10 @@ buildCommand = "docker build --no-cache --pull -f Dockerfile --build-arg CACHE_B
 
 # Watch patterns - trigger redeploy only when backend files change
 # This is important for monorepos to avoid unnecessary redeploys
+# UPDATED: Removed entrypoint.sh from watch (not needed, using inline script)
 watchPatterns = [
   "backend/**",
   "Dockerfile",
-  "entrypoint.sh",
   "railway.toml"
 ]
 

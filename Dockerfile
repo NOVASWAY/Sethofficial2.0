@@ -1,12 +1,13 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
-# Version: 4.0 - FORCE CACHE BUST: Inline entrypoint script, aggressive cache invalidation
+# Version: 4.1 - CRITICAL FIX: Inline entrypoint script, migrations must run
+# This version ensures database tables are created on deployment
 
 FROM rust:1.88-slim AS builder
 
 # AGGRESSIVE cache invalidation - Force Railway to rebuild everything
 # Using timestamp and random value to ensure cache is always busted
-ARG RAILWAY_BUILD_VERSION=4.0
+ARG RAILWAY_BUILD_VERSION=4.1
 ARG BUILD_TIMESTAMP
 ARG CACHE_BUST=$(date +%s)
 RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
