@@ -33,8 +33,10 @@ RUN cargo build --release && rm -rf src
 
 # CRITICAL: Copy backend files - .dockerignore excludes backend/scripts
 # Using explicit paths and verification to ensure scripts is never copied
+# Note: Railway's build context includes backend/ directory
 COPY backend/src/ ./src/
-COPY backend/migrations/ ./migrations/
+# Copy migrations - handle both railway up and GitHub integration contexts
+COPY backend/migrations ./migrations
 
 # Verify scripts directory does NOT exist (should pass if .dockerignore worked)
 RUN if [ -d "./scripts" ]; then \
