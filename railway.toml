@@ -16,6 +16,7 @@ buildCommand = "docker build --no-cache -f Dockerfile ."
 watchPatterns = [
   "backend/**",
   "Dockerfile",
+  "entrypoint.sh",
   "railway.toml"
 ]
 
