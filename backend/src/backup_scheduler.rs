@@ -65,6 +65,26 @@ impl BackupScheduler {
 
     /// Check if any scheduled backups need to run
     async fn check_and_run_scheduled_backups(&self) -> Result<(), ApiError> {
+        // Check if backup_schedules table exists - if not, migrations haven't run yet
+        let table_exists: bool = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'backup_schedules'
+            )
+            "#
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(false);
+        
+        if !table_exists {
+            // Migrations haven't run yet - skip scheduler checks
+            warn!("Backup scheduler: backup_schedules table does not exist. Migrations may not have run yet. Skipping scheduler check.");
+            return Ok(());
+        }
+        
         let now = Utc::now();
         
         // Get all enabled schedules that are due to run
