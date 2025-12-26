@@ -9,6 +9,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 # Force rebuild by disabling cache - CRITICAL: This clears Railway's build cache
 # Railway was using cached layers with old COPY backend/scripts command
+# Updated: Use inline entrypoint script to avoid COPY issues
 buildCommand = "docker build --no-cache -f Dockerfile ."
 
 # Watch patterns - trigger redeploy only when backend files change
