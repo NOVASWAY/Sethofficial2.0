@@ -4,7 +4,7 @@
 # This completely eliminates filesystem dependency and Railway COPY issues
 # Migrations are compiled into the binary using include_dir! macro
 
-FROM rust:1.88-slim AS builder
+FROM rust:1.92-alpine AS builder
 
 # AGGRESSIVE cache invalidation - Force Railway to rebuild everything
 # Using timestamp and random value to ensure cache is always busted
@@ -18,12 +18,17 @@ RUN echo "Railway Build Version: ${RAILWAY_BUILD_VERSION}" && \
     echo "Cache Bust: ${CACHE_BUST}" > /tmp/.cache-bust && \
     echo "=== FORCING FRESH BUILD - CACHE BUSTED ==="
 
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    libpq-dev \
+# Install build dependencies
+# Alpine uses apk (faster, more reliable, HTTPS by default)
+# Update package index first, then install packages
+RUN apk update && \
+    apk add --no-cache \
+    pkgconf \
+    openssl-dev \
+    postgresql-dev \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    musl-dev \
+    build-base
 
 WORKDIR /app
 
@@ -95,14 +100,17 @@ RUN echo "=== FINAL VERIFICATION: Migrations before REAL cargo build ===" && \
 
 RUN cargo build --release
 
-FROM debian:bookworm-slim
+FROM alpine:latest
 
-RUN apt-get update && apt-get install -y \
+# Install runtime dependencies
+# Alpine uses apk (faster, more reliable, HTTPS by default)
+# Install bash for entrypoint script compatibility
+RUN apk add --no-cache \
     ca-certificates \
-    libssl3 \
-    libpq5 \
+    openssl \
+    postgresql-libs \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    bash
 
 WORKDIR /app
 

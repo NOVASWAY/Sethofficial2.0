@@ -66,7 +66,8 @@ impl BackupScheduler {
     /// Check if any scheduled backups need to run
     async fn check_and_run_scheduled_backups(&self) -> Result<(), ApiError> {
         // Check if backup_schedules table exists - if not, migrations haven't run yet
-        let table_exists: bool = sqlx::query_scalar::<_, bool>(
+        // Handle connection errors gracefully - if we can't connect, skip this check
+        let table_exists: bool = match sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -77,7 +78,20 @@ impl BackupScheduler {
         )
         .fetch_one(&self.pool)
         .await
-        .unwrap_or(false);
+        {
+            Ok(exists) => exists,
+            Err(e) => {
+                // If it's a connection error or pool timeout, log and skip
+                if e.to_string().contains("pool timed out") || 
+                   e.to_string().contains("connection") ||
+                   e.to_string().contains("does not exist") {
+                    warn!("Backup scheduler: Database connection issue ({}). Skipping scheduler check.", e);
+                    return Ok(());
+                }
+                // For other errors, return them
+                return Err(ApiError::internal_error(Some(format!("Failed to check table existence: {}", e))));
+            }
+        };
         
         if !table_exists {
             // Migrations haven't run yet - skip scheduler checks
