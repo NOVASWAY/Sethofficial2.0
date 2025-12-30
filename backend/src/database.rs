@@ -3,8 +3,14 @@ use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::time::Duration;
 use tracing::info;
+use include_dir::{include_dir, Dir};
+use std::fs;
 
 pub type DatabasePool = Pool<Postgres>;
+
+// Embed migrations directory into binary at compile time
+// This ensures migrations are ALWAYS available, regardless of filesystem issues
+static MIGRATIONS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/migrations");
 
 pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
     let database_url = env::var("DATABASE_URL")
@@ -53,95 +59,88 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
 
 pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     eprintln!("🔄 Running database migrations...");
-    info!("Running database migrations...");
+    eprintln!("📦 Using EMBEDDED migrations (compiled into binary)");
+    info!("Running database migrations from embedded source...");
     
-    // Find migrations directory at runtime
-    // Try multiple locations in order of preference:
-    // 1. Environment variable MIGRATIONS_PATH
-    // 2. /app/migrations (absolute path - Docker WORKDIR is /app)
-    // 3. ./migrations (relative to current working directory)
-    // 4. CARGO_MANIFEST_DIR/migrations (compile-time path fallback)
-    let migrations_path = if let Ok(env_path) = env::var("MIGRATIONS_PATH") {
-        std::path::PathBuf::from(env_path)
-    } else {
-        // Try /app/migrations first (Docker WORKDIR)
-        let app_migrations = std::path::PathBuf::from("/app/migrations");
-        if app_migrations.exists() && app_migrations.is_dir() {
-            eprintln!("📁 Using migrations from /app/migrations");
-            app_migrations
-        } else if let Ok(cwd) = std::env::current_dir() {
-            let cwd_migrations = cwd.join("migrations");
-            if cwd_migrations.exists() && cwd_migrations.is_dir() {
-                eprintln!("📁 Using migrations from current directory: {}", cwd_migrations.display());
-                cwd_migrations
-            } else {
-                eprintln!("⚠️  ./migrations not found in current dir ({:?}), trying CARGO_MANIFEST_DIR", cwd);
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
-            }
-        } else {
-            eprintln!("⚠️  Could not get current directory, using CARGO_MANIFEST_DIR");
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations")
-        }
-    };
+    // NEW APPROACH: Extract embedded migrations to temporary directory
+    // This completely eliminates filesystem dependency issues
+    let temp_dir = std::env::temp_dir().join(format!("clinic-migrations-{}", uuid::Uuid::new_v4()));
     
-    eprintln!("📁 Migrations path: {}", migrations_path.display());
-    eprintln!("📁 Path exists: {}", migrations_path.exists());
-    eprintln!("📁 Current working directory: {:?}", std::env::current_dir());
+    eprintln!("📁 Creating temporary migrations directory: {}", temp_dir.display());
     
-    // List current directory contents for debugging
-    if let Ok(cwd) = std::env::current_dir() {
-        eprintln!("📂 Contents of current directory ({:?}):", cwd);
-        if let Ok(entries) = std::fs::read_dir(&cwd) {
-            for entry in entries.flatten() {
-                eprintln!("   - {:?}", entry.path());
-            }
-        }
+    // Create temp directory
+    fs::create_dir_all(&temp_dir).map_err(|e| {
+        eprintln!("❌ Failed to create temp directory: {}", e);
+        sqlx::Error::Configuration(
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to create temp directory: {}", e)
+            ))
+        )
+    })?;
+    
+    // Extract all migration files from embedded directory
+    eprintln!("📤 Extracting embedded migration files...");
+    let mut migration_count = 0;
+    
+    for entry in MIGRATIONS_DIR.files() {
+        let file_name = entry.path().file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| {
+                sqlx::Error::Configuration(
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "Invalid migration file name"
+                    ))
+                )
+            })?;
+        
+        let file_path = temp_dir.join(file_name);
+        eprintln!("   📄 Extracting: {}", file_name);
+        
+        fs::write(&file_path, entry.contents()).map_err(|e| {
+            eprintln!("❌ Failed to write migration file {}: {}", file_name, e);
+            sqlx::Error::Configuration(
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to write migration file: {}", e)
+                ))
+            )
+        })?;
+        
+        migration_count += 1;
     }
     
-    // List migrations directory if it exists
-    if migrations_path.exists() {
-        eprintln!("📂 Contents of migrations directory:");
-        if let Ok(entries) = std::fs::read_dir(&migrations_path) {
-            for entry in entries.flatten() {
-                eprintln!("   - {:?}", entry.path());
-            }
-        }
-    } else {
-        eprintln!("❌ Migrations directory does not exist at: {}", migrations_path.display());
-    }
+    eprintln!("✅ Extracted {} migration file(s) to temporary directory", migration_count);
     
-    // Use sqlx::migrate! macro if path exists, otherwise use runtime Migrator
-    // The migrate! macro requires compile-time path, but Migrator::new() works at runtime
-    eprintln!("🔧 Creating migrator from path: {}", migrations_path.display());
-    
-    // Ensure the path is canonicalized and exists
-    let canonical_path = if migrations_path.exists() {
-        match std::fs::canonicalize(&migrations_path) {
-            Ok(canonical) => {
-                eprintln!("📁 Canonical migrations path: {}", canonical.display());
-                canonical
-            }
-            Err(e) => {
-                eprintln!("⚠️  Could not canonicalize path, using as-is: {}", e);
-                migrations_path.clone()
-            }
-        }
-    } else {
-        eprintln!("❌ Migrations path does not exist: {}", migrations_path.display());
+    if migration_count == 0 {
+        eprintln!("❌ ERROR: No migration files found in embedded directory!");
         return Err(sqlx::Error::Configuration(
             Box::new(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!("Migrations directory not found: {}", migrations_path.display())
+                "No migration files embedded in binary"
             ))
         ));
-    };
+    }
     
-    // Convert PathBuf to &Path for Migrator::new()
-    match sqlx::migrate::Migrator::new(canonical_path.as_path()).await {
+    // Run migrations from temporary directory
+    eprintln!("🔧 Creating migrator from temporary directory: {}", temp_dir.display());
+    
+    match sqlx::migrate::Migrator::new(&temp_dir).await {
         Ok(migrator) => {
             eprintln!("✅ Migrator created successfully");
-            eprintln!("🔄 Running migrations...");
-            match migrator.run(pool).await {
+            eprintln!("🔄 Running {} migration(s)...", migration_count);
+            
+            let result = migrator.run(pool).await;
+            
+            // Clean up temporary directory (best effort - don't fail if cleanup fails)
+            if let Err(e) = fs::remove_dir_all(&temp_dir) {
+                eprintln!("⚠️  Warning: Failed to clean up temp directory: {}", e);
+            } else {
+                eprintln!("🧹 Cleaned up temporary migrations directory");
+            }
+            
+            match result {
                 Ok(_) => {
                     eprintln!("✅ Database migrations completed successfully");
                     info!("✅ Database migrations completed successfully");
@@ -157,8 +156,12 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
         }
         Err(e) => {
             eprintln!("❌ Failed to create migrator: {}", e);
-            eprintln!("❌ Migrations path attempted: {}", canonical_path.display());
+            eprintln!("❌ Migrations path attempted: {}", temp_dir.display());
             eprintln!("❌ Error type: {:?}", e);
+            
+            // Clean up on error
+            let _ = fs::remove_dir_all(&temp_dir);
+            
             Err(e.into())
         }
     }

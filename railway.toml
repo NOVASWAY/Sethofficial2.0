@@ -9,9 +9,9 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 # FORCE complete rebuild - disable ALL caching to ensure latest changes are used
 # This ensures Railway always uses the latest Dockerfile and code
-# Version 6.0: CRITICAL - Force rebuild, migrations MUST be present
-# This will fail the build if migrations are missing - no silent failures
-buildCommand = "docker build --no-cache --pull -f Dockerfile --build-arg CACHE_BUST=$(date +%s) --build-arg FORCE_REBUILD=$(date +%s%N) --build-arg RAILWAY_BUILD_VERSION=6.0 --build-arg MIGRATIONS_REQUIRED=true ."
+# Version 7.0: NEW APPROACH - Migrations embedded in binary at compile time
+# This eliminates all filesystem dependency issues
+buildCommand = "docker build --no-cache --pull -f Dockerfile --build-arg CACHE_BUST=$(date +%s) --build-arg FORCE_REBUILD=$(date +%s%N) --build-arg RAILWAY_BUILD_VERSION=7.0 ."
 
 # Watch patterns - trigger redeploy only when backend files change
 # This is important for monorepos to avoid unnecessary redeploys

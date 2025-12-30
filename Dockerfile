@@ -1,14 +1,14 @@
 # Railway-friendly root Dockerfile that builds the Rust backend from the monorepo root.
 # This avoids needing Railway to target the /backend subdirectory explicitly.
-# Version: 6.0 - CRITICAL: Migrations MUST be copied - Railway cache issue
-# This version adds explicit verification that WILL FAIL if migrations missing
-# Railway was using cached build - this forces complete rebuild
+# Version: 7.0 - NEW APPROACH: Migrations are EMBEDDED in binary at compile time
+# This completely eliminates filesystem dependency and Railway COPY issues
+# Migrations are compiled into the binary using include_dir! macro
 
 FROM rust:1.88-slim AS builder
 
 # AGGRESSIVE cache invalidation - Force Railway to rebuild everything
 # Using timestamp and random value to ensure cache is always busted
-ARG RAILWAY_BUILD_VERSION=6.0
+ARG RAILWAY_BUILD_VERSION=7.0
 ARG FORCE_REBUILD=$(date +%s%N)
 ARG MIGRATIONS_REQUIRED=true
 ARG BUILD_TIMESTAMP
@@ -38,7 +38,8 @@ RUN cargo build --release && rm -rf src
 # Using explicit paths and verification to ensure scripts is never copied
 # Note: Railway's build context includes backend/ directory
 COPY backend/src/ ./src/
-# Copy migrations - handle both railway up and GitHub integration contexts
+# Copy migrations directory - needed at COMPILE TIME for include_dir! macro
+# These are embedded into the binary, so they don't need to be in the runtime image
 COPY backend/migrations ./migrations
 
 # Verify scripts directory does NOT exist (should pass if .dockerignore worked)
@@ -49,12 +50,18 @@ RUN if [ -d "./scripts" ]; then \
         echo "✓ Verified: scripts directory correctly excluded by .dockerignore"; \
     fi
 
-# Verify migrations directory was copied in builder stage
-RUN echo "=== Verifying migrations in builder stage ===" && \
+# Verify migrations directory exists at compile time (for include_dir! macro)
+RUN echo "=== Verifying migrations for compile-time embedding ===" && \
     ls -la migrations/ || (echo "ERROR: migrations directory not found in builder!" && exit 1) && \
-    echo "Migration files in builder:" && \
+    echo "Migration files (will be embedded into binary):" && \
     ls -1 migrations/*.sql && \
-    echo "=== Migrations verified in builder stage ==="
+    MIGRATION_COUNT=$(ls -1 migrations/*.sql 2>/dev/null | wc -l) && \
+    echo "Total migration files: ${MIGRATION_COUNT}" && \
+    if [ "${MIGRATION_COUNT}" -eq "0" ]; then \
+        echo "❌ ERROR: No migration files found!" && \
+        exit 1; \
+    fi && \
+    echo "=== Migrations verified - will be embedded into binary ==="
 
 RUN cargo build --release
 
@@ -73,58 +80,14 @@ WORKDIR /app
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
 COPY --from=builder /app/target/release/clinic-management-backend /app/clinic-management-backend
 
-# CRITICAL: Copy migrations from builder stage - use absolute path
-# Copy the entire migrations directory with all .sql files
-# This MUST succeed or the build will fail
-COPY --from=builder /app/migrations /app/migrations
-
-# FAIL THE BUILD IMMEDIATELY if migrations are missing
-RUN if [ ! -d "/app/migrations" ]; then \
-        echo "❌ CRITICAL ERROR: /app/migrations directory missing after COPY!" && \
-        echo "This build MUST fail - migrations are required!" && \
-        exit 1; \
-    fi && \
-    if [ ! -f "/app/migrations/001_initial_schema.sql" ]; then \
-        echo "❌ CRITICAL ERROR: Migration file 001_initial_schema.sql not found!" && \
-        echo "Listing /app/migrations contents:" && \
-        ls -la /app/migrations/ || true && \
-        exit 1; \
-    fi && \
-    echo "✅ Migrations directory verified - contains required files"
-
-# Immediately verify migrations were copied (before any other operations)
-RUN echo "=== IMMEDIATE VERIFICATION: Migrations after COPY ===" && \
-    ls -la /app/ && \
-    echo "---" && \
-    if [ -d "/app/migrations" ]; then \
-        echo "✓ Migrations directory exists" && \
-        ls -la /app/migrations/ && \
-        echo "Migration .sql files:" && \
-        ls -1 /app/migrations/*.sql || echo "WARNING: No .sql files found!"; \
-    else \
-        echo "❌ ERROR: Migrations directory NOT found at /app/migrations!" && \
-        echo "Contents of /app:" && \
-        ls -la /app/ && \
-        exit 1; \
-    fi && \
-    echo "=== Migrations verification complete ==="
+# NOTE: Migrations are NO LONGER copied - they are EMBEDDED in the binary!
+# The include_dir! macro compiles all migrations into the binary at build time.
+# This eliminates all filesystem dependency issues and Railway COPY problems.
 
 # Verify binary exists and is executable
 RUN ls -lh /usr/local/bin/clinic-management-backend && \
     file /usr/local/bin/clinic-management-backend && \
     /usr/local/bin/clinic-management-backend --version || echo "Binary exists but --version failed (this is OK if binary doesn't support it)"
-
-# Additional verification - count migration files
-RUN echo "=== Final migrations verification ===" && \
-    MIGRATION_COUNT=$(ls -1 /app/migrations/*.sql 2>/dev/null | wc -l) && \
-    echo "Migration files count: ${MIGRATION_COUNT}" && \
-    if [ "${MIGRATION_COUNT}" -eq "0" ]; then \
-        echo "❌ ERROR: No migration files found!" && \
-        exit 1; \
-    else \
-        echo "✓ Found ${MIGRATION_COUNT} migration file(s)" && \
-        ls -1 /app/migrations/*.sql; \
-    fi
 
 # Create entrypoint script inline (avoids COPY issues with Railway build context)
 RUN cat > /usr/local/bin/entrypoint.sh << 'ENTRYPOINT_EOF'
@@ -147,24 +110,9 @@ echo "  PORT: ${PORT:-NOT SET}"
 echo "  DATABASE_URL: ${DATABASE_URL:+SET (${#DATABASE_URL} chars)}"
 echo "  JWT_SECRET: ${JWT_SECRET:+SET}"
 echo "=========================================="
-echo "ENTRYPOINT: Checking migrations directory..."
-echo "Current directory contents:"
-ls -la /app/ || echo "  Could not list /app"
-echo "---"
-if [ -d "/app/migrations" ]; then
-    echo "✓ Migrations directory EXISTS at /app/migrations"
-    echo "Migration directory contents:"
-    ls -la /app/migrations/ || echo "  Could not list migrations directory"
-    echo "Migration .sql files:"
-    ls -1 /app/migrations/*.sql 2>/dev/null | head -10 || echo "  ⚠️  No .sql files found in /app/migrations/"
-    MIGRATION_COUNT=$(ls -1 /app/migrations/*.sql 2>/dev/null | wc -l)
-    echo "Total migration files: ${MIGRATION_COUNT}"
-else
-    echo "❌ CRITICAL: Migrations directory NOT found at /app/migrations"
-    echo "Contents of /app:"
-    ls -la /app/ || echo "  Could not list /app"
-    echo "❌ This will cause migration failures!"
-fi
+echo "ENTRYPOINT: Migrations are EMBEDDED in binary"
+echo "No filesystem migration directory needed!"
+echo "Migrations will be extracted to temp directory at runtime"
 echo "=========================================="
 echo "ENTRYPOINT: Executing binary..."
 echo "=========================================="

@@ -99,6 +99,9 @@ qrcode = "0.14"
 urlencoding = "2.1"
 base32 = "0.4"
 
+# Embed migrations into binary at compile time
+include_dir = "0.7"
+
 # Dependency overrides to avoid edition2024 issues
 base64ct = "=1.7.3"
 # Pin moxcms to avoid edition2024 requirement (if it gets pulled in)
