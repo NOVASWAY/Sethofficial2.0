@@ -8,7 +8,7 @@ FROM rust:1.88-slim AS builder
 
 # AGGRESSIVE cache invalidation - Force Railway to rebuild everything
 # Using timestamp and random value to ensure cache is always busted
-ARG RAILWAY_BUILD_VERSION=7.1
+ARG RAILWAY_BUILD_VERSION=7.2
 ARG FORCE_REBUILD=$(date +%s%N)
 ARG MIGRATIONS_REQUIRED=true
 ARG BUILD_TIMESTAMP
@@ -30,37 +30,38 @@ WORKDIR /app
 # Copy backend manifests first for better layer caching
 COPY backend/Cargo.toml backend/Cargo.lock* ./
 
-# Dummy src to cache dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release && rm -rf src
-
-# CRITICAL: Copy migrations FIRST - needed at COMPILE TIME for include_dir! macro
-# These must be present BEFORE cargo build runs
-# Copy migrations directory - needed at COMPILE TIME for include_dir! macro
-# These are embedded into the binary, so they don't need to be in the runtime image
+# CRITICAL: Copy migrations IMMEDIATELY after Cargo.toml
+# MUST be present before ANY cargo build runs (including dummy build)
+# The include_dir! macro needs this at compile time
 COPY backend/migrations ./migrations
 
-# Verify migrations directory exists IMMEDIATELY after COPY
-RUN echo "=== CRITICAL: Verifying migrations directory after COPY ===" && \
+# Verify migrations were copied successfully BEFORE any build
+RUN echo "=== VERIFYING MIGRATIONS COPY ===" && \
     pwd && \
     ls -la . && \
     if [ ! -d "./migrations" ]; then \
-        echo "❌ ERROR: migrations directory not found after COPY!" && \
-        echo "Current directory contents:" && \
-        ls -la && \
+        echo "❌ CRITICAL: migrations directory NOT found after COPY!" && \
+        echo "Build context contents:" && \
+        ls -la /app 2>&1 || true && \
+        echo "Trying to list backend directory:" && \
+        ls -la backend/ 2>&1 || echo "backend/ not accessible" && \
         exit 1; \
     fi && \
     echo "✓ Migrations directory exists" && \
     ls -la migrations/ && \
-    echo "Migration files (will be embedded into binary):" && \
-    ls -1 migrations/*.sql && \
     MIGRATION_COUNT=$(ls -1 migrations/*.sql 2>/dev/null | wc -l) && \
-    echo "Total migration files: ${MIGRATION_COUNT}" && \
+    echo "Migration files found: ${MIGRATION_COUNT}" && \
     if [ "${MIGRATION_COUNT}" -eq "0" ]; then \
-        echo "❌ ERROR: No migration files found!" && \
+        echo "❌ ERROR: No .sql files in migrations directory!" && \
+        ls -la migrations/ && \
         exit 1; \
     fi && \
-    echo "=== Migrations verified - ready for include_dir! macro ==="
+    echo "✓ Migrations verified: ${MIGRATION_COUNT} files" && \
+    ls -1 migrations/*.sql | head -3
+
+# Dummy src to cache dependencies (migrations already present)
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release && rm -rf src
 
 # CRITICAL: Copy backend source files AFTER migrations are verified
 # Using explicit paths and verification to ensure scripts is never copied
@@ -75,15 +76,22 @@ RUN if [ -d "./scripts" ]; then \
         echo "✓ Verified: scripts directory correctly excluded by .dockerignore"; \
     fi
 
-# Final verification before build - migrations must be present
-RUN echo "=== FINAL VERIFICATION: Migrations before cargo build ===" && \
+# Final verification before REAL build - migrations must be present
+RUN echo "=== FINAL VERIFICATION: Migrations before REAL cargo build ===" && \
+    pwd && \
+    echo "CARGO_MANIFEST_DIR would be: $(pwd)" && \
     if [ ! -d "./migrations" ]; then \
         echo "❌ CRITICAL ERROR: migrations directory missing before cargo build!" && \
+        echo "Current directory: $(pwd)" && \
+        echo "Directory contents:" && \
+        ls -la && \
         exit 1; \
     fi && \
-    echo "✓ Migrations directory confirmed present" && \
+    echo "✓ Migrations directory confirmed present at: $(pwd)/migrations" && \
+    echo "Migration files:" && \
     ls -1 migrations/*.sql | head -5 && \
-    echo "=== Starting cargo build with embedded migrations ==="
+    echo "=== Starting REAL cargo build with embedded migrations ===" && \
+    echo "include_dir! will look for: $(pwd)/migrations"
 
 RUN cargo build --release
 
