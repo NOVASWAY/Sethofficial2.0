@@ -62,6 +62,23 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     eprintln!("📦 Using EMBEDDED migrations (compiled into binary)");
     info!("Running database migrations from embedded source...");
     
+    // Verify embedded migrations are present
+    let embedded_file_count = MIGRATIONS_DIR.files().count();
+    eprintln!("📊 Embedded migration files count: {}", embedded_file_count);
+    
+    if embedded_file_count == 0 {
+        eprintln!("❌ CRITICAL ERROR: No migration files found in embedded directory!");
+        eprintln!("❌ This means migrations were not embedded at compile time!");
+        return Err(sqlx::Error::Configuration(
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "No migration files embedded in binary - check include_dir! macro at compile time"
+            ))
+        ));
+    }
+    
+    eprintln!("✅ Found {} embedded migration file(s)", embedded_file_count);
+    
     // NEW APPROACH: Extract embedded migrations to temporary directory
     // This completely eliminates filesystem dependency issues
     let temp_dir = std::env::temp_dir().join(format!("clinic-migrations-{}", uuid::Uuid::new_v4()));
