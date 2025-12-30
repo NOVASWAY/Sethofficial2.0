@@ -166,16 +166,22 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
-    // Run database migrations
-    eprintln!("🔄 Running database migrations...");
-    if let Err(e) = database::run_migrations(&db_pool).await {
-        eprintln!("❌ Failed to run migrations: {}", e);
-        eprintln!("❌ Migration error details: {:?}", e);
-        eprintln!("❌ This will create tables in the database. Check DATABASE_URL and database permissions.");
-        eprintln!("❌ Exiting...");
-        std::process::exit(1);
+    // Run database migrations (optional - continue even if migrations fail)
+    // This allows the service to start even if tables already exist or migrations fail
+    eprintln!("🔄 Attempting to run database migrations...");
+    match database::run_migrations(&db_pool).await {
+        Ok(_) => {
+            eprintln!("✅ Migrations completed successfully");
+        }
+        Err(e) => {
+            eprintln!("⚠️  WARNING: Migrations failed or tables may already exist: {}", e);
+            eprintln!("⚠️  Migration error details: {:?}", e);
+            eprintln!("⚠️  Service will continue - if tables don't exist, create them manually via Railway SQL console");
+            eprintln!("⚠️  You can also set SKIP_MIGRATIONS=true to skip migration attempts entirely");
+            // Don't exit - allow service to start even if migrations fail
+            // This is useful if tables are created manually or already exist
+        }
     }
-    eprintln!("✅ Migrations completed successfully");
 
     // Initialize AuthService
     let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string());
