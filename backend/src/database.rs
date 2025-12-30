@@ -59,25 +59,70 @@ pub async fn create_pool() -> Result<DatabasePool, sqlx::Error> {
 
 pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     eprintln!("🔄 Running database migrations...");
-    eprintln!("📦 Using EMBEDDED migrations (compiled into binary)");
+    eprintln!("📦 Attempting to use EMBEDDED migrations (compiled into binary)");
     info!("Running database migrations from embedded source...");
     
     // Verify embedded migrations are present
     let embedded_file_count = MIGRATIONS_DIR.files().count();
     eprintln!("📊 Embedded migration files count: {}", embedded_file_count);
     
+    // FALLBACK: If embedded migrations are missing, try filesystem paths
     if embedded_file_count == 0 {
-        eprintln!("❌ CRITICAL ERROR: No migration files found in embedded directory!");
-        eprintln!("❌ This means migrations were not embedded at compile time!");
+        eprintln!("⚠️  WARNING: No embedded migrations found! Falling back to filesystem...");
+        eprintln!("📁 Checking for migrations in filesystem locations...");
+        
+        // Try filesystem fallback paths
+        let fallback_paths = vec![
+            std::path::PathBuf::from("/app/migrations"),
+            std::path::PathBuf::from("./migrations"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations"),
+        ];
+        
+        for path in &fallback_paths {
+            if path.exists() && path.is_dir() {
+                eprintln!("✅ Found migrations at filesystem path: {}", path.display());
+                let file_count = std::fs::read_dir(path)
+                    .map(|entries| entries.count())
+                    .unwrap_or(0);
+                eprintln!("📊 Filesystem migration files count: {}", file_count);
+                
+                if file_count > 0 {
+                    eprintln!("🔄 Using filesystem migrations from: {}", path.display());
+                    match sqlx::migrate::Migrator::new(path.as_path()).await {
+                        Ok(migrator) => {
+                            eprintln!("✅ Migrator created from filesystem path");
+                            return match migrator.run(pool).await {
+                                Ok(_) => {
+                                    eprintln!("✅ Database migrations completed successfully (from filesystem)");
+                                    info!("✅ Database migrations completed successfully");
+                                    Ok(())
+                                }
+                                Err(e) => {
+                                    eprintln!("❌ Migration execution error: {}", e);
+                                    Err(e.into())
+                                }
+                            };
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Failed to create migrator from filesystem: {}", e);
+                            continue; // Try next path
+                        }
+                    }
+                }
+            }
+        }
+        
+        eprintln!("❌ CRITICAL ERROR: No migration files found (embedded or filesystem)!");
+        eprintln!("❌ Checked embedded binary and filesystem paths");
         return Err(sqlx::Error::Configuration(
             Box::new(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                "No migration files embedded in binary - check include_dir! macro at compile time"
+                "No migration files found - neither embedded nor on filesystem"
             ))
         ));
     }
     
-    eprintln!("✅ Found {} embedded migration file(s)", embedded_file_count);
+    eprintln!("✅ Found {} embedded migration file(s) - using embedded migrations", embedded_file_count);
     
     // NEW APPROACH: Extract embedded migrations to temporary directory
     // This completely eliminates filesystem dependency issues

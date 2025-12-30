@@ -80,9 +80,20 @@ WORKDIR /app
 COPY --from=builder /app/target/release/clinic-management-backend /usr/local/bin/clinic-management-backend
 COPY --from=builder /app/target/release/clinic-management-backend /app/clinic-management-backend
 
-# NOTE: Migrations are NO LONGER copied - they are EMBEDDED in the binary!
-# The include_dir! macro compiles all migrations into the binary at build time.
-# This eliminates all filesystem dependency issues and Railway COPY problems.
+# FALLBACK: Also copy migrations to runtime image as backup
+# Even though migrations are embedded, having them on filesystem provides a fallback
+# This ensures migrations can run even if embedded extraction fails
+COPY --from=builder /app/migrations /app/migrations
+
+# Verify migrations exist (both embedded AND filesystem fallback)
+RUN echo "=== Verifying migrations availability ===" && \
+    if [ -d "/app/migrations" ]; then \
+        MIGRATION_COUNT=$(ls -1 /app/migrations/*.sql 2>/dev/null | wc -l) && \
+        echo "✓ Filesystem migrations: ${MIGRATION_COUNT} files" && \
+        ls -1 /app/migrations/*.sql | head -5; \
+    else \
+        echo "⚠️  WARNING: Filesystem migrations directory not found (embedded migrations will be used)"; \
+    fi
 
 # Verify binary exists and is executable
 RUN ls -lh /usr/local/bin/clinic-management-backend && \
