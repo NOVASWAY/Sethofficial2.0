@@ -8,7 +8,7 @@ FROM rust:1.88-slim AS builder
 
 # AGGRESSIVE cache invalidation - Force Railway to rebuild everything
 # Using timestamp and random value to ensure cache is always busted
-ARG RAILWAY_BUILD_VERSION=7.0
+ARG RAILWAY_BUILD_VERSION=7.1
 ARG FORCE_REBUILD=$(date +%s%N)
 ARG MIGRATIONS_REQUIRED=true
 ARG BUILD_TIMESTAMP
@@ -34,13 +34,38 @@ COPY backend/Cargo.toml backend/Cargo.lock* ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release && rm -rf src
 
-# CRITICAL: Copy backend files - .dockerignore excludes backend/scripts
-# Using explicit paths and verification to ensure scripts is never copied
-# Note: Railway's build context includes backend/ directory
-COPY backend/src/ ./src/
+# CRITICAL: Copy migrations FIRST - needed at COMPILE TIME for include_dir! macro
+# These must be present BEFORE cargo build runs
 # Copy migrations directory - needed at COMPILE TIME for include_dir! macro
 # These are embedded into the binary, so they don't need to be in the runtime image
 COPY backend/migrations ./migrations
+
+# Verify migrations directory exists IMMEDIATELY after COPY
+RUN echo "=== CRITICAL: Verifying migrations directory after COPY ===" && \
+    pwd && \
+    ls -la . && \
+    if [ ! -d "./migrations" ]; then \
+        echo "❌ ERROR: migrations directory not found after COPY!" && \
+        echo "Current directory contents:" && \
+        ls -la && \
+        exit 1; \
+    fi && \
+    echo "✓ Migrations directory exists" && \
+    ls -la migrations/ && \
+    echo "Migration files (will be embedded into binary):" && \
+    ls -1 migrations/*.sql && \
+    MIGRATION_COUNT=$(ls -1 migrations/*.sql 2>/dev/null | wc -l) && \
+    echo "Total migration files: ${MIGRATION_COUNT}" && \
+    if [ "${MIGRATION_COUNT}" -eq "0" ]; then \
+        echo "❌ ERROR: No migration files found!" && \
+        exit 1; \
+    fi && \
+    echo "=== Migrations verified - ready for include_dir! macro ==="
+
+# CRITICAL: Copy backend source files AFTER migrations are verified
+# Using explicit paths and verification to ensure scripts is never copied
+# Note: Railway's build context includes backend/ directory
+COPY backend/src/ ./src/
 
 # Verify scripts directory does NOT exist (should pass if .dockerignore worked)
 RUN if [ -d "./scripts" ]; then \
@@ -50,18 +75,15 @@ RUN if [ -d "./scripts" ]; then \
         echo "✓ Verified: scripts directory correctly excluded by .dockerignore"; \
     fi
 
-# Verify migrations directory exists at compile time (for include_dir! macro)
-RUN echo "=== Verifying migrations for compile-time embedding ===" && \
-    ls -la migrations/ || (echo "ERROR: migrations directory not found in builder!" && exit 1) && \
-    echo "Migration files (will be embedded into binary):" && \
-    ls -1 migrations/*.sql && \
-    MIGRATION_COUNT=$(ls -1 migrations/*.sql 2>/dev/null | wc -l) && \
-    echo "Total migration files: ${MIGRATION_COUNT}" && \
-    if [ "${MIGRATION_COUNT}" -eq "0" ]; then \
-        echo "❌ ERROR: No migration files found!" && \
+# Final verification before build - migrations must be present
+RUN echo "=== FINAL VERIFICATION: Migrations before cargo build ===" && \
+    if [ ! -d "./migrations" ]; then \
+        echo "❌ CRITICAL ERROR: migrations directory missing before cargo build!" && \
         exit 1; \
     fi && \
-    echo "=== Migrations verified - will be embedded into binary ==="
+    echo "✓ Migrations directory confirmed present" && \
+    ls -1 migrations/*.sql | head -5 && \
+    echo "=== Starting cargo build with embedded migrations ==="
 
 RUN cargo build --release
 

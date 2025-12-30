@@ -6,7 +6,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE users (
 );
 
 -- Patients table
-CREATE TABLE patients (
+CREATE TABLE IF NOT EXISTS patients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     patient_number VARCHAR(20) UNIQUE NOT NULL,
     first_name VARCHAR(50) NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE patients (
 );
 
 -- Consultations table
-CREATE TABLE consultations (
+CREATE TABLE IF NOT EXISTS consultations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     doctor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -59,7 +59,7 @@ CREATE TABLE consultations (
 );
 
 -- Appointments table
-CREATE TABLE appointments (
+CREATE TABLE IF NOT EXISTS appointments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     doctor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -73,7 +73,7 @@ CREATE TABLE appointments (
 );
 
 -- Medicines table
-CREATE TABLE medicines (
+CREATE TABLE IF NOT EXISTS medicines (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     generic_name VARCHAR(100) NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE medicines (
 );
 
 -- Prescriptions table
-CREATE TABLE prescriptions (
+CREATE TABLE IF NOT EXISTS prescriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     doctor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -103,7 +103,7 @@ CREATE TABLE prescriptions (
 );
 
 -- Invoices table
-CREATE TABLE invoices (
+CREATE TABLE IF NOT EXISTS invoices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     invoice_number VARCHAR(50) UNIQUE NOT NULL,
@@ -119,20 +119,20 @@ CREATE TABLE invoices (
 );
 
 -- Create indexes for better performance (if they don't exist)
-CREATE INDEX IF NOT EXISTS idx_patients_patient_number ON patients(patient_number);
-CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(first_name, last_name);
-CREATE INDEX IF NOT EXISTS idx_patients_phone ON patients(phone);
-CREATE INDEX IF NOT EXISTS idx_consultations_patient_id ON consultations(patient_id);
-CREATE INDEX IF NOT EXISTS idx_consultations_doctor_id ON consultations(doctor_id);
-CREATE INDEX IF NOT EXISTS idx_consultations_date ON consultations(date);
-CREATE INDEX IF NOT EXISTS idx_appointments_patient_id ON appointments(patient_id);
-CREATE INDEX IF NOT EXISTS idx_appointments_doctor_id ON appointments(doctor_id);
-CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(date);
-CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines(name);
-CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
-CREATE INDEX IF NOT EXISTS idx_prescriptions_doctor_id ON prescriptions(doctor_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_patient_id ON invoices(patient_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_patient_number ON patients(patient_number);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_name ON patients(first_name, last_name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_phone ON patients(phone);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consultations_patient_id ON consultations(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consultations_doctor_id ON consultations(doctor_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consultations_date ON consultations(date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_patient_id ON appointments(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_doctor_id ON appointments(doctor_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_date ON appointments(date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medicines_name ON medicines(name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_prescriptions_doctor_id ON prescriptions(doctor_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_patient_id ON invoices(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_invoice_number ON invoices(invoice_number);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -152,7 +152,7 @@ CREATE TRIGGER update_medicines_updated_at BEFORE UPDATE ON medicines FOR EACH R
 CREATE TRIGGER update_prescriptions_updated_at BEFORE UPDATE ON prescriptions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- Audit logs table for tracking all system activities
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id),
     session_id VARCHAR(255),
@@ -168,17 +168,17 @@ CREATE TABLE audit_logs (
 );
 
 -- Indexes for audit logs performance
-CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_session_id ON audit_logs(session_id);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX idx_audit_logs_resource ON audit_logs(resource);
-CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
-CREATE INDEX idx_audit_logs_result ON audit_logs(result);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_session_id ON audit_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_result ON audit_logs(result);
 
 -- Composite indexes for common queries
-CREATE INDEX idx_audit_logs_user_timestamp ON audit_logs(user_id, timestamp);
-CREATE INDEX idx_audit_logs_action_timestamp ON audit_logs(action, timestamp);
-CREATE INDEX idx_audit_logs_resource_timestamp ON audit_logs(resource, timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_timestamp ON audit_logs(user_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_timestamp ON audit_logs(action, timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource_timestamp ON audit_logs(resource, timestamp);
 
 -- Add updated_at column to existing tables if not present
 DO $$ 
@@ -253,7 +253,7 @@ BEGIN
 END $$;
 
 -- Create prescription_items table
-CREATE TABLE IF NOT EXISTS prescription_items (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS prescription_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     prescription_id UUID NOT NULL REFERENCES prescriptions(id) ON DELETE CASCADE,
     medication_id UUID NOT NULL REFERENCES medicines(id),
@@ -267,12 +267,12 @@ CREATE TABLE IF NOT EXISTS prescription_items (
 );
 
 -- Indexes for prescriptions
-CREATE INDEX idx_prescriptions_patient_id ON prescriptions(patient_id);
-CREATE INDEX idx_prescriptions_clinician_id ON prescriptions(clinician_id);
-CREATE INDEX idx_prescriptions_date ON prescriptions(prescription_date);
-CREATE INDEX idx_prescriptions_status ON prescriptions(status);
-CREATE INDEX idx_prescription_items_prescription_id ON prescription_items(prescription_id);
-CREATE INDEX idx_prescription_items_medication_id ON prescription_items(medication_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_clinician_id ON prescriptions(clinician_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_date ON prescriptions(prescription_date);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON prescriptions(status);
+CREATE INDEX IF NOT EXISTS idx_prescription_items_prescription_id ON prescription_items(prescription_id);
+CREATE INDEX IF NOT EXISTS idx_prescription_items_medication_id ON prescription_items(medication_id);
 
 -- Add triggers for updated_at columns
 CREATE TRIGGER update_prescriptions_updated_at BEFORE UPDATE ON prescriptions
@@ -282,7 +282,7 @@ CREATE TRIGGER update_prescription_items_updated_at BEFORE UPDATE ON prescriptio
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Create system_settings table for configuration
-CREATE TABLE IF NOT EXISTS system_settings (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS system_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     key VARCHAR(255) NOT NULL UNIQUE,
     value TEXT NOT NULL,
@@ -312,14 +312,14 @@ INSERT INTO system_settings (key, value, description, category) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- Create indexes for system_settings
-CREATE INDEX idx_system_settings_category ON system_settings(category);
-CREATE INDEX idx_system_settings_key ON system_settings(key);
+CREATE INDEX IF NOT EXISTS idx_system_settings_category ON system_settings(category);
+CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(key);
 
 -- Add trigger for system_settings updated_at
 CREATE TRIGGER update_system_settings_updated_at BEFORE UPDATE ON system_settings
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- Audit Events Table for HIPAA/GDPR Compliance
-CREATE TABLE IF NOT EXISTS audit_events (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS audit_events (
     id VARCHAR(255) PRIMARY KEY,
     event_type VARCHAR(100) NOT NULL,
     severity VARCHAR(20) NOT NULL,
@@ -344,16 +344,16 @@ CREATE TABLE IF NOT EXISTS audit_events (
 );
 
 -- Indexes for audit events for better query performance
-CREATE INDEX IF NOT EXISTS idx_audit_events_timestamp ON audit_events (timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_events_user_id ON audit_events (user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_events_event_type ON audit_events (event_type);
-CREATE INDEX IF NOT EXISTS idx_audit_events_severity ON audit_events (severity);
-CREATE INDEX IF NOT EXISTS idx_audit_events_resource ON audit_events (resource_type, resource_id);
-CREATE INDEX IF NOT EXISTS idx_audit_events_success ON audit_events (success);
-CREATE INDEX IF NOT EXISTS idx_audit_events_session_id ON audit_events (session_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_timestamp ON audit_events (timestamp DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_user_id ON audit_events (user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_event_type ON audit_events (event_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_severity ON audit_events (severity);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_resource ON audit_events (resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_success ON audit_events (success);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_events_session_id ON audit_events (session_id);
 
 -- Compliance Configuration Table
-CREATE TABLE IF NOT EXISTS compliance_config (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS compliance_config (
     id SERIAL PRIMARY KEY,
     config_type VARCHAR(50) NOT NULL, -- 'hipaa' or 'gdpr'
     config_data JSONB NOT NULL,
@@ -363,7 +363,7 @@ CREATE TABLE IF NOT EXISTS compliance_config (
 );
 
 -- Data Retention Policies Table
-CREATE TABLE IF NOT EXISTS data_retention_policies (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS data_retention_policies (
     id SERIAL PRIMARY KEY,
     policy_name VARCHAR(255) NOT NULL,
     table_name VARCHAR(255) NOT NULL,
@@ -383,7 +383,7 @@ INSERT INTO data_retention_policies (policy_name, table_name, retention_period_d
 ON CONFLICT DO NOTHING;
 
 -- Consent Management Table for GDPR
-CREATE TABLE IF NOT EXISTS consent_records (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS consent_records (
     id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
     consent_type VARCHAR(100) NOT NULL, -- 'data_processing', 'marketing', 'analytics'
@@ -399,12 +399,12 @@ CREATE TABLE IF NOT EXISTS consent_records (
 );
 
 -- Indexes for consent records
-CREATE INDEX IF NOT EXISTS idx_consent_records_user_id ON consent_records (user_id);
-CREATE INDEX IF NOT EXISTS idx_consent_records_type ON consent_records (consent_type);
-CREATE INDEX IF NOT EXISTS idx_consent_records_timestamp ON consent_records (consent_timestamp);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consent_records_user_id ON consent_records (user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consent_records_type ON consent_records (consent_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consent_records_timestamp ON consent_records (consent_timestamp);
 
 -- Data Breach Incidents Table
-CREATE TABLE IF NOT EXISTS data_breach_incidents (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS data_breach_incidents (
     id VARCHAR(255) PRIMARY KEY,
     incident_type VARCHAR(100) NOT NULL,
     severity VARCHAR(20) NOT NULL,
@@ -423,12 +423,12 @@ CREATE TABLE IF NOT EXISTS data_breach_incidents (
 );
 
 -- Indexes for data breach incidents
-CREATE INDEX IF NOT EXISTS idx_breach_incidents_discovered_at ON data_breach_incidents (discovered_at);
-CREATE INDEX IF NOT EXISTS idx_breach_incidents_status ON data_breach_incidents (status);
-CREATE INDEX IF NOT EXISTS idx_breach_incidents_severity ON data_breach_incidents (severity);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_breach_incidents_discovered_at ON data_breach_incidents (discovered_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_breach_incidents_status ON data_breach_incidents (status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_breach_incidents_severity ON data_breach_incidents (severity);
 
 -- Privacy Impact Assessment Table
-CREATE TABLE IF NOT EXISTS privacy_impact_assessments (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS privacy_impact_assessments (
     id VARCHAR(255) PRIMARY KEY,
     assessment_name VARCHAR(255) NOT NULL,
     system_component VARCHAR(255) NOT NULL,
@@ -449,9 +449,9 @@ CREATE TABLE IF NOT EXISTS privacy_impact_assessments (
 );
 
 -- Indexes for privacy impact assessments
-CREATE INDEX IF NOT EXISTS idx_pia_assessment_date ON privacy_impact_assessments (assessment_date);
-CREATE INDEX IF NOT EXISTS idx_pia_risk_level ON privacy_impact_assessments (risk_level);
-CREATE INDEX IF NOT EXISTS idx_pia_approval_status ON privacy_impact_assessments (approval_status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_pia_assessment_date ON privacy_impact_assessments (assessment_date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_pia_risk_level ON privacy_impact_assessments (risk_level);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_pia_approval_status ON privacy_impact_assessments (approval_status);
 
 -- Create a function to automatically log data access events
 CREATE OR REPLACE FUNCTION log_data_access()
@@ -562,7 +562,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 -- Create files table for document management
-CREATE TABLE IF NOT EXISTS files (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS files (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     filename VARCHAR(255) NOT NULL,
     original_filename VARCHAR(255) NOT NULL,
@@ -581,10 +581,10 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_files_entity_type_id ON files(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_files_uploaded_by ON files(uploaded_by);
-CREATE INDEX IF NOT EXISTS idx_files_file_type ON files(file_type);
-CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_files_entity_type_id ON files(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_files_uploaded_by ON files(uploaded_by);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_files_file_type ON files(file_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_files_created_at ON files(created_at);
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_files_updated_at()
@@ -624,7 +624,7 @@ CREATE TYPE notification_template AS ENUM (
 );
 
 -- Create notifications table
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     recipient_id UUID REFERENCES users(id) ON DELETE SET NULL,
     recipient_email VARCHAR(255),
@@ -647,19 +647,19 @@ CREATE TABLE notifications (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_notifications_recipient_id ON notifications(recipient_id);
-CREATE INDEX idx_notifications_recipient_email ON notifications(recipient_email);
-CREATE INDEX idx_notifications_recipient_phone ON notifications(recipient_phone);
-CREATE INDEX idx_notifications_type ON notifications(notification_type);
-CREATE INDEX idx_notifications_template ON notifications(template);
-CREATE INDEX idx_notifications_status ON notifications(status);
-CREATE INDEX idx_notifications_priority ON notifications(priority);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at);
-CREATE INDEX idx_notifications_scheduled_at ON notifications(scheduled_at);
-CREATE INDEX idx_notifications_sent_at ON notifications(sent_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id ON notifications(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_email ON notifications(recipient_email);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_phone ON notifications(recipient_phone);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(notification_type);
+CREATE INDEX IF NOT EXISTS idx_notifications_template ON notifications(template);
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+CREATE INDEX IF NOT EXISTS idx_notifications_priority ON notifications(priority);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_scheduled_at ON notifications(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_sent_at ON notifications(sent_at);
 
 -- Create notification settings table for user preferences
-CREATE TABLE notification_settings (
+CREATE TABLE IF NOT EXISTS notification_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     notification_type notification_type NOT NULL,
@@ -674,11 +674,11 @@ CREATE TABLE notification_settings (
 );
 
 -- Create indexes for notification settings
-CREATE INDEX idx_notification_settings_user_id ON notification_settings(user_id);
-CREATE INDEX idx_notification_settings_type ON notification_settings(notification_type);
+CREATE INDEX IF NOT EXISTS idx_notification_settings_user_id ON notification_settings(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_settings_type ON notification_settings(notification_type);
 
 -- Create notification templates table for customizable templates
-CREATE TABLE notification_templates (
+CREATE TABLE IF NOT EXISTS notification_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_type notification_template NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -693,11 +693,11 @@ CREATE TABLE notification_templates (
 );
 
 -- Create indexes for notification templates
-CREATE INDEX idx_notification_templates_type ON notification_templates(template_type);
-CREATE INDEX idx_notification_templates_active ON notification_templates(is_active);
+CREATE INDEX IF NOT EXISTS idx_notification_templates_type ON notification_templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_notification_templates_active ON notification_templates(is_active);
 
 -- Create notification logs table for audit trail
-CREATE TABLE notification_logs (
+CREATE TABLE IF NOT EXISTS notification_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID REFERENCES notifications(id) ON DELETE CASCADE,
     action VARCHAR(50) NOT NULL, -- 'created', 'sent', 'delivered', 'failed', 'retried'
@@ -707,12 +707,12 @@ CREATE TABLE notification_logs (
 );
 
 -- Create indexes for notification logs
-CREATE INDEX idx_notification_logs_notification_id ON notification_logs(notification_id);
-CREATE INDEX idx_notification_logs_action ON notification_logs(action);
-CREATE INDEX idx_notification_logs_created_at ON notification_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_notification_id ON notification_logs(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_action ON notification_logs(action);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_created_at ON notification_logs(created_at);
 
 -- Create notification queue table for scheduled notifications
-CREATE TABLE notification_queue (
+CREATE TABLE IF NOT EXISTS notification_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID REFERENCES notifications(id) ON DELETE CASCADE,
     scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -724,9 +724,9 @@ CREATE TABLE notification_queue (
 );
 
 -- Create indexes for notification queue
-CREATE INDEX idx_notification_queue_scheduled_at ON notification_queue(scheduled_at);
-CREATE INDEX idx_notification_queue_status ON notification_queue(status);
-CREATE INDEX idx_notification_queue_retry_count ON notification_queue(retry_count);
+CREATE INDEX IF NOT EXISTS idx_notification_queue_scheduled_at ON notification_queue(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_notification_queue_status ON notification_queue(status);
+CREATE INDEX IF NOT EXISTS idx_notification_queue_retry_count ON notification_queue(retry_count);
 
 -- Create triggers to update updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -881,7 +881,7 @@ CREATE TYPE backup_status AS ENUM (
 );
 
 -- Create backup jobs table
-CREATE TABLE backup_jobs (
+CREATE TABLE IF NOT EXISTS backup_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     backup_type backup_type NOT NULL,
     status backup_status NOT NULL DEFAULT 'pending',
@@ -897,7 +897,7 @@ CREATE TABLE backup_jobs (
 );
 
 -- Create backup configuration table
-CREATE TABLE backup_config (
+CREATE TABLE IF NOT EXISTS backup_config (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     enabled BOOLEAN NOT NULL DEFAULT true,
     schedule TEXT NOT NULL DEFAULT '0 2 * * *', -- Cron expression
@@ -911,7 +911,7 @@ CREATE TABLE backup_config (
 );
 
 -- Create restore jobs table
-CREATE TABLE restore_jobs (
+CREATE TABLE IF NOT EXISTS restore_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     backup_id UUID NOT NULL REFERENCES backup_jobs(id),
     restore_type TEXT NOT NULL, -- 'full', 'schema', 'data', 'files'
@@ -925,7 +925,7 @@ CREATE TABLE restore_jobs (
 );
 
 -- Create backup schedules table for automated backups
-CREATE TABLE backup_schedules (
+CREATE TABLE IF NOT EXISTS backup_schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     backup_type backup_type NOT NULL,
@@ -939,17 +939,17 @@ CREATE TABLE backup_schedules (
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_backup_jobs_status ON backup_jobs(status);
-CREATE INDEX idx_backup_jobs_started_at ON backup_jobs(started_at);
-CREATE INDEX idx_backup_jobs_type ON backup_jobs(backup_type);
-CREATE INDEX idx_backup_jobs_created_by ON backup_jobs(created_by);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_status ON backup_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_started_at ON backup_jobs(started_at);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_type ON backup_jobs(backup_type);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_created_by ON backup_jobs(created_by);
 
-CREATE INDEX idx_restore_jobs_status ON restore_jobs(status);
-CREATE INDEX idx_restore_jobs_backup_id ON restore_jobs(backup_id);
-CREATE INDEX idx_restore_jobs_created_by ON restore_jobs(created_by);
+CREATE INDEX IF NOT EXISTS idx_restore_jobs_status ON restore_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_restore_jobs_backup_id ON restore_jobs(backup_id);
+CREATE INDEX IF NOT EXISTS idx_restore_jobs_created_by ON restore_jobs(created_by);
 
-CREATE INDEX idx_backup_schedules_enabled ON backup_schedules(enabled);
-CREATE INDEX idx_backup_schedules_next_run ON backup_schedules(next_run);
+CREATE INDEX IF NOT EXISTS idx_backup_schedules_enabled ON backup_schedules(enabled);
+CREATE INDEX IF NOT EXISTS idx_backup_schedules_next_run ON backup_schedules(next_run);
 
 -- Insert default backup configuration
 INSERT INTO backup_config (enabled, schedule, retention_days, backup_path, compression, include_files, max_backup_size_mb)
@@ -1073,7 +1073,7 @@ CREATE TYPE alert_type AS ENUM (
 );
 
 -- Application logs table for structured logging
-CREATE TABLE application_logs (
+CREATE TABLE IF NOT EXISTS application_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     level log_level NOT NULL,
@@ -1092,7 +1092,7 @@ CREATE TABLE application_logs (
 );
 
 -- Health checks table for system health monitoring
-CREATE TABLE health_checks (
+CREATE TABLE IF NOT EXISTS health_checks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     status health_status NOT NULL,
@@ -1105,7 +1105,7 @@ CREATE TABLE health_checks (
 );
 
 -- Alert configurations table
-CREATE TABLE alert_configs (
+CREATE TABLE IF NOT EXISTS alert_configs (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     alert_type alert_type NOT NULL,
@@ -1121,7 +1121,7 @@ CREATE TABLE alert_configs (
 );
 
 -- Alerts table for triggered alerts
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     config_id VARCHAR(255) NOT NULL REFERENCES alert_configs(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -1139,7 +1139,7 @@ CREATE TABLE alerts (
 );
 
 -- System metrics table for storing historical metrics
-CREATE TABLE system_metrics (
+CREATE TABLE IF NOT EXISTS system_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     metric_name VARCHAR(255) NOT NULL,
     metric_value DECIMAL(15,6) NOT NULL,
@@ -1149,7 +1149,7 @@ CREATE TABLE system_metrics (
 );
 
 -- Performance monitoring table
-CREATE TABLE performance_metrics (
+CREATE TABLE IF NOT EXISTS performance_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     operation_name VARCHAR(255) NOT NULL,
     duration_ms DECIMAL(10,3) NOT NULL,
@@ -1167,7 +1167,7 @@ CREATE TABLE performance_metrics (
 );
 
 -- Log retention policies table
-CREATE TABLE log_retention_policies (
+CREATE TABLE IF NOT EXISTS log_retention_policies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     log_type VARCHAR(255) NOT NULL,
     retention_days INTEGER NOT NULL,
@@ -1178,31 +1178,31 @@ CREATE TABLE log_retention_policies (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX idx_application_logs_timestamp ON application_logs(timestamp DESC);
-CREATE INDEX idx_application_logs_level ON application_logs(level);
-CREATE INDEX idx_application_logs_user_id ON application_logs(user_id);
-CREATE INDEX idx_application_logs_session_id ON application_logs(session_id);
-CREATE INDEX idx_application_logs_request_id ON application_logs(request_id);
-CREATE INDEX idx_application_logs_trace_id ON application_logs(trace_id);
-CREATE INDEX idx_application_logs_module ON application_logs(module);
+CREATE INDEX IF NOT EXISTS idx_application_logs_timestamp ON application_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_application_logs_level ON application_logs(level);
+CREATE INDEX IF NOT EXISTS idx_application_logs_user_id ON application_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_application_logs_session_id ON application_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_application_logs_request_id ON application_logs(request_id);
+CREATE INDEX IF NOT EXISTS idx_application_logs_trace_id ON application_logs(trace_id);
+CREATE INDEX IF NOT EXISTS idx_application_logs_module ON application_logs(module);
 
-CREATE INDEX idx_health_checks_name ON health_checks(name);
-CREATE INDEX idx_health_checks_status ON health_checks(status);
-CREATE INDEX idx_health_checks_last_checked ON health_checks(last_checked DESC);
+CREATE INDEX IF NOT EXISTS idx_health_checks_name ON health_checks(name);
+CREATE INDEX IF NOT EXISTS idx_health_checks_status ON health_checks(status);
+CREATE INDEX IF NOT EXISTS idx_health_checks_last_checked ON health_checks(last_checked DESC);
 
-CREATE INDEX idx_alerts_config_id ON alerts(config_id);
-CREATE INDEX idx_alerts_severity ON alerts(severity);
-CREATE INDEX idx_alerts_alert_type ON alerts(alert_type);
-CREATE INDEX idx_alerts_triggered_at ON alerts(triggered_at DESC);
-CREATE INDEX idx_alerts_resolved_at ON alerts(resolved_at);
-CREATE INDEX idx_alerts_acknowledged_by ON alerts(acknowledged_by);
+CREATE INDEX IF NOT EXISTS idx_alerts_config_id ON alerts(config_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_alerts_alert_type ON alerts(alert_type);
+CREATE INDEX IF NOT EXISTS idx_alerts_triggered_at ON alerts(triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_resolved_at ON alerts(resolved_at);
+CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged_by ON alerts(acknowledged_by);
 
-CREATE INDEX idx_system_metrics_name ON system_metrics(metric_name);
-CREATE INDEX idx_system_metrics_timestamp ON system_metrics(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_system_metrics_name ON system_metrics(metric_name);
+CREATE INDEX IF NOT EXISTS idx_system_metrics_timestamp ON system_metrics(timestamp DESC);
 
-CREATE INDEX idx_performance_metrics_operation ON performance_metrics(operation_name);
-CREATE INDEX idx_performance_metrics_timestamp ON performance_metrics(timestamp DESC);
-CREATE INDEX idx_performance_metrics_user_id ON performance_metrics(user_id);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_operation ON performance_metrics(operation_name);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_timestamp ON performance_metrics(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_user_id ON performance_metrics(user_id);
 
 -- Create triggers for updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -1470,80 +1470,80 @@ COMMENT ON VIEW system_performance_summary IS 'Hourly system performance summary
 -- This migration adds indexes to improve query performance
 
 -- Patient indexes for search optimization
-CREATE INDEX IF NOT EXISTS idx_patients_first_name ON patients(first_name);
-CREATE INDEX IF NOT EXISTS idx_patients_last_name ON patients(last_name);
-CREATE INDEX IF NOT EXISTS idx_patients_patient_number ON patients(patient_number);
-CREATE INDEX IF NOT EXISTS idx_patients_phone ON patients(phone);
-CREATE INDEX IF NOT EXISTS idx_patients_created_at ON patients(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_first_name ON patients(first_name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_last_name ON patients(last_name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_patient_number ON patients(patient_number);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_phone ON patients(phone);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_created_at ON patients(created_at DESC);
 
 -- Composite index for common patient search pattern
-CREATE INDEX IF NOT EXISTS idx_patients_name_search ON patients USING gin(to_tsvector('english', first_name || ' ' || last_name));
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_name_search ON patients USING gin(to_tsvector('english', first_name || ' ' || last_name));
 
 -- Appointment indexes
-CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(date);
-CREATE INDEX IF NOT EXISTS idx_appointments_patient_id ON appointments(patient_id);
-CREATE INDEX IF NOT EXISTS idx_appointments_doctor_id ON appointments(doctor_id);
-CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments(status);
-CREATE INDEX IF NOT EXISTS idx_appointments_date_time ON appointments(date, time);
-CREATE INDEX IF NOT EXISTS idx_appointments_created_at ON appointments(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_date ON appointments(date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_patient_id ON appointments(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_doctor_id ON appointments(doctor_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_status ON appointments(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_date_time ON appointments(date, time);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_created_at ON appointments(created_at DESC);
 
 -- Composite index for date-based appointment queries
-CREATE INDEX IF NOT EXISTS idx_appointments_date_status ON appointments(date, status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_date_status ON appointments(date, status);
 
 -- Invoice indexes
-CREATE INDEX IF NOT EXISTS idx_invoices_patient_id ON invoices(patient_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_payment_status ON invoices(payment_status);
-CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(date);
-CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_patient_id ON invoices(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_payment_status ON invoices(payment_status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_date ON invoices(date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_created_at ON invoices(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoices_invoice_number ON invoices(invoice_number);
 
 -- Consultation indexes
-CREATE INDEX IF NOT EXISTS idx_consultations_patient_id ON consultations(patient_id);
-CREATE INDEX IF NOT EXISTS idx_consultations_consultation_date ON consultations(consultation_date);
-CREATE INDEX IF NOT EXISTS idx_consultations_created_at ON consultations(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consultations_patient_id ON consultations(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consultations_consultation_date ON consultations(consultation_date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_consultations_created_at ON consultations(created_at DESC);
 
 -- Medicine indexes
-CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines(name);
-CREATE INDEX IF NOT EXISTS idx_medicines_current_stock ON medicines(current_stock);
-CREATE INDEX IF NOT EXISTS idx_medicines_minimum_stock ON medicines(minimum_stock);
-CREATE INDEX IF NOT EXISTS idx_medicines_expiry_date ON medicines(expiry_date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medicines_name ON medicines(name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medicines_current_stock ON medicines(current_stock);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medicines_minimum_stock ON medicines(minimum_stock);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medicines_expiry_date ON medicines(expiry_date);
 
 -- Composite index for low stock queries
-CREATE INDEX IF NOT EXISTS idx_medicines_stock_alert ON medicines(current_stock, minimum_stock) WHERE current_stock <= minimum_stock;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medicines_stock_alert ON medicines(current_stock, minimum_stock) WHERE current_stock <= minimum_stock;
 
 -- Prescription indexes
-CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
-CREATE INDEX IF NOT EXISTS idx_prescriptions_consultation_id ON prescriptions(consultation_id);
-CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON prescriptions(status);
-CREATE INDEX IF NOT EXISTS idx_prescriptions_created_at ON prescriptions(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_prescriptions_consultation_id ON prescriptions(consultation_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_prescriptions_status ON prescriptions(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_prescriptions_created_at ON prescriptions(created_at DESC);
 
 -- User indexes
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_users_email ON users(email);
 
 -- M-Pesa transaction indexes
-CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_invoice_id ON mpesa_transactions(invoice_id);
-CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_checkout_request_id ON mpesa_transactions(checkout_request_id);
-CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_status ON mpesa_transactions(status);
-CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_created_at ON mpesa_transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mpesa_transactions_invoice_id ON mpesa_transactions(invoice_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mpesa_transactions_checkout_request_id ON mpesa_transactions(checkout_request_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mpesa_transactions_status ON mpesa_transactions(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mpesa_transactions_created_at ON mpesa_transactions(created_at DESC);
 
 -- Audit log indexes (if table exists)
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource);
 
 -- Notifications indexes (if table exists)
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 
 -- SHA Claims indexes (if table exists)
-CREATE INDEX IF NOT EXISTS idx_sha_claims_patient_id ON sha_claims(patient_id);
-CREATE INDEX IF NOT EXISTS idx_sha_claims_invoice_id ON sha_claims(invoice_id);
-CREATE INDEX IF NOT EXISTS idx_sha_claims_status ON sha_claims(status);
-CREATE INDEX IF NOT EXISTS idx_sha_claims_claim_date ON sha_claims(claim_date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_sha_claims_patient_id ON sha_claims(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_sha_claims_invoice_id ON sha_claims(invoice_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_sha_claims_status ON sha_claims(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_sha_claims_claim_date ON sha_claims(claim_date);
 
 COMMENT ON INDEX idx_patients_name_search IS 'Full-text search index for patient names';
 COMMENT ON INDEX idx_medicines_stock_alert IS 'Partial index for low stock alerts - only indexes rows where stock is low';
@@ -1559,7 +1559,7 @@ ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20), -- For SMS-based MFA
 ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
 
 -- MFA recovery codes table
-CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS mfa_recovery_codes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     code_hash VARCHAR(255) NOT NULL, -- Hashed recovery code
@@ -1569,12 +1569,12 @@ CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() + INTERVAL '1 year')
 );
 
-CREATE INDEX IF NOT EXISTS idx_mfa_recovery_codes_user_id ON mfa_recovery_codes(user_id);
-CREATE INDEX IF NOT EXISTS idx_mfa_recovery_codes_code_hash ON mfa_recovery_codes(code_hash);
-CREATE INDEX IF NOT EXISTS idx_mfa_recovery_codes_unused ON mfa_recovery_codes(user_id, used) WHERE used = false;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_recovery_codes_user_id ON mfa_recovery_codes(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_recovery_codes_code_hash ON mfa_recovery_codes(code_hash);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_recovery_codes_unused ON mfa_recovery_codes(user_id, used) WHERE used = false;
 
 -- MFA verification sessions (for temporary sessions after password verification, before MFA)
-CREATE TABLE IF NOT EXISTS mfa_sessions (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS mfa_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     session_token VARCHAR(255) UNIQUE NOT NULL, -- Temporary token for MFA verification
@@ -1586,12 +1586,12 @@ CREATE TABLE IF NOT EXISTS mfa_sessions (
     verified_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX IF NOT EXISTS idx_mfa_sessions_token ON mfa_sessions(session_token);
-CREATE INDEX IF NOT EXISTS idx_mfa_sessions_user_id ON mfa_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_mfa_sessions_expires_at ON mfa_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_sessions_token ON mfa_sessions(session_token);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_sessions_user_id ON mfa_sessions(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_sessions_expires_at ON mfa_sessions(expires_at);
 
 -- MFA verification attempts (for rate limiting and security)
-CREATE TABLE IF NOT EXISTS mfa_verification_attempts (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS mfa_verification_attempts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     session_token VARCHAR(255), -- Associated MFA session
@@ -1602,9 +1602,9 @@ CREATE TABLE IF NOT EXISTS mfa_verification_attempts (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_mfa_verification_attempts_user_id ON mfa_verification_attempts(user_id);
-CREATE INDEX IF NOT EXISTS idx_mfa_verification_attempts_session ON mfa_verification_attempts(session_token);
-CREATE INDEX IF NOT EXISTS idx_mfa_verification_attempts_created_at ON mfa_verification_attempts(created_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_verification_attempts_user_id ON mfa_verification_attempts(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_verification_attempts_session ON mfa_verification_attempts(session_token);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_mfa_verification_attempts_created_at ON mfa_verification_attempts(created_at);
 
 -- Cleanup function for expired MFA sessions (can be called by a scheduled job)
 CREATE OR REPLACE FUNCTION cleanup_expired_mfa_sessions()
@@ -1619,7 +1619,7 @@ $$ LANGUAGE plpgsql;
 -- Migration: 010_password_reset_system.sql
 
 -- Password reset tokens table
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS password_reset_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(255) UNIQUE NOT NULL,
@@ -1631,13 +1631,13 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_unused ON password_reset_tokens(user_id, used, expires_at) WHERE used = false;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_password_reset_tokens_unused ON password_reset_tokens(user_id, used, expires_at) WHERE used = false;
 
 -- Email verification tokens table
-CREATE TABLE IF NOT EXISTS email_verification_tokens (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS email_verification_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(255) UNIQUE NOT NULL,
@@ -1648,9 +1648,9 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON email_verification_tokens(token);
-CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_email_verification_tokens_token ON email_verification_tokens(token);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
 
 -- Cleanup function for expired tokens
 CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
@@ -1669,7 +1669,7 @@ $$ LANGUAGE plpgsql;
 CREATE TYPE import_status AS ENUM ('pending', 'in_progress', 'completed', 'failed', 'cancelled', 'partial');
 
 -- Import sessions table for tracking import operations
-CREATE TABLE IF NOT EXISTS import_sessions (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS import_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     file_name VARCHAR(255) NOT NULL,
@@ -1693,7 +1693,7 @@ CREATE TABLE IF NOT EXISTS import_sessions (
 );
 
 -- Import audit log table for detailed tracking
-CREATE TABLE IF NOT EXISTS import_audit_logs (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS import_audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     import_session_id UUID NOT NULL REFERENCES import_sessions(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1708,7 +1708,7 @@ CREATE TABLE IF NOT EXISTS import_audit_logs (
 );
 
 -- Import statistics table for aggregated metrics
-CREATE TABLE IF NOT EXISTS import_statistics (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS import_statistics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     import_session_id UUID NOT NULL REFERENCES import_sessions(id) ON DELETE CASCADE,
     metric_name VARCHAR(100) NOT NULL,
@@ -1718,24 +1718,24 @@ CREATE TABLE IF NOT EXISTS import_statistics (
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_import_sessions_user_id ON import_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_import_sessions_status ON import_sessions(status);
-CREATE INDEX IF NOT EXISTS idx_import_sessions_created_at ON import_sessions(created_at);
-CREATE INDEX IF NOT EXISTS idx_import_sessions_file_name ON import_sessions(file_name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_sessions_user_id ON import_sessions(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_sessions_status ON import_sessions(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_sessions_created_at ON import_sessions(created_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_sessions_file_name ON import_sessions(file_name);
 
-CREATE INDEX IF NOT EXISTS idx_import_audit_logs_session_id ON import_audit_logs(import_session_id);
-CREATE INDEX IF NOT EXISTS idx_import_audit_logs_user_id ON import_audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_import_audit_logs_action ON import_audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_import_audit_logs_timestamp ON import_audit_logs(timestamp);
-CREATE INDEX IF NOT EXISTS idx_import_audit_logs_result ON import_audit_logs(result);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_audit_logs_session_id ON import_audit_logs(import_session_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_audit_logs_user_id ON import_audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_audit_logs_action ON import_audit_logs(action);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_audit_logs_timestamp ON import_audit_logs(timestamp);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_audit_logs_result ON import_audit_logs(result);
 
-CREATE INDEX IF NOT EXISTS idx_import_statistics_session_id ON import_statistics(import_session_id);
-CREATE INDEX IF NOT EXISTS idx_import_statistics_metric_name ON import_statistics(metric_name);
-CREATE INDEX IF NOT EXISTS idx_import_statistics_recorded_at ON import_statistics(recorded_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_statistics_session_id ON import_statistics(import_session_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_statistics_metric_name ON import_statistics(metric_name);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_statistics_recorded_at ON import_statistics(recorded_at);
 
 -- Composite indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_import_sessions_user_created ON import_sessions(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_import_audit_logs_session_timestamp ON import_audit_logs(import_session_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_sessions_user_created ON import_sessions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_import_audit_logs_session_timestamp ON import_audit_logs(import_session_id, timestamp DESC);
 
 -- Migration: Lab Test Orders and Results
 -- Created: 2025-01-XX
@@ -1751,7 +1751,7 @@ CREATE TYPE lab_result_status AS ENUM ('pending', 'verified', 'reviewed', 'cance
 CREATE TYPE lab_test_priority AS ENUM ('routine', 'urgent', 'stat');
 
 -- Lab test orders table
-CREATE TABLE IF NOT EXISTS lab_test_orders (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS lab_test_orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) UNIQUE NOT NULL,
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
@@ -1775,7 +1775,7 @@ CREATE TABLE IF NOT EXISTS lab_test_orders (
 );
 
 -- Lab test results table
-CREATE TABLE IF NOT EXISTS lab_test_results (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS lab_test_results (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES lab_test_orders(id) ON DELETE CASCADE,
     result_number VARCHAR(50) UNIQUE NOT NULL,
@@ -1799,26 +1799,26 @@ CREATE TABLE IF NOT EXISTS lab_test_results (
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_patient_id ON lab_test_orders(patient_id);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_consultation_id ON lab_test_orders(consultation_id);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_ordering_clinician_id ON lab_test_orders(ordering_clinician_id);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_status ON lab_test_orders(status);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_order_number ON lab_test_orders(order_number);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_ordered_at ON lab_test_orders(ordered_at);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_test_type ON lab_test_orders(test_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_patient_id ON lab_test_orders(patient_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_consultation_id ON lab_test_orders(consultation_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_ordering_clinician_id ON lab_test_orders(ordering_clinician_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_status ON lab_test_orders(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_order_number ON lab_test_orders(order_number);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_ordered_at ON lab_test_orders(ordered_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_test_type ON lab_test_orders(test_type);
 
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_order_id ON lab_test_results(order_id);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_result_number ON lab_test_results(result_number);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_status ON lab_test_results(status);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_result_date ON lab_test_results(result_date);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_verified_by ON lab_test_results(verified_by);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_reviewed_by ON lab_test_results(reviewed_by);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_test_type ON lab_test_results(test_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_order_id ON lab_test_results(order_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_result_number ON lab_test_results(result_number);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_status ON lab_test_results(status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_result_date ON lab_test_results(result_date);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_verified_by ON lab_test_results(verified_by);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_reviewed_by ON lab_test_results(reviewed_by);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_test_type ON lab_test_results(test_type);
 
 -- Composite indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_patient_status ON lab_test_orders(patient_id, status);
-CREATE INDEX IF NOT EXISTS idx_lab_test_orders_status_ordered_at ON lab_test_orders(status, ordered_at);
-CREATE INDEX IF NOT EXISTS idx_lab_test_results_order_status ON lab_test_results(order_id, status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_patient_status ON lab_test_orders(patient_id, status);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_orders_status_ordered_at ON lab_test_orders(status, ordered_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_lab_test_results_order_status ON lab_test_results(order_id, status);
 
 -- Add updated_at trigger function if not exists
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -1874,7 +1874,7 @@ ALTER TABLE patients
 ALTER COLUMN date_of_birth DROP NOT NULL;
 
 -- Add index on age for faster queries
-CREATE INDEX IF NOT EXISTS idx_patients_age ON patients(age);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patients_age ON patients(age);
 
 -- Add comment for documentation
 COMMENT ON COLUMN patients.age IS 'Patient age in years. Primary field for age information.';
@@ -1895,7 +1895,7 @@ ADD COLUMN IF NOT EXISTS diagnosis_code VARCHAR(20),
 ADD COLUMN IF NOT EXISTS diagnosis_description VARCHAR(255);
 
 -- Add index for diagnosis queries
-CREATE INDEX IF NOT EXISTS idx_invoice_items_diagnosis_code ON invoice_items(diagnosis_code);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_invoice_items_diagnosis_code ON invoice_items(diagnosis_code);
 
 -- Add comment
 COMMENT ON COLUMN invoice_items.diagnosis_code IS 'ICD-11 diagnosis code linked to this service';
@@ -1933,9 +1933,9 @@ ALTER TABLE services
 ADD COLUMN IF NOT EXISTS requires_prescription BOOLEAN DEFAULT false;
 
 -- Add indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_services_category ON services(category);
-CREATE INDEX IF NOT EXISTS idx_services_active ON services(is_active);
-CREATE INDEX IF NOT EXISTS idx_services_code ON services(service_code);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_services_category ON services(category);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_services_active ON services(is_active);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_services_code ON services(service_code);
 
 -- Add comments
 COMMENT ON COLUMN services.cash_price IS 'Price for cash-paying patients';
@@ -1949,7 +1949,7 @@ COMMENT ON COLUMN services.requires_prescription IS 'Whether this service requir
 -- Migration: 025_user_notes_system.sql
 
 -- Create notes table
-CREATE TABLE IF NOT EXISTS notes (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS notes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     resource_type VARCHAR(50) NOT NULL, -- 'patient', 'consultation', 'prescription', 'lab_order', 'invoice', 'appointment', etc.
     resource_id UUID NOT NULL, -- ID of the resource this note is attached to
@@ -1967,15 +1967,15 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_notes_resource ON notes(resource_type, resource_id);
-CREATE INDEX idx_notes_user_id ON notes(user_id);
-CREATE INDEX idx_notes_created_at ON notes(created_at DESC);
-CREATE INDEX idx_notes_important ON notes(is_important) WHERE is_important = true;
-CREATE INDEX idx_notes_urgent ON notes(is_urgent) WHERE is_urgent = true;
-CREATE INDEX idx_notes_not_deleted ON notes(resource_type, resource_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_resource ON notes(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_important ON notes(is_important) WHERE is_important = true;
+CREATE INDEX IF NOT EXISTS idx_notes_urgent ON notes(is_urgent) WHERE is_urgent = true;
+CREATE INDEX IF NOT EXISTS idx_notes_not_deleted ON notes(resource_type, resource_id) WHERE deleted_at IS NULL;
 
 -- Create composite index for common queries
-CREATE INDEX idx_notes_resource_created ON notes(resource_type, resource_id, created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_resource_created ON notes(resource_type, resource_id, created_at DESC) WHERE deleted_at IS NULL;
 
 -- Add comment for documentation
 COMMENT ON TABLE notes IS 'User notes system for collaborative communication. Notes can be attached to any resource (patient, consultation, prescription, etc.)';
@@ -1998,11 +1998,11 @@ ADD COLUMN IF NOT EXISTS action_url VARCHAR(500), -- URL to navigate when notifi
 ADD COLUMN IF NOT EXISTS action_label VARCHAR(100); -- Label for the action button
 
 -- Add index for unread notifications (most common query)
-CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(recipient_id, is_read, created_at DESC) 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notifications_unread ON notifications(recipient_id, is_read, created_at DESC) 
 WHERE is_read = false AND recipient_id IS NOT NULL;
 
 -- Add index for internal notifications (in_app type)
-CREATE INDEX IF NOT EXISTS idx_notifications_internal ON notifications(recipient_id, notification_type, is_read, created_at DESC)
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notifications_internal ON notifications(recipient_id, notification_type, is_read, created_at DESC)
 WHERE notification_type = 'in_app' AND recipient_id IS NOT NULL;
 
 -- Add comment
@@ -2078,7 +2078,7 @@ BEGIN
 END $$;
 
 -- Create tasks table
-CREATE TABLE IF NOT EXISTS tasks (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_type task_type NOT NULL,
     title VARCHAR(255) NOT NULL,
@@ -2110,19 +2110,19 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_assigned_by ON tasks(assigned_by) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(task_type) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date) WHERE deleted_at IS NULL AND status NOT IN ('completed', 'cancelled');
-CREATE INDEX IF NOT EXISTS idx_tasks_patient_id ON tasks(patient_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_tasks_active ON tasks(assigned_to, status, priority, due_date) 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_assigned_by ON tasks(assigned_by) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_status ON tasks(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_priority ON tasks(priority) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_type ON tasks(task_type) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_due_date ON tasks(due_date) WHERE deleted_at IS NULL AND status NOT IN ('completed', 'cancelled');
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_patient_id ON tasks(patient_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_tasks_active ON tasks(assigned_to, status, priority, due_date) 
     WHERE deleted_at IS NULL AND status NOT IN ('completed', 'cancelled');
 
 -- Create task comments/updates table for collaboration
-CREATE TABLE IF NOT EXISTS task_updates (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS task_updates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2134,12 +2134,12 @@ CREATE TABLE IF NOT EXISTS task_updates (
 );
 
 -- Create indexes for task updates
-CREATE INDEX IF NOT EXISTS idx_task_updates_task_id ON task_updates(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_updates_user_id ON task_updates(user_id);
-CREATE INDEX IF NOT EXISTS idx_task_updates_created_at ON task_updates(created_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_task_updates_task_id ON task_updates(task_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_task_updates_user_id ON task_updates(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_task_updates_created_at ON task_updates(created_at DESC);
 
 -- Create task assignments history table (for audit trail)
-CREATE TABLE IF NOT EXISTS task_assignments_history (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS task_assignments_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     previous_assignee UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -2150,8 +2150,8 @@ CREATE TABLE IF NOT EXISTS task_assignments_history (
 );
 
 -- Create indexes for task assignments history
-CREATE INDEX IF NOT EXISTS idx_task_assignments_history_task_id ON task_assignments_history(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_assignments_history_new_assignee ON task_assignments_history(new_assignee);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_task_assignments_history_task_id ON task_assignments_history(task_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_task_assignments_history_new_assignee ON task_assignments_history(new_assignee);
 
 -- Create triggers to update updated_at timestamps
 CREATE OR REPLACE FUNCTION update_tasks_updated_at()
@@ -2219,7 +2219,7 @@ BEGIN
 END $$;
 
 -- Create announcements table
-CREATE TABLE IF NOT EXISTS announcements (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS announcements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
@@ -2254,7 +2254,7 @@ CREATE TABLE IF NOT EXISTS announcements (
 );
 
 -- Create announcement acknowledgments table
-CREATE TABLE IF NOT EXISTS announcement_acknowledgments (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS announcement_acknowledgments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     announcement_id UUID NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2263,7 +2263,7 @@ CREATE TABLE IF NOT EXISTS announcement_acknowledgments (
 );
 
 -- Create announcement comments table
-CREATE TABLE IF NOT EXISTS announcement_comments (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS announcement_comments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     announcement_id UUID NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2275,25 +2275,25 @@ CREATE TABLE IF NOT EXISTS announcement_comments (
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcements_scope ON announcements(scope) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcements_published_at ON announcements(published_at DESC) WHERE deleted_at IS NULL AND status = 'published';
-CREATE INDEX IF NOT EXISTS idx_announcements_expires_at ON announcements(expires_at) WHERE deleted_at IS NULL AND status = 'published';
-CREATE INDEX IF NOT EXISTS idx_announcements_is_pinned ON announcements(is_pinned) WHERE deleted_at IS NULL AND status = 'published';
-CREATE INDEX IF NOT EXISTS idx_announcements_priority ON announcements(priority) WHERE deleted_at IS NULL AND status = 'published';
-CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at DESC) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcements_target_departments ON announcements USING GIN(target_departments) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcements_target_roles ON announcements USING GIN(target_roles) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcements_target_user_ids ON announcements USING GIN(target_user_ids) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_status ON announcements(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_scope ON announcements(scope) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_published_at ON announcements(published_at DESC) WHERE deleted_at IS NULL AND status = 'published';
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_expires_at ON announcements(expires_at) WHERE deleted_at IS NULL AND status = 'published';
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_is_pinned ON announcements(is_pinned) WHERE deleted_at IS NULL AND status = 'published';
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_priority ON announcements(priority) WHERE deleted_at IS NULL AND status = 'published';
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_created_at ON announcements(created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_target_departments ON announcements USING GIN(target_departments) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_target_roles ON announcements USING GIN(target_roles) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcements_target_user_ids ON announcements USING GIN(target_user_ids) WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_announcement_acknowledgments_announcement_id ON announcement_acknowledgments(announcement_id);
-CREATE INDEX IF NOT EXISTS idx_announcement_acknowledgments_user_id ON announcement_acknowledgments(user_id);
-CREATE INDEX IF NOT EXISTS idx_announcement_acknowledgments_acknowledged_at ON announcement_acknowledgments(acknowledged_at DESC);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_acknowledgments_announcement_id ON announcement_acknowledgments(announcement_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_acknowledgments_user_id ON announcement_acknowledgments(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_acknowledgments_acknowledged_at ON announcement_acknowledgments(acknowledged_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_announcement_comments_announcement_id ON announcement_comments(announcement_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcement_comments_user_id ON announcement_comments(user_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcement_comments_parent_comment_id ON announcement_comments(parent_comment_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_announcement_comments_created_at ON announcement_comments(created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_comments_announcement_id ON announcement_comments(announcement_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_comments_user_id ON announcement_comments(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_comments_parent_comment_id ON announcement_comments(parent_comment_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_announcement_comments_created_at ON announcement_comments(created_at DESC) WHERE deleted_at IS NULL;
 
 -- Create triggers to update updated_at timestamps
 CREATE OR REPLACE FUNCTION update_announcements_updated_at()
@@ -2354,7 +2354,7 @@ ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(50), -- For bank transfers
 ADD COLUMN IF NOT EXISTS cheque_number VARCHAR(50); -- For cheque payments
 
 -- Create index for gateway transaction lookups
-CREATE INDEX IF NOT EXISTS idx_payment_allocations_gateway_txn 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_payment_allocations_gateway_txn 
 ON payment_allocations(gateway_name, gateway_transaction_id);
 
 -- Update financial_transactions to support new payment methods
@@ -2367,7 +2367,7 @@ COMMENT ON COLUMN financial_transactions.payment_method IS
 'Payment method: cash, mpesa, sha, card, bank_transfer, cheque';
 
 -- Create payment gateway settings table (for storing API keys, etc.)
-CREATE TABLE IF NOT EXISTS payment_gateway_settings (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS payment_gateway_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     gateway_name VARCHAR(50) UNIQUE NOT NULL, -- 'stripe', 'paypal', 'pesapal', etc.
     is_enabled BOOLEAN DEFAULT false,
@@ -2383,7 +2383,7 @@ CREATE TABLE IF NOT EXISTS payment_gateway_settings (
 );
 
 -- Create payment gateway transactions table (for tracking all gateway interactions)
-CREATE TABLE IF NOT EXISTS payment_gateway_transactions (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS payment_gateway_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
     payment_allocation_id UUID REFERENCES payment_allocations(id) ON DELETE SET NULL,
@@ -2401,13 +2401,13 @@ CREATE TABLE IF NOT EXISTS payment_gateway_transactions (
 );
 
 -- Create indexes for payment gateway transactions
-CREATE INDEX IF NOT EXISTS idx_payment_gateway_txn_invoice 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_payment_gateway_txn_invoice 
 ON payment_gateway_transactions(invoice_id);
 
-CREATE INDEX IF NOT EXISTS idx_payment_gateway_txn_status 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_payment_gateway_txn_status 
 ON payment_gateway_transactions(status);
 
-CREATE INDEX IF NOT EXISTS idx_payment_gateway_txn_created 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_payment_gateway_txn_created 
 ON payment_gateway_transactions(created_at DESC);
 
 COMMENT ON TABLE payment_gateway_settings IS 
@@ -2464,7 +2464,7 @@ INSERT INTO invoices (id, patient_id, invoice_number, date, items, subtotal, tax
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'patient';
 
 -- Create consultation/visit records table
-CREATE TABLE IF NOT EXISTS consultations (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS consultations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     consultation_number VARCHAR(20) UNIQUE NOT NULL,
     patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
@@ -2487,7 +2487,7 @@ CREATE TABLE IF NOT EXISTS consultations (
 );
 
 -- Create prescriptions table
-CREATE TABLE IF NOT EXISTS prescriptions (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS prescriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     prescription_number VARCHAR(20) UNIQUE NOT NULL,
     consultation_id UUID REFERENCES consultations(id) ON DELETE CASCADE,
@@ -2509,7 +2509,7 @@ CREATE TABLE IF NOT EXISTS prescriptions (
 );
 
 -- Create services/procedures pricing table
-CREATE TABLE IF NOT EXISTS services (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS services (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     service_code VARCHAR(20) UNIQUE NOT NULL,
     service_name VARCHAR(200) NOT NULL,
@@ -2524,7 +2524,7 @@ CREATE TABLE IF NOT EXISTS services (
 );
 
 -- Create stock movements table (for inventory tracking)
-CREATE TABLE IF NOT EXISTS stock_movements (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS stock_movements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     medication_id UUID REFERENCES medications(id) ON DELETE CASCADE,
     movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('purchase', 'sale', 'adjustment', 'return', 'expired', 'damaged')),
@@ -2541,7 +2541,7 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 );
 
 -- Create SHA claims table (for insurance claims management)
-CREATE TABLE IF NOT EXISTS sha_claims (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS sha_claims (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     claim_number VARCHAR(20) UNIQUE NOT NULL,
     invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
@@ -2565,7 +2565,7 @@ CREATE TABLE IF NOT EXISTS sha_claims (
 );
 
 -- Create financial transactions table (for cash flow tracking)
-CREATE TABLE IF NOT EXISTS financial_transactions (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS financial_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     transaction_number VARCHAR(20) UNIQUE NOT NULL,
     transaction_date DATE NOT NULL,
@@ -2589,7 +2589,7 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS consultation_id UUID REFERENCES co
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id);
 
 -- Create invoice_items table (more flexible than invoice_services)
-CREATE TABLE IF NOT EXISTS invoice_items (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS invoice_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
     item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('service', 'medicine', 'procedure')),
@@ -2604,7 +2604,7 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 );
 
 -- Inventory management enhancements
-CREATE TABLE IF NOT EXISTS stock_adjustments (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS stock_adjustments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     medicine_id UUID NOT NULL REFERENCES medicines(id),
     quantity INT NOT NULL,
@@ -2615,11 +2615,11 @@ CREATE TABLE IF NOT EXISTS stock_adjustments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_stock_adjustments_medicine_id ON stock_adjustments(medicine_id);
-CREATE INDEX IF NOT EXISTS idx_stock_adjustments_created_at ON stock_adjustments(created_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_stock_adjustments_medicine_id ON stock_adjustments(medicine_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_stock_adjustments_created_at ON stock_adjustments(created_at);
 
 -- Stock alerts table
-CREATE TABLE IF NOT EXISTS stock_alerts (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS stock_alerts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     medicine_id UUID NOT NULL REFERENCES medicines(id),
     alert_type VARCHAR(50) NOT NULL, -- 'low_stock', 'expiring_soon', 'expired'
@@ -2630,7 +2630,7 @@ CREATE TABLE IF NOT EXISTS stock_alerts (
 );
 
 -- Create payment allocations table (for mixed payments)
-CREATE TABLE IF NOT EXISTS payment_allocations (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS payment_allocations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
     payment_type VARCHAR(20) NOT NULL CHECK (payment_type IN ('sha', 'cash', 'mpesa')),
@@ -2642,7 +2642,7 @@ CREATE TABLE IF NOT EXISTS payment_allocations (
 );
 
 -- Create reports metadata table (for storing generated reports)
-CREATE TABLE IF NOT EXISTS reports (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS reports (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     report_type VARCHAR(50) NOT NULL, -- financial, sha_claims, audit, inventory, etc.
     report_name VARCHAR(200) NOT NULL,
@@ -2657,42 +2657,42 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 -- Create indexes for new tables
-CREATE INDEX idx_consultations_patient_id ON consultations(patient_id);
-CREATE INDEX idx_consultations_clinician_id ON consultations(clinician_id);
-CREATE INDEX idx_consultations_visit_date ON consultations(visit_date);
-CREATE INDEX idx_consultations_status ON consultations(status);
+CREATE INDEX IF NOT EXISTS idx_consultations_patient_id ON consultations(patient_id);
+CREATE INDEX IF NOT EXISTS idx_consultations_clinician_id ON consultations(clinician_id);
+CREATE INDEX IF NOT EXISTS idx_consultations_visit_date ON consultations(visit_date);
+CREATE INDEX IF NOT EXISTS idx_consultations_status ON consultations(status);
 
-CREATE INDEX idx_prescriptions_consultation_id ON prescriptions(consultation_id);
-CREATE INDEX idx_prescriptions_patient_id ON prescriptions(patient_id);
-CREATE INDEX idx_prescriptions_medication_id ON prescriptions(medication_id);
-CREATE INDEX idx_prescriptions_status ON prescriptions(status);
-CREATE INDEX idx_prescriptions_dispensed ON prescriptions(dispensed);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_consultation_id ON prescriptions(consultation_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_medication_id ON prescriptions(medication_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON prescriptions(status);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_dispensed ON prescriptions(dispensed);
 
-CREATE INDEX idx_services_category ON services(category);
-CREATE INDEX idx_services_sha_approved ON services(sha_approved);
-CREATE INDEX idx_services_is_active ON services(is_active);
+CREATE INDEX IF NOT EXISTS idx_services_category ON services(category);
+CREATE INDEX IF NOT EXISTS idx_services_sha_approved ON services(sha_approved);
+CREATE INDEX IF NOT EXISTS idx_services_is_active ON services(is_active);
 
-CREATE INDEX idx_stock_movements_medication_id ON stock_movements(medication_id);
-CREATE INDEX idx_stock_movements_type ON stock_movements(movement_type);
-CREATE INDEX idx_stock_movements_created_at ON stock_movements(created_at);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_medication_id ON stock_movements(medication_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_type ON stock_movements(movement_type);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_created_at ON stock_movements(created_at);
 
-CREATE INDEX idx_sha_claims_patient_id ON sha_claims(patient_id);
-CREATE INDEX idx_sha_claims_invoice_id ON sha_claims(invoice_id);
-CREATE INDEX idx_sha_claims_status ON sha_claims(status);
-CREATE INDEX idx_sha_claims_claim_date ON sha_claims(claim_date);
+CREATE INDEX IF NOT EXISTS idx_sha_claims_patient_id ON sha_claims(patient_id);
+CREATE INDEX IF NOT EXISTS idx_sha_claims_invoice_id ON sha_claims(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_sha_claims_status ON sha_claims(status);
+CREATE INDEX IF NOT EXISTS idx_sha_claims_claim_date ON sha_claims(claim_date);
 
-CREATE INDEX idx_financial_transactions_date ON financial_transactions(transaction_date);
-CREATE INDEX idx_financial_transactions_type ON financial_transactions(transaction_type);
-CREATE INDEX idx_financial_transactions_category ON financial_transactions(category);
+CREATE INDEX IF NOT EXISTS idx_financial_transactions_date ON financial_transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_financial_transactions_type ON financial_transactions(transaction_type);
+CREATE INDEX IF NOT EXISTS idx_financial_transactions_category ON financial_transactions(category);
 
-CREATE INDEX idx_invoice_items_invoice_id ON invoice_items(invoice_id);
-CREATE INDEX idx_invoice_items_type ON invoice_items(item_type);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_type ON invoice_items(item_type);
 
-CREATE INDEX idx_payment_allocations_invoice_id ON payment_allocations(invoice_id);
-CREATE INDEX idx_payment_allocations_type ON payment_allocations(payment_type);
+CREATE INDEX IF NOT EXISTS idx_payment_allocations_invoice_id ON payment_allocations(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payment_allocations_type ON payment_allocations(payment_type);
 
-CREATE INDEX idx_reports_type ON reports(report_type);
-CREATE INDEX idx_reports_generated_at ON reports(generated_at);
+CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(report_type);
+CREATE INDEX IF NOT EXISTS idx_reports_generated_at ON reports(generated_at);
 
 -- Create triggers for updated_at on new tables
 CREATE TRIGGER update_consultations_updated_at BEFORE UPDATE ON consultations
@@ -2725,7 +2725,7 @@ ON CONFLICT (service_code) DO NOTHING;
 -- Description: Adds tables for user preferences, activity logging, and data isolation
 
 -- User Dashboard Preferences Table
-CREATE TABLE IF NOT EXISTS user_dashboard_preferences (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS user_dashboard_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     layout_config JSONB NOT NULL DEFAULT '{}',
@@ -2742,7 +2742,7 @@ CREATE TABLE IF NOT EXISTS user_dashboard_preferences (
 );
 
 -- User Activity Logs Table
-CREATE TABLE IF NOT EXISTS user_activity_logs (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS user_activity_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     action VARCHAR(100) NOT NULL,
@@ -2757,7 +2757,7 @@ CREATE TABLE IF NOT EXISTS user_activity_logs (
 );
 
 -- Data Isolation Rules Table
-CREATE TABLE IF NOT EXISTS data_isolation_rules (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS data_isolation_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role VARCHAR(50) NOT NULL,
     entity_type VARCHAR(50) NOT NULL,
@@ -2770,7 +2770,7 @@ CREATE TABLE IF NOT EXISTS data_isolation_rules (
 );
 
 -- Dashboard Metrics Cache Table
-CREATE TABLE IF NOT EXISTS dashboard_metrics_cache (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS dashboard_metrics_cache (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(50),
@@ -2783,25 +2783,25 @@ CREATE TABLE IF NOT EXISTS dashboard_metrics_cache (
 );
 
 -- Performance Indexes
-CREATE INDEX IF NOT EXISTS idx_user_dashboard_preferences_user_id ON user_dashboard_preferences(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_dashboard_preferences_updated_at ON user_dashboard_preferences(updated_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_dashboard_preferences_user_id ON user_dashboard_preferences(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_dashboard_preferences_updated_at ON user_dashboard_preferences(updated_at);
 
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON user_activity_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action ON user_activity_logs(action);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_module ON user_activity_logs(module);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_entity_type ON user_activity_logs(entity_type);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_entity_id ON user_activity_logs(entity_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_activity_logs_user_id ON user_activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_logs(created_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_activity_logs_action ON user_activity_logs(action);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_activity_logs_module ON user_activity_logs(module);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_activity_logs_entity_type ON user_activity_logs(entity_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_activity_logs_entity_id ON user_activity_logs(entity_id);
 
-CREATE INDEX IF NOT EXISTS idx_data_isolation_rules_role ON data_isolation_rules(role);
-CREATE INDEX IF NOT EXISTS idx_data_isolation_rules_entity_type ON data_isolation_rules(entity_type);
-CREATE INDEX IF NOT EXISTS idx_data_isolation_rules_active ON data_isolation_rules(is_active);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_data_isolation_rules_role ON data_isolation_rules(role);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_data_isolation_rules_entity_type ON data_isolation_rules(entity_type);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_data_isolation_rules_active ON data_isolation_rules(is_active);
 
-CREATE INDEX IF NOT EXISTS idx_dashboard_metrics_cache_user_id ON dashboard_metrics_cache(user_id);
-CREATE INDEX IF NOT EXISTS idx_dashboard_metrics_cache_role ON dashboard_metrics_cache(role);
-CREATE INDEX IF NOT EXISTS idx_dashboard_metrics_cache_department ON dashboard_metrics_cache(department);
-CREATE INDEX IF NOT EXISTS idx_dashboard_metrics_cache_expires_at ON dashboard_metrics_cache(expires_at);
-CREATE INDEX IF NOT EXISTS idx_dashboard_metrics_cache_key ON dashboard_metrics_cache(cache_key);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_dashboard_metrics_cache_user_id ON dashboard_metrics_cache(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_dashboard_metrics_cache_role ON dashboard_metrics_cache(role);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_dashboard_metrics_cache_department ON dashboard_metrics_cache(department);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_dashboard_metrics_cache_expires_at ON dashboard_metrics_cache(expires_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_dashboard_metrics_cache_key ON dashboard_metrics_cache(cache_key);
 
 -- Update Triggers
 CREATE OR REPLACE FUNCTION update_user_dashboard_preferences_updated_at()
@@ -2894,7 +2894,7 @@ COMMENT ON TABLE dashboard_metrics_cache IS 'Caches dashboard metrics for improv
 CREATE TYPE mpesa_transaction_status AS ENUM ('Pending', 'Completed', 'Failed', 'Cancelled');
 
 -- Create M-Pesa transactions table
-CREATE TABLE mpesa_transactions (
+CREATE TABLE IF NOT EXISTS mpesa_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
     merchant_request_id VARCHAR(255) NOT NULL,
@@ -2913,14 +2913,14 @@ CREATE TABLE mpesa_transactions (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_mpesa_transactions_invoice_id ON mpesa_transactions(invoice_id);
-CREATE INDEX idx_mpesa_transactions_checkout_request_id ON mpesa_transactions(checkout_request_id);
-CREATE INDEX idx_mpesa_transactions_merchant_request_id ON mpesa_transactions(merchant_request_id);
-CREATE INDEX idx_mpesa_transactions_status ON mpesa_transactions(status);
-CREATE INDEX idx_mpesa_transactions_created_at ON mpesa_transactions(created_at);
+CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_invoice_id ON mpesa_transactions(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_checkout_request_id ON mpesa_transactions(checkout_request_id);
+CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_merchant_request_id ON mpesa_transactions(merchant_request_id);
+CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_status ON mpesa_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_mpesa_transactions_created_at ON mpesa_transactions(created_at);
 
 -- Create M-Pesa callback logs table for debugging
-CREATE TABLE mpesa_callback_logs (
+CREATE TABLE IF NOT EXISTS mpesa_callback_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     checkout_request_id VARCHAR(255) NOT NULL,
     callback_data JSONB NOT NULL,
@@ -2930,11 +2930,11 @@ CREATE TABLE mpesa_callback_logs (
 );
 
 -- Create index for callback logs
-CREATE INDEX idx_mpesa_callback_logs_checkout_request_id ON mpesa_callback_logs(checkout_request_id);
-CREATE INDEX idx_mpesa_callback_logs_processed_at ON mpesa_callback_logs(processed_at);
+CREATE INDEX IF NOT EXISTS idx_mpesa_callback_logs_checkout_request_id ON mpesa_callback_logs(checkout_request_id);
+CREATE INDEX IF NOT EXISTS idx_mpesa_callback_logs_processed_at ON mpesa_callback_logs(processed_at);
 
 -- Add M-Pesa configuration table
-CREATE TABLE mpesa_config (
+CREATE TABLE IF NOT EXISTS mpesa_config (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     environment VARCHAR(20) NOT NULL DEFAULT 'sandbox',
     consumer_key VARCHAR(255) NOT NULL,
@@ -2984,7 +2984,7 @@ COMMENT ON COLUMN mpesa_transactions.checkout_request_id IS 'Unique identifier f
 COMMENT ON COLUMN mpesa_transactions.mpesa_receipt_number IS 'M-Pesa receipt number if transaction is successful';
 COMMENT ON COLUMN mpesa_transactions.transaction_date IS 'Transaction date from M-Pesa (timestamp format)';
 -- Create user_settings table for user-specific settings
-CREATE TABLE IF NOT EXISTS user_settings (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS user_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     key VARCHAR(255) NOT NULL,
@@ -3000,9 +3000,9 @@ CREATE TABLE IF NOT EXISTS user_settings (
 );
 
 -- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_settings_category ON user_settings(category);
-CREATE INDEX IF NOT EXISTS idx_user_settings_key ON user_settings(key);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_settings_category ON user_settings(category);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_settings_key ON user_settings(key);
 
 -- Add trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_user_settings_updated_at()
@@ -3020,7 +3020,7 @@ CREATE TRIGGER trigger_update_user_settings_updated_at
 -- M-Pesa (Daraja) settings storage
 -- A single-row table to hold current Daraja configuration
 
-CREATE TABLE IF NOT EXISTS mpesa_settings (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS mpesa_settings (
     id              INTEGER PRIMARY KEY CHECK (id = 1),
     short_code      TEXT NOT NULL DEFAULT '',
     passkey         TEXT NOT NULL DEFAULT '',
@@ -3060,7 +3060,7 @@ END $$;
 
 -- Safe migration to ensure mpesa_settings exists with required columns
 
-CREATE TABLE IF NOT EXISTS mpesa_settings (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS mpesa_settings (
     id              INTEGER PRIMARY KEY CHECK (id = 1),
     short_code      TEXT NOT NULL DEFAULT '',
     passkey         TEXT NOT NULL DEFAULT '',
