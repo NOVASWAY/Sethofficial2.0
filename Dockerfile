@@ -122,19 +122,37 @@ echo "  DATABASE_URL: ${DATABASE_URL:+SET (${#DATABASE_URL} chars)}"
 echo "  JWT_SECRET: ${JWT_SECRET:+SET}"
 echo "=========================================="
 echo "ENTRYPOINT: Migrations are EMBEDDED in binary"
-echo "No filesystem migration directory needed!"
+echo "Filesystem migrations also available as fallback at /app/migrations"
 echo "Migrations will be extracted to temp directory at runtime"
+echo "=========================================="
+echo "ENTRYPOINT: Verifying binary exists..."
+if [ -f "/usr/local/bin/clinic-management-backend" ]; then
+    echo "✓ Binary found at /usr/local/bin/clinic-management-backend"
+    ls -lh /usr/local/bin/clinic-management-backend
+elif [ -f "/app/clinic-management-backend" ]; then
+    echo "✓ Binary found at /app/clinic-management-backend"
+    ls -lh /app/clinic-management-backend
+else
+    echo "❌ ERROR: Binary not found at /usr/local/bin/clinic-management-backend or /app/clinic-management-backend" >&2
+    echo "Current directory: $(pwd)" >&2
+    echo "Contents of /usr/local/bin:" >&2
+    ls -la /usr/local/bin/ 2>&1 || true
+    echo "Contents of /app:" >&2
+    ls -la /app/ 2>&1 || true
+    exit 1
+fi
 echo "=========================================="
 echo "ENTRYPOINT: Executing binary..."
 echo "=========================================="
 
 # Execute the binary - try /usr/local/bin first, then /app
+# Use exec to replace shell process, but ensure stderr is flushed
 if [ -f "/usr/local/bin/clinic-management-backend" ]; then
-    exec /usr/local/bin/clinic-management-backend
+    exec /usr/local/bin/clinic-management-backend 2>&1
 elif [ -f "/app/clinic-management-backend" ]; then
-    exec /app/clinic-management-backend
+    exec /app/clinic-management-backend 2>&1
 else
-    echo "❌ ERROR: Binary not found at /usr/local/bin/clinic-management-backend or /app/clinic-management-backend" >&2
+    echo "❌ ERROR: Binary not found" >&2
     exit 1
 fi
 ENTRYPOINT_EOF
