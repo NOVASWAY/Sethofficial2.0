@@ -146,11 +146,11 @@ echo "ENTRYPOINT: Executing binary..."
 echo "=========================================="
 
 # Execute the binary - try /usr/local/bin first, then /app
-# Use exec to replace shell process, but ensure stderr is flushed
+# exec replaces the shell process - output already redirected to stderr at top of script
 if [ -f "/usr/local/bin/clinic-management-backend" ]; then
-    exec /usr/local/bin/clinic-management-backend 2>&1
+    exec /usr/local/bin/clinic-management-backend
 elif [ -f "/app/clinic-management-backend" ]; then
-    exec /app/clinic-management-backend 2>&1
+    exec /app/clinic-management-backend
 else
     echo "❌ ERROR: Binary not found" >&2
     exit 1
