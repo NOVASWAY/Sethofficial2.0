@@ -126,7 +126,8 @@ pub async fn run_migrations(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     // Run migrations from temporary directory
     eprintln!("🔧 Creating migrator from temporary directory: {}", temp_dir.display());
     
-    match sqlx::migrate::Migrator::new(&temp_dir).await {
+    // Convert PathBuf to &Path for Migrator::new()
+    match sqlx::migrate::Migrator::new(temp_dir.as_path()).await {
         Ok(migrator) => {
             eprintln!("✅ Migrator created successfully");
             eprintln!("🔄 Running {} migration(s)...", migration_count);
