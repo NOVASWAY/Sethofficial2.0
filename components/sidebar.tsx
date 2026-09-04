@@ -42,25 +42,25 @@ const navigation: NavItem[] = [
     label: "Patients",
     href: "/dashboard/patients",
     icon: <Users className="w-5 h-5" />,
-    roles: ["admin", "receptionist", "doctor", "clinician", "nurse"],
+    roles: ["admin", "receptionist", "clinician", "nurse"],
   },
   {
     label: "Appointments",
     href: "/dashboard/appointments",
     icon: <Calendar className="w-5 h-5" />,
-    roles: ["admin", "receptionist", "doctor", "clinician", "nurse"],
+    roles: ["admin", "receptionist", "clinician", "nurse"],
   },
   {
     label: "Consultations",
     href: "/dashboard/consultations",
     icon: <Stethoscope className="w-5 h-5" />,
-    roles: ["admin", "doctor", "clinician"],
+    roles: ["admin", "clinician"],
   },
   {
     label: "Prescriptions",
     href: "/dashboard/prescriptions",
     icon: <FileText className="w-5 h-5" />,
-    roles: ["admin", "doctor", "clinician", "pharmacist"],
+    roles: ["admin", "clinician", "pharmacist"],
   },
   {
     label: "Pharmacy",
@@ -72,7 +72,7 @@ const navigation: NavItem[] = [
     label: "Laboratory",
     href: "/dashboard/laboratory",
     icon: <TestTube className="w-5 h-5" />,
-    roles: ["admin", "doctor", "clinician", "lab_technician", "nurse"],
+    roles: ["admin", "clinician", "lab_technician", "nurse"],
   },
   {
     label: "Billing",
@@ -125,7 +125,6 @@ export function Sidebar() {
   const getRoleBadgeColor = (role: string) => {
     const colors: Record<string, string> = {
       admin: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-      doctor: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
       clinician: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
       nurse: "bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300",
       pharmacist: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",

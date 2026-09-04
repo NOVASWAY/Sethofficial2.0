@@ -40,7 +40,7 @@ const quickActions: QuickAction[] = [
     href: "/dashboard/consultations/new",
     icon: <FileText className="w-5 h-5" />,
     color: "bg-indigo-500",
-    roles: ["admin", "doctor", "clinician"],
+    roles: ["admin", "clinician"],
   },
   {
     label: "Dispense Medicine",
@@ -54,7 +54,7 @@ const quickActions: QuickAction[] = [
     href: "/dashboard/laboratory/new",
     icon: <TestTube className="w-5 h-5" />,
     color: "bg-orange-500",
-    roles: ["admin", "doctor", "clinician"],
+    roles: ["admin", "clinician"],
   },
   {
     label: "New Invoice",

@@ -149,7 +149,7 @@ export function WorkflowManagement({ role = 'admin', onWorkflowCreated }: Workfl
 
   const getRoleIcon = (roleName: string) => {
     switch (roleName) {
-      case 'doctor': return <Stethoscope className="h-4 w-4" />
+      case 'clinician': return <Stethoscope className="h-4 w-4" />
       case 'nurse': return <UserCheck className="h-4 w-4" />
       case 'receptionist': return <Users className="h-4 w-4" />
       case 'pharmacist': return <FileText className="h-4 w-4" />
@@ -221,7 +221,7 @@ export function WorkflowManagement({ role = 'admin', onWorkflowCreated }: Workfl
                 <SelectContent>
                   <SelectItem value="receptionist">Receptionist</SelectItem>
                   <SelectItem value="nurse">Nurse</SelectItem>
-                  <SelectItem value="doctor">Doctor</SelectItem>
+                  <SelectItem value="clinician">Clinician</SelectItem>
                   <SelectItem value="pharmacist">Pharmacist</SelectItem>
                 </SelectContent>
               </Select>

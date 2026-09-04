@@ -27,7 +27,6 @@ export default withAuth(
     const roleRoutes: Record<string, string[]> = {
       receptionist: ["/dashboard/receptionist"],
       nurse: ["/dashboard/nurse"],
-      doctor: ["/dashboard/doctor"],
       clinician: ["/dashboard/clinician"],
       pharmacist: ["/dashboard/pharmacist"],
       lab_technician: ["/dashboard/lab_technician"],

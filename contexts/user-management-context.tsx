@@ -7,7 +7,7 @@ export interface SystemUser {
   id: string
   name: string
   phone?: string
-  role: 'receptionist' | 'nurse' | 'clinician' | 'pharmacist' | 'admin' | 'doctor'
+  role: 'receptionist' | 'nurse' | 'clinician' | 'pharmacist' | 'admin' | 'lab_technician'
   department?: string
   status: 'active' | 'inactive' | 'suspended'
   permissions: string[]

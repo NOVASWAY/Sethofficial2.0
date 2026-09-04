@@ -161,7 +161,7 @@ export function ConsultationModule() {
     loadPatientData()
     loadMedicines()
     // Set current user as clinician if available
-    if (user && (user.role === 'clinician' || user.role === 'doctor' || user.role === 'admin')) {
+    if (user && (user.role === 'clinician' || user.role === 'admin')) {
       setConsultationData(prev => ({ ...prev, clinician_id: user.id }))
     }
   }, [user])
@@ -526,7 +526,7 @@ export function ConsultationModule() {
       }
 
       // ZERO TRUST GUARD: Ensure only clinicians/doctors/admins can finalize consultations
-      const allowedRoles = ['clinician', 'doctor', 'admin']
+      const allowedRoles = ['clinician', 'admin']
       if (user && !allowedRoles.includes(user.role)) {
         toast({
           variant: 'destructive',
