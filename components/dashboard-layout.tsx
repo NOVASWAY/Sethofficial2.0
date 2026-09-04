@@ -13,6 +13,8 @@ import { NotificationCenter } from "@/components/notification-center"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "@/contexts/language-context"
+import { PatientProvider } from "@/contexts/patient-context"
+import { InventoryProvider } from "@/contexts/inventory-context"
 import {
   Heart,
   User,
@@ -373,68 +375,72 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed left-0 top-0 h-full w-64 bg-sidebar border-r border-sidebar-border">
-            <SidebarContent
-              role={role}
-              currentRole={currentRole}
-              RoleIcon={RoleIcon}
-              activeItem={activeItem}
-              onClose={() => setSidebarOpen(false)}
-              handleLogout={handleLogout}
-              filteredNavigation={filteredNavigation}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:left-0 lg:top-0 lg:h-full lg:w-64 lg:block">
-        <div className="h-full bg-sidebar border-r border-sidebar-border">
-          <SidebarContent
-            role={role}
-            currentRole={currentRole}
-            RoleIcon={RoleIcon}
-            filteredNavigation={filteredNavigation}
-            activeItem={activeItem}
-            handleLogout={handleLogout}
-          />
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="lg:ml-64">
-        {/* Top header */}
-        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-          <div className="flex h-16 items-center justify-between px-4 lg:px-6">
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-                <Menu className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-lg font-semibold">Seth Medical Clinic</h1>
-                <p className="text-sm text-muted-foreground">Management System</p>
+    <PatientProvider>
+      <InventoryProvider>
+        <div className="min-h-screen bg-background">
+          {/* Mobile sidebar overlay */}
+          {sidebarOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden">
+              <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+              <div className="fixed left-0 top-0 h-full w-64 bg-sidebar border-r border-sidebar-border">
+                <SidebarContent
+                  role={role}
+                  currentRole={currentRole}
+                  RoleIcon={RoleIcon}
+                  activeItem={activeItem}
+                  onClose={() => setSidebarOpen(false)}
+                  handleLogout={handleLogout}
+                  filteredNavigation={filteredNavigation}
+                />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <NotificationCenter className="hidden sm:block" />
-              <LanguageSwitcher variant="select" className="hidden sm:flex" />
-              <ThemeToggleSimple />
-              <Badge variant="outline" className="hidden sm:flex">
-                {currentRole?.label}
-              </Badge>
+          )}
+
+          {/* Desktop sidebar */}
+          <div className="hidden lg:fixed lg:left-0 lg:top-0 lg:h-full lg:w-64 lg:block">
+            <div className="h-full bg-sidebar border-r border-sidebar-border">
+              <SidebarContent
+                role={role}
+                currentRole={currentRole}
+                RoleIcon={RoleIcon}
+                filteredNavigation={filteredNavigation}
+                activeItem={activeItem}
+                handleLogout={handleLogout}
+              />
             </div>
           </div>
-        </header>
 
-        {/* Page content */}
-        <main className="p-4 lg:p-6">{children}</main>
-      </div>
-    </div>
+          {/* Main content */}
+          <div className="lg:ml-64">
+            {/* Top header */}
+            <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+              <div className="flex h-16 items-center justify-between px-4 lg:px-6">
+                <div className="flex items-center space-x-4">
+                  <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                  <div>
+                    <h1 className="text-lg font-semibold">Seth Medical Clinic</h1>
+                    <p className="text-sm text-muted-foreground">Management System</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <NotificationCenter className="hidden sm:block" />
+                  <LanguageSwitcher variant="select" className="hidden sm:flex" />
+                  <ThemeToggleSimple />
+                  <Badge variant="outline" className="hidden sm:flex">
+                    {currentRole?.label}
+                  </Badge>
+                </div>
+              </div>
+            </header>
+
+            {/* Page content */}
+            <main className="p-4 lg:p-6">{children}</main>
+          </div>
+        </div>
+      </InventoryProvider>
+    </PatientProvider>
   )
 }
 
