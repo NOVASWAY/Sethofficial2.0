@@ -54,3 +54,4 @@ consolespy/
 
 # Vercel
 .vercel/
+.vercel
