@@ -9,20 +9,13 @@ declare const process: {
 }
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
+// Now uses relative URLs - Next.js API routes handle the backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api'
 
-// Get authorization header
+// Get authorization header - uses NextAuth session cookie
+// No need for manual token management with NextAuth
 function getAuthorizationHeader(): Record<string, string> {
-  if (typeof window === 'undefined') {
-    return {}
-  }
-  try {
-    const token = localStorage.getItem('auth_token')
-    return token ? { Authorization: `Bearer ${token}` } : {}
-  } catch (error) {
-    console.error('Error getting auth token:', error)
-    return {}
-  }
+  return {}
 }
 
 // Error handling

@@ -75,7 +75,7 @@ export default function SetupPage() {
 
   const validateDatabase = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/setup/validate-database', {
+      const response = await fetch('/api/auth/setup/validate-database', {
         method: 'GET',
       })
       const data = await response.json()
@@ -87,7 +87,7 @@ export default function SetupPage() {
 
   const validateMigrations = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/setup/validate-migrations', {
+      const response = await fetch('/api/auth/setup/validate-migrations', {
         method: 'GET',
       })
       const data = await response.json()
@@ -99,7 +99,7 @@ export default function SetupPage() {
 
   const validateConfig = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/setup/validate-config', {
+      const response = await fetch('/api/auth/setup/validate-config', {
         method: 'GET',
       })
       const data = await response.json()
@@ -166,7 +166,7 @@ export default function SetupPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8080/api/auth/setup', {
+      const response = await fetch('/api/auth/setup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

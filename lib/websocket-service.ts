@@ -297,8 +297,9 @@ class WebSocketService {
 }
 
 // Create singleton instance
+// WebSocket support can be enabled by setting NEXT_PUBLIC_WS_URL in .env.local
 const wsConfig: WebSocketConfig = {
-  url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/ws',
+  url: process.env.NEXT_PUBLIC_WS_URL || '',
 }
 
 export const websocketService = new WebSocketService(wsConfig)

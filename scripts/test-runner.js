@@ -64,7 +64,6 @@ function main() {
   // Check if test files exist
   const testFiles = [
     '__tests__/dashboard.test.tsx',
-    'backend/tests/dashboard_tests.rs'
   ];
 
   const missingTests = testFiles.filter(file => !checkFileExists(file));
@@ -83,16 +82,6 @@ function main() {
     log(`${colors.yellow}⚠️  Frontend test file not found, skipping...${colors.reset}`);
   }
 
-  // Run backend tests
-  log(`\n${colors.bright}${colors.magenta}Backend Tests${colors.reset}`);
-  log(`${colors.magenta}=============${colors.reset}`);
-  
-  if (checkFileExists('backend/tests/dashboard_tests.rs')) {
-    runCommand('cd backend && cargo test dashboard_tests --verbose', 'Running backend dashboard tests');
-  } else {
-    log(`${colors.yellow}⚠️  Backend test file not found, skipping...${colors.reset}`);
-  }
-
   // Run integration tests
   log(`\n${colors.bright}${colors.magenta}Integration Tests${colors.reset}`);
   log(`${colors.magenta}=================${colors.reset}`);
@@ -108,10 +97,6 @@ function main() {
   log(`${colors.magenta}=========${colors.reset}`);
   
   runCommand('npm test -- --coverage --watchAll=false', 'Running all frontend tests with coverage');
-  
-  if (checkFileExists('backend/Cargo.toml')) {
-    runCommand('cd backend && cargo test --verbose', 'Running all backend tests');
-  }
 
   // Generate test report
   log(`\n${colors.bright}${colors.cyan}Test Report Generation${colors.reset}`);
@@ -148,7 +133,6 @@ function main() {
   log(`\n${colors.bright}${colors.blue}Test Summary${colors.reset}`);
   log(`${colors.blue}============${colors.reset}`);
   log(`Frontend Tests: ${checkFileExists('__tests__/dashboard.test.tsx') ? '✅ Available' : '❌ Missing'}`);
-  log(`Backend Tests: ${checkFileExists('backend/tests/dashboard_tests.rs') ? '✅ Available' : '❌ Missing'}`);
   log(`Integration Tests: ${checkFileExists('__tests__/integration.test.tsx') ? '✅ Available' : '❌ Missing'}`);
   log(`Performance Tests: ${checkFileExists('__tests__/performance.test.tsx') ? '✅ Available' : '❌ Missing'}`);
   log(`Accessibility Tests: ${checkFileExists('__tests__/accessibility.test.tsx') ? '✅ Available' : '❌ Missing'}`);
@@ -165,14 +149,12 @@ if (args.includes('--help') || args.includes('-h')) {
   log(`Options:`);
   log(`  --help, -h     Show this help message`);
   log(`  --frontend     Run only frontend tests`);
-  log(`  --backend      Run only backend tests`);
   log(`  --integration  Run only integration tests`);
   log(`  --performance  Run only performance tests`);
   log(`  --coverage     Generate coverage report`);
   log(``);
   log(`Examples:`);
   log(`  node scripts/test-runner.js --frontend`);
-  log(`  node scripts/test-runner.js --backend`);
   log(`  node scripts/test-runner.js --coverage`);
   process.exit(0);
 }
@@ -181,14 +163,6 @@ if (args.includes('--frontend')) {
   log(`${colors.bright}${colors.blue}Running Frontend Tests Only${colors.reset}`);
   if (checkFileExists('__tests__/dashboard.test.tsx')) {
     runCommand('npm test -- --testPathPattern=dashboard.test.tsx --verbose', 'Running frontend dashboard tests');
-  }
-  process.exit(0);
-}
-
-if (args.includes('--backend')) {
-  log(`${colors.bright}${colors.blue}Running Backend Tests Only${colors.reset}`);
-  if (checkFileExists('backend/tests/dashboard_tests.rs')) {
-    runCommand('cd backend && cargo test dashboard_tests --verbose', 'Running backend dashboard tests');
   }
   process.exit(0);
 }

@@ -4,18 +4,19 @@ node_modules/
 .out/
 .next-static/
 
-# Rust
-backend/target/
-**/*.rlib
-
 # Env & secrets
 .env
 .env.*
+!.env.example
+!.env.local
+*.pem
+*.key
+*.cert
+*.crt
 
 # Logs
 *.log
 logs/
-backend/logs/
 
 # OS
 .DS_Store
@@ -25,14 +26,25 @@ Thumbs.db
 coverage/
 .jest-cache/
 
+# Build artifacts
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Docker
 *.pid
 
 # Editor
 .vscode/
 .idea/
+
 # Local Netlify folder
 .netlify
+
+# Prisma
+prisma/migrations/
+
+# Railway
+.railway-*
 
 # Empty/broken submodule directories
 consolespy/

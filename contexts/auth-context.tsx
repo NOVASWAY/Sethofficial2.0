@@ -1,11 +1,25 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from 'react'
+import React, { createContext, useContext, ReactNode } from 'react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { User, AuthState, LoginCredentials, authenticateUser, getStoredUser, storeAuthToken, removeAuthToken } from '@/lib/auth'
 
-interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<any>
+interface User {
+  id: string
+  username: string
+  name: string
+  role: string
+  department: string
+  email: string
+  permissions?: string[]
+}
+
+interface AuthContextType {
+  user: User | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  error: string | null
+  login: (credentials: { username: string; password: string }) => Promise<{ mfaRequired?: boolean; mfaSessionToken?: string } | void>
   logout: () => void
   checkAuth: () => void
 }
@@ -13,103 +27,52 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    isAuthenticated: false,
-    isLoading: true,
-    error: null
-  })
-
+  const { data: session, status } = useSession()
   const router = useRouter()
 
-  // Define checkAuth first since it's used in useEffect - memoized to prevent recreation
-  const checkAuth = useCallback(() => {
-    try {
-      const user = getStoredUser()
-      setAuthState({
-        user,
-        isAuthenticated: !!user,
-        isLoading: false,
-        error: null
-      })
-    } catch (error) {
-      // Silently handle errors during auth check
-      console.error('Error checking auth:', error)
-      setAuthState({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null
-      })
-    }
-  }, [])
-
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }))
-
-    try {
-      const result = await authenticateUser(credentials)
-
-      // Check if MFA is required
-      if (result && 'mfaRequired' in result && result.mfaRequired) {
-        // Return result with MFA info - don't redirect yet
-        setAuthState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: null
-        }))
-        return result
+  const user: User | null = session?.user
+    ? {
+        id: (session.user as any).id || '',
+        username: (session.user as any).username || '',
+        name: session.user.name || '',
+        role: (session.user as any).role || 'receptionist',
+        department: (session.user as any).department || '',
+        email: session.user.email || '',
       }
+    : null
 
-      if (result && result.user && result.token) {
-        storeAuthToken(result.token)
-        setAuthState({
-          user: result.user,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null
-        })
-        router.push(`/dashboard/${result.user.role}`)
-        return result
-      } else {
-        throw new Error('Invalid login response')
-      }
-    } catch (error) {
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Login failed'
-      }))
-      throw error
-    }
-  }, [router])
-
-  const logout = useCallback(() => {
-    removeAuthToken()
-    setAuthState({
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null
+  const login = async (credentials: { username: string; password: string }) => {
+    const result = await signIn('credentials', {
+      username: credentials.username,
+      password: credentials.password,
+      redirect: false,
     })
-    router.push('/')
-  }, [router])
 
-  // Initialize auth on mount
-  useEffect(() => {
-    checkAuth()
-  }, [checkAuth])
+    if (result?.error) {
+      throw new Error('Invalid credentials')
+    }
+  }
 
-  // Create context value - memoized to prevent recreation
-  const value: AuthContextType = useMemo(() => ({
-    ...authState,
-    login,
-    logout,
-    checkAuth
-  }), [authState, login, logout, checkAuth])
+  const logout = () => {
+    signOut({ callbackUrl: '/' })
+  }
+
+  const checkAuth = () => {
+    // NextAuth handles this automatically
+  }
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: status === 'authenticated',
+        isLoading: status === 'loading',
+        error: null,
+        login,
+        logout,
+        checkAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
@@ -118,18 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    // Return a safe default instead of throwing to prevent crashes
-    console.warn('useAuth called outside AuthProvider, using default values')
     return {
       user: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
-      login: async () => {
-        throw new Error('AuthProvider not available')
-      },
-      logout: () => { },
-      checkAuth: () => { }
+      login: async () => { throw new Error('AuthProvider not available') },
+      logout: () => {},
+      checkAuth: () => {},
     }
   }
   return context

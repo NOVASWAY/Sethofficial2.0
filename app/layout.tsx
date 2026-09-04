@@ -7,11 +7,7 @@ import { Suspense } from "react"
 import "./globals.css"
 import "./print.css"
 import { Providers } from "@/components/providers"
-import { AuthProvider } from "@/contexts/auth-context"
-import { AppStateProvider } from "@/contexts/app-state-context"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { Toaster } from "@/components/ui/toaster"
-import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
 
 export const metadata: Metadata = {
   title: "Seth Medical Clinic - Management System",
@@ -32,8 +28,6 @@ export const metadata: Metadata = {
     ],
     apple: '/favicon.svg',
   },
-  // Note: This is a web app, not an installable app
-  // appleWebApp settings are for browser display optimization only
   formatDetection: {
     telephone: false,
   },
@@ -48,18 +42,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
         <ErrorBoundary>
-          <AuthProvider>
-            <Providers>
-              <AppStateProvider>
-                {/* <ServiceWorkerRegistration /> - Disabled to prevent caching issues */}
-                <ServiceWorkerRegistration />
-                <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-                  {children}
-                </Suspense>
-                <Toaster />
-              </AppStateProvider>
-            </Providers>
-          </AuthProvider>
+          <Providers>
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+              {children}
+            </Suspense>
+          </Providers>
         </ErrorBoundary>
         <ErrorBoundary>
           <Analytics />

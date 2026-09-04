@@ -14,10 +14,10 @@ export default function DebugPage() {
     })
     
     console.log('✅ Debug page loaded')
-    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api')
+    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL || '/api')
     
     // Test API connection
-    fetch('http://localhost:8080/api/test/database')
+    fetch('/api/dashboard')
       .then(res => res.json())
       .then(data => console.log('✅ API test successful:', data))
       .catch(err => console.error('❌ API test failed:', err))
@@ -32,7 +32,7 @@ export default function DebugPage() {
             <strong>Environment:</strong> {typeof window !== 'undefined' ? 'Browser' : 'Server'}
           </div>
           <div>
-            <strong>API URL:</strong> {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'}
+            <strong>API URL:</strong> {process.env.NEXT_PUBLIC_API_URL || '/api'}
           </div>
           <div>
             <strong>Check browser console (F12) for errors</strong>

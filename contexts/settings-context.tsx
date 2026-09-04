@@ -129,12 +129,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       try {
         // Try to load from backend first
-        const token = localStorage.getItem('auth_token')
-        const response = await fetch('http://localhost:8080/api/settings', {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-            'Content-Type': 'application/json'
-          }
+        const response = await fetch('/api/settings', {
+          headers: { 'Content-Type': 'application/json' }
         })
 
         if (response.ok) {
@@ -259,12 +255,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 
       // Send to backend for persistence
-      const response = await fetch('/api/v1/settings', {
+      const response = await fetch('/api/settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: backendSettings })
       })
 
@@ -296,12 +289,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (updates.loginAttempts !== undefined) backendSettings.max_login_attempts = updates.loginAttempts.toString()
 
       if (Object.keys(backendSettings).length > 0) {
-        await fetch('/api/v1/settings', {
+        await fetch('/api/settings', {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ settings: { security: backendSettings } })
         })
       }
