@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 type MpesaSettings = {
   shortCode?: string;
@@ -11,7 +12,7 @@ type MpesaSettings = {
   c2bConfirmationUrl?: string;
 };
 
-let inMemory: MpesaSettings | null = null;
+const SETTINGS_KEY = "mpesa_settings";
 
 function fromEnv(): MpesaSettings {
   return {
@@ -26,8 +27,38 @@ function fromEnv(): MpesaSettings {
   };
 }
 
+async function getSettings(): Promise<MpesaSettings> {
+  try {
+    const record = await prisma.systemSetting.findUnique({
+      where: { key: SETTINGS_KEY },
+    });
+    if (record) {
+      return JSON.parse(record.value) as MpesaSettings;
+    }
+  } catch {
+    // Fall through to env defaults
+  }
+  return fromEnv();
+}
+
+async function saveSettings(settings: MpesaSettings): Promise<void> {
+  await prisma.systemSetting.upsert({
+    where: { key: SETTINGS_KEY },
+    update: {
+      value: JSON.stringify(settings),
+      category: "mpesa",
+      description: "M-Pesa integration settings",
+    },
+    create: {
+      key: SETTINGS_KEY,
+      value: JSON.stringify(settings),
+      category: "mpesa",
+      description: "M-Pesa integration settings",
+    },
+  });
+}
+
 function isAdmin(req: NextRequest): boolean {
-  // Minimal placeholder authz (replace with real JWT/role check)
   const token = req.headers.get("x-admin-token");
   return !!token;
 }
@@ -36,9 +67,7 @@ export async function GET(req: NextRequest) {
   if (!isAdmin(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const payload = inMemory ?? fromEnv();
-  // basic audit log
-  console.log("[mpesa-settings] GET", { ts: Date.now(), env: payload.environment });
+  const payload = await getSettings();
   return NextResponse.json(payload);
 }
 
@@ -48,22 +77,20 @@ export async function PUT(req: NextRequest) {
   }
   try {
     const body = (await req.json()) as MpesaSettings;
-    inMemory = {
-      shortCode: body.shortCode || "",
-      passkey: body.passkey || inMemory?.passkey || "",
-      consumerKey: body.consumerKey || inMemory?.consumerKey || "",
-      consumerSecret: body.consumerSecret || inMemory?.consumerSecret || "",
+    const current = await getSettings();
+    const updated: MpesaSettings = {
+      shortCode: body.shortCode || current.shortCode || "",
+      passkey: body.passkey || current.passkey || "",
+      consumerKey: body.consumerKey || current.consumerKey || "",
+      consumerSecret: body.consumerSecret || current.consumerSecret || "",
       environment: body.environment === "production" ? "production" : "sandbox",
-      stkCallbackUrl: body.stkCallbackUrl || "",
-      c2bValidationUrl: body.c2bValidationUrl || "",
-      c2bConfirmationUrl: body.c2bConfirmationUrl || "",
+      stkCallbackUrl: body.stkCallbackUrl || current.stkCallbackUrl || "",
+      c2bValidationUrl: body.c2bValidationUrl || current.c2bValidationUrl || "",
+      c2bConfirmationUrl: body.c2bConfirmationUrl || current.c2bConfirmationUrl || "",
     };
-    // basic audit log
-    console.log("[mpesa-settings] PUT", { ts: Date.now(), env: inMemory.environment });
+    await saveSettings(updated);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Invalid payload" }, { status: 400 });
   }
 }
-
-
