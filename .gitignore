@@ -48,3 +48,9 @@ prisma/migrations/
 
 # Empty/broken submodule directories
 consolespy/
+
+# Playwright test artifacts
+.playwright-mcp/
+
+# Vercel
+.vercel/
