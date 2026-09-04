@@ -9,6 +9,8 @@ import "./print.css"
 import { Providers } from "@/components/providers"
 import { ErrorBoundary } from "@/components/error-boundary"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Seth Medical Clinic - Management System",
   description: "Comprehensive clinic management system for Seth Medical Clinic",
