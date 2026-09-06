@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -42,11 +42,73 @@ export function FinancialOverview() {
   const { toast } = useToast()
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
 
+  // Financial API data
+  const [apiData, setApiData] = useState<any>(null)
+  const [apiLoading, setApiLoading] = useState(false)
+
+  const fetchFinancialData = useCallback(async () => {
+    try {
+      setApiLoading(true)
+      const res = await fetch("/api/financial/summary")
+      if (res.ok) {
+        const result = await res.json()
+        if (result.success) setApiData(result.data)
+      }
+    } catch {
+      // Use invoice-derived data as fallback
+    } finally {
+      setApiLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchFinancialData()
+  }, [fetchFinancialData])
+
   // IMPORTANT: All hooks must be called unconditionally before any conditional logic
-  // Calculate real financial data from invoices
-  // IMPORTANT: All hooks must be called unconditionally - handle loading state in JSX instead
+  // Calculate real financial data from invoices or API
   const financialData = useMemo(() => {
-    // Return empty data structure if invoices not available to prevent errors
+    // Use API data if available
+    if (apiData) {
+      return {
+        overview: {
+          totalRevenue: apiData.totalRevenue || 0,
+          totalExpenses: apiData.totalExpenses || 0,
+          netProfit: apiData.netProfit || 0,
+          profitMargin: apiData.profitMargin || 0,
+          growthRate: 0,
+        },
+        revenue: {
+          cash: apiData.revenueByMethod?.cash || 0,
+          mpesa: apiData.revenueByMethod?.mpesa || 0,
+          sha: apiData.revenueByMethod?.sha || 0,
+          nhif: apiData.revenueByMethod?.nhif || 0,
+          mixed: apiData.revenueByMethod?.mixed || 0,
+        },
+        expenses: {
+          salaries: apiData.expensesByCategory?.salaries || apiData.totalExpenses * 0.36 || 0,
+          supplies: apiData.expensesByCategory?.supplies || apiData.totalExpenses * 0.26 || 0,
+          utilities: apiData.expensesByCategory?.utilities || apiData.totalExpenses * 0.14 || 0,
+          maintenance: apiData.expensesByCategory?.maintenance || apiData.totalExpenses * 0.12 || 0,
+          other: apiData.expensesByCategory?.other || apiData.totalExpenses * 0.12 || 0,
+        },
+        monthly: (apiData.monthlyData || []).map((m: any) => ({
+          month: new Date(m.month + "-01").toLocaleString("default", { month: "short" }),
+          revenue: m.revenue,
+          expenses: m.expenses,
+          profit: m.profit,
+        })),
+        transactions: {
+          today: 0,
+          thisWeek: 0,
+          thisMonth: apiData.transactionCount || 0,
+          avgTransaction: apiData.transactionCount > 0 ? apiData.totalRevenue / apiData.transactionCount : 0,
+        },
+        patients: { total: 0, newThisMonth: 0, returning: 0 },
+      }
+    }
+
+    // Fallback to invoice-derived data
     if (!invoices || invoices.length === 0) {
       return {
         overview: { totalRevenue: 0, totalExpenses: 0, netProfit: 0, profitMargin: 0, growthRate: 0 },
@@ -181,7 +243,7 @@ export function FinancialOverview() {
         }
       })(),
     }
-  }, [period, invoices, getTotalRevenue, getRevenueByMethod])
+  }, [period, invoices, getTotalRevenue, getRevenueByMethod, apiData])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -323,7 +385,7 @@ export function FinancialOverview() {
               </CardHeader>
               <CardContent>
                 <BarChart
-                  data={financialData.monthly.map(m => ({
+                  data={financialData.monthly.map((m: { month: string; revenue: number; expenses: number; profit: number }) => ({
                     label: m.month,
                     value: m.revenue,
                     color: "#10b981"
@@ -523,7 +585,7 @@ export function FinancialOverview() {
             </CardHeader>
             <CardContent>
               <BarChart
-                data={financialData.monthly.map(m => ({
+                data={financialData.monthly.map((m: { month: string; revenue: number; expenses: number; profit: number }) => ({
                   label: m.month,
                   value: m.revenue,
                   color: "#10b981"
