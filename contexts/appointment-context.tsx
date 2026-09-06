@@ -52,28 +52,39 @@ interface AppointmentContextType {
   getTodayQueue: () => QueueItem[]
 }
 
-const AppointmentContext = createContext<AppointmentContextType | undefined>(undefined)
-
-// Removed localStorage keys and default data - now using API calls
+const QUEUE_STORAGE_KEY = 'clinic_queue'
 
 export function AppointmentProvider({ children }: { children: ReactNode }) {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load from API on mount
+  // Load from API + localStorage on mount
   useEffect(() => {
     const loadAppointments = async () => {
       try {
         const appointmentsData = await appointmentAPI.getAll()
         setAppointments(appointmentsData.data || [])
-
-        // For now, we'll manage queue locally until backend queue API is implemented
-        // TODO: Implement queue API endpoints in backend
-        setQueue([])
       } catch (error) {
         console.error('Error loading appointments from API:', error)
         setAppointments([])
+      }
+
+      // Load queue from localStorage (persists across refreshes within same browser)
+      try {
+        const savedQueue = localStorage.getItem(QUEUE_STORAGE_KEY)
+        if (savedQueue) {
+          const parsed = JSON.parse(savedQueue)
+          if (Array.isArray(parsed)) {
+            // Filter to only today's queue items
+            const today = new Date().toISOString().split('T')[0]
+            const todayQueue = parsed.filter((q: QueueItem) =>
+              q.checkInTime && q.checkInTime.startsWith(today)
+            )
+            setQueue(todayQueue)
+          }
+        }
+      } catch {
         setQueue([])
       } finally {
         setIsInitialized(true)
@@ -83,7 +94,15 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     loadAppointments()
   }, [])
 
-  // Removed localStorage save effects - data is now persisted via API calls
+  // Persist queue to localStorage whenever it changes
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue))
+    } catch {
+      // Ignore storage errors
+    }
+  }, [queue, isInitialized])
 
   const addAppointment = async (appointmentData: Omit<Appointment, 'id' | 'appointmentNumber' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     try {

@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "@/contexts/language-context"
 import { PatientProvider } from "@/contexts/patient-context"
 import { InventoryProvider } from "@/contexts/inventory-context"
+import { AppointmentProvider } from "@/contexts/appointment-context"
 import {
   Heart,
   User,
@@ -377,7 +378,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   return (
     <PatientProvider>
       <InventoryProvider>
-        <div className="min-h-screen bg-background">
+        <AppointmentProvider>
+          <div className="min-h-screen bg-background">
           {/* Mobile sidebar overlay */}
           {sidebarOpen && (
             <div className="fixed inset-0 z-50 lg:hidden">
@@ -438,7 +440,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             {/* Page content */}
             <main className="p-4 lg:p-6">{children}</main>
           </div>
-        </div>
+          </div>
+        </AppointmentProvider>
       </InventoryProvider>
     </PatientProvider>
   )
