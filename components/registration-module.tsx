@@ -14,10 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { UserPlus, Search, FileText, Calendar, Phone, Mail, MapPin, Heart, AlertCircle, CheckCircle2, Eye, Edit, Users, Activity } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { PatientImport } from './patient-import'
-import { MigrationWizard } from './migration-wizard'
-import { ImportProgressDashboard } from './import-progress-dashboard'
-import { usePatientEnhanced, type Patient } from '@/contexts/patient-context-enhanced'
+import { patientAPI } from '@/lib/api-client'
 import { DateRangeFilter, type DateRange, isDateInRange } from '@/components/date-range-filter'
 import { validatePhoneNumber } from '@/lib/import-validation'
 import { isPhoneMatch, isNameSimilar, normalizePhone } from '@/lib/duplicate-detection'
@@ -25,6 +22,24 @@ import { consultationAPI, invoiceAPI, prescriptionAPI, activityLogAPI } from '@/
 import { Receipt, Stethoscope, Pill, Calendar as CalendarIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+
+interface Patient {
+  id: string
+  patient_number: string
+  first_name: string
+  last_name: string
+  date_of_birth: string
+  gender: string
+  phone: string
+  address?: string
+  emergency_contact?: string
+  emergency_phone?: string
+  blood_type?: string
+  allergies?: string
+  insurance_type?: string
+  insurance_number?: string
+  created_at: string
+}
 
 // Common Kenyan locations for autocomplete
 const KENYAN_LOCATIONS = [
@@ -83,7 +98,7 @@ export function RegistrationModule() {
   const { toast } = useToast()
   const router = useRouter()
   const { user } = useAuth()
-  const { patients, addPatient, updatePatient, searchPatients, getTotalPatients, getActivePatients } = usePatientEnhanced()
+  const [patients, setPatients] = useState<Patient[]>([])
   const [activeTab, setActiveTab] = useState('records')
   const [loading, setLoading] = useState(false)
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([])
@@ -146,14 +161,145 @@ export function RegistrationModule() {
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([])
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [quickRegistrationMode, setQuickRegistrationMode] = useState(false)
-  const [visitReasonCategory, setVisitReasonCategory] = useState<VisitReasonCategory | ''>('')
+  const [visitReasonCategory, setVisitReasonCategory] = useState<VisitReasonCategory | ''>('')  // Fetch patients from API on mount
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const result = await patientAPI.getAll({ page: 1, per_page: 500 })
+        if (result && Array.isArray(result.data)) {
+          setPatients(result.data.map((p: any) => ({
+            id: p.id || p.patient_number,
+            patient_number: p.patient_number || p.id,
+            first_name: p.first_name || '',
+            last_name: p.last_name || '',
+            date_of_birth: p.date_of_birth || '',
+            gender: p.gender || '',
+            phone: p.phone_number || p.phone || '',
+            address: p.address || '',
+            emergency_contact: p.emergency_contact_name || '',
+            emergency_phone: p.emergency_contact_phone || '',
+            blood_type: p.blood_type || '',
+            allergies: Array.isArray(p.allergies) ? p.allergies.join(', ') : (p.allergies || ''),
+            insurance_type: p.insurance_type || '',
+            insurance_number: p.insurance_number || '',
+            created_at: p.created_at || new Date().toISOString(),
+          })))
+        } else if (result && Array.isArray(result)) {
+          setPatients(result.map((p: any) => ({
+            id: p.id || p.patient_number,
+            patient_number: p.patient_number || p.id,
+            first_name: p.first_name || '',
+            last_name: p.last_name || '',
+            date_of_birth: p.date_of_birth || '',
+            gender: p.gender || '',
+            phone: p.phone_number || p.phone || '',
+            address: p.address || '',
+            emergency_contact: p.emergency_contact_name || '',
+            emergency_phone: p.emergency_contact_phone || '',
+            blood_type: p.blood_type || '',
+            allergies: Array.isArray(p.allergies) ? p.allergies.join(', ') : (p.allergies || ''),
+            insurance_type: p.insurance_type || '',
+            insurance_number: p.insurance_number || '',
+            created_at: p.created_at || new Date().toISOString(),
+          })))
+        }
+      } catch (error) {
+        console.warn('Failed to fetch patients:', error)
+      }
+    }
+    fetchPatients()
+  }, [])
+
+  const getTotalPatients = () => patients.length
+  const getActivePatients = () => patients.filter(p => p.id).length
+
+  const searchPatientsLocal = async (query: string): Promise<Patient[]> => {
+    try {
+      const results = await patientAPI.search(query)
+      if (Array.isArray(results)) {
+        return results.map((p: any) => ({
+          id: p.id || p.patient_number,
+          patient_number: p.patient_number || p.id,
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          date_of_birth: p.date_of_birth || '',
+          gender: p.gender || '',
+          phone: p.phone_number || p.phone || '',
+          address: p.address || '',
+          emergency_contact: p.emergency_contact_name || '',
+          emergency_phone: p.emergency_contact_phone || '',
+          blood_type: p.blood_type || '',
+          allergies: Array.isArray(p.allergies) ? p.allergies.join(', ') : (p.allergies || ''),
+          insurance_type: p.insurance_type || '',
+          insurance_number: p.insurance_number || '',
+          created_at: p.created_at || new Date().toISOString(),
+        }))
+      }
+    } catch (error) {
+      console.warn('Search failed, using local filter:', error)
+    }
+    // Fallback to local filter
+    const q = query.toLowerCase()
+    return patients.filter(p =>
+      p.first_name.toLowerCase().includes(q) ||
+      p.last_name.toLowerCase().includes(q) ||
+      p.phone.includes(query) ||
+      p.patient_number.toLowerCase().includes(q)
+    )
+  }
+
+  const addPatientLocal = async (patientData: any): Promise<Patient> => {
+    const newPatient = await patientAPI.create(patientData)
+    const mapped: Patient = {
+      id: newPatient.id || newPatient.patient_number,
+      patient_number: newPatient.patient_number || newPatient.id,
+      first_name: newPatient.first_name || '',
+      last_name: newPatient.last_name || '',
+      date_of_birth: newPatient.date_of_birth || '',
+      gender: newPatient.gender || '',
+      phone: newPatient.phone_number || newPatient.phone || '',
+      address: newPatient.address || '',
+      emergency_contact: newPatient.emergency_contact_name || '',
+      emergency_phone: newPatient.emergency_contact_phone || '',
+      blood_type: newPatient.blood_type || '',
+      allergies: Array.isArray(newPatient.allergies) ? newPatient.allergies.join(', ') : (newPatient.allergies || ''),
+      insurance_type: newPatient.insurance_type || '',
+      insurance_number: newPatient.insurance_number || '',
+      created_at: newPatient.created_at || new Date().toISOString(),
+    }
+    setPatients(prev => [...prev, mapped])
+    return mapped
+  }
+
+  const updatePatientLocal = async (id: string, updateData: any): Promise<Patient> => {
+    const updated = await patientAPI.update(id, updateData)
+    const mapped: Patient = {
+      id: updated.id || updated.patient_number,
+      patient_number: updated.patient_number || updated.id,
+      first_name: updated.first_name || '',
+      last_name: updated.last_name || '',
+      date_of_birth: updated.date_of_birth || '',
+      gender: updated.gender || '',
+      phone: updated.phone_number || updated.phone || '',
+      address: updated.address || '',
+      emergency_contact: updated.emergency_contact_name || '',
+      emergency_phone: updated.emergency_contact_phone || '',
+      blood_type: updated.blood_type || '',
+      allergies: Array.isArray(updated.allergies) ? updated.allergies.join(', ') : (updated.allergies || ''),
+      insurance_type: updated.insurance_type || '',
+      insurance_number: updated.insurance_number || '',
+      created_at: updated.created_at || new Date().toISOString(),
+    }
+    setPatients(prev => prev.map(p => p.id === id ? mapped : p))
+    return mapped
+  }
 
   // Auto-detect returning patient when phone number is entered
   useEffect(() => {
     const checkReturningPatient = async () => {
       if (formData.phone.length >= 10) {
         try {
-          const results = await searchPatients(formData.phone)
+          const results = await searchPatientsLocal(formData.phone)
           if (results.length > 0) {
             const match = results[0]
             setReturningPatient(match)
@@ -192,7 +338,7 @@ export function RegistrationModule() {
 
     const timeoutId = setTimeout(checkReturningPatient, 500) // Debounce
     return () => clearTimeout(timeoutId)
-  }, [formData.phone, searchPatients, toast])
+  }, [formData.phone, searchPatientsLocal, toast])
 
   // Validate phone number format
   useEffect(() => {
@@ -348,7 +494,7 @@ export function RegistrationModule() {
           age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
         }
 
-        const updated = await updatePatient(returningPatient.id, updateData)
+        const updated = await updatePatientLocal(returningPatient.id, updateData)
 
         // Log activity
         if (user?.id) {
@@ -392,7 +538,7 @@ export function RegistrationModule() {
         status: 'active' as const,
       }
 
-      const newPatient = await addPatient(patientData)
+      const newPatient = await addPatientLocal(patientData)
 
       // Log patient registration activity
       if (user?.id) {
@@ -502,7 +648,7 @@ export function RegistrationModule() {
     setLoading(true)
     try {
       // Context search
-      const contextResults = await searchPatients(searchTerm)
+      const contextResults = await searchPatientsLocal(searchTerm)
 
       // Backend search
       let backendResults: any[] = []
@@ -625,7 +771,7 @@ export function RegistrationModule() {
       }
 
       // Update in context
-      await updatePatient(selectedPatient.id, updateData)
+      await updatePatientLocal(selectedPatient.id, updateData)
 
       // Persist to backend API
       fetch(`/api/patients/${selectedPatient.id}`, {
@@ -691,19 +837,11 @@ export function RegistrationModule() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setIsWizardOpen(true)} variant="default">
-            <FileText className="w-4 h-4 mr-2" />
-            Migration Wizard
-          </Button>
-          <PatientImport />
-          <ImportProgressDashboard />
           <Badge variant="outline" className="text-lg px-4 py-2">
             <Users className="h-4 w-4 mr-2" />
             {getTotalPatients()} Patients ({getActivePatients()} Active)
           </Badge>
         </div>
-
-        <MigrationWizard open={isWizardOpen} onOpenChange={setIsWizardOpen} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1778,7 +1916,7 @@ export function RegistrationModule() {
                     patient_number: generatePatientNumber(),
                     status: 'active' as const,
                   }
-                  const newPatient = await addPatient(patientData)
+      const newPatient = await addPatientLocal(patientData)
                   toast({
                     title: 'New Patient Registered',
                     description: `Patient ${newPatient.first_name} ${newPatient.last_name} registered as new patient.`,

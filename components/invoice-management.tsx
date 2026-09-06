@@ -30,7 +30,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { validateForm, validationSchemas } from "@/lib/validation"
 import { Separator } from "@/components/ui/separator"
 import { Search, Plus, Eye, Edit, Download, DollarSign, Clock, CheckCircle, XCircle, FileText, Shield, Printer, RefreshCw } from "lucide-react"
-import { InvoiceReports } from "./invoice-reports"
 import { PrintableInvoice } from "@/components/printable-invoice"
 
 interface InvoiceManagementProps {
@@ -705,9 +704,6 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
           disabled={loading}
         />
       )}
-
-      {/* Invoice Reports */}
-      {!loading && invoices.length > 0 && <InvoiceReports invoices={invoices} role={role} />}
 
       {/* Invoice Details Dialog */}
       <Dialog open={isViewInvoiceOpen} onOpenChange={setIsViewInvoiceOpen}>

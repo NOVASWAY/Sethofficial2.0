@@ -7,8 +7,26 @@ import { patientAPI } from "@/lib/api-client"
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from "@/hooks/use-toast"
-import { usePatientEnhanced, type Patient } from "@/contexts/patient-context-enhanced"
 import { useKeyboardShortcuts, COMMON_SHORTCUTS } from '@/hooks/use-keyboard-shortcuts'
+
+interface Patient {
+  id: string
+  patient_number: string
+  first_name: string
+  last_name: string
+  date_of_birth: string
+  gender: string
+  phone: string
+  location: string
+  emergency_contact: string
+  emergency_phone: string
+  blood_type: string
+  allergies: string[]
+  medical_history: string
+  created_at: string
+  updated_at: string
+  status: 'active' | 'inactive'
+}
 import { Skeleton, PatientListSkeleton } from "@/components/ui/loading"
 import { Pagination } from "@/components/ui/pagination"
 import { Button } from "@/components/ui/button"
@@ -462,7 +480,6 @@ export function PatientManagement({ role }: PatientManagementProps) {
 
 function NewPatientForm({ onClose }: { onClose: () => void }) {
   const { toast } = useToast()
-  const { addPatient } = usePatientEnhanced()
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -837,7 +854,6 @@ function PatientDetailsView({ patient, canViewFull }: { patient: Patient; canVie
 
 function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () => void }) {
   const { toast } = useToast()
-  const { updatePatient } = usePatientEnhanced()
 
   const getAge = (patient: Patient) => {
     if ((patient as any).age !== undefined) {
@@ -902,7 +918,7 @@ function EditPatientForm({ patient, onClose }: { patient: Patient; onClose: () =
         medical_history: formData.medicalHistory || undefined,
       }
 
-      await updatePatient(patient.id, patientData)
+      await patientAPI.update(patient.id, patientData)
 
       toast({
         title: "Patient Updated",

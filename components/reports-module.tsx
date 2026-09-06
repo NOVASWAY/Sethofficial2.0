@@ -12,7 +12,7 @@ import { DataExport } from "@/components/ui/data-export"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { SHAMonthlyReport } from "@/components/sha-monthly-report"
 import { useInvoices } from "@/contexts/invoice-context"
-import { usePatientEnhanced } from "@/contexts/patient-context-enhanced"
+import { patientAPI } from "@/lib/api-client"
 import { useInventory } from "@/contexts/inventory-context"
 import { usePurchaseOrders } from "@/contexts/purchase-order-context"
 import { useAuditLog } from "@/contexts/audit-log-context"
@@ -204,10 +204,27 @@ export function ReportsModule() {
   // IMPORTANT: All hooks must be called BEFORE any conditional returns
   // Context hooks for real data
   const { invoices, getTotalRevenue, getRevenueByMethod, getOutstandingBalance } = useInvoices()
-  const { patients, getTotalPatients, getActivePatients } = usePatientEnhanced()
+  const [patients, setPatients] = useState<any[]>([])
   const { medicines, getLowStockMedicines } = useInventory()
   const { purchaseOrders, getTotalOrdersValue, getPendingOrdersCount } = usePurchaseOrders()
   const { logs } = useAuditLog()
+
+  // Fetch patients from API
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const result = await patientAPI.getAll({ page: 1, per_page: 1000 })
+        if (result && Array.isArray(result.data)) {
+          setPatients(result.data)
+        } else if (result && Array.isArray(result)) {
+          setPatients(result)
+        }
+      } catch (error) {
+        console.warn('Failed to fetch patients for reports:', error)
+      }
+    }
+    fetchPatients()
+  }, [])
 
   // Ensure data is always treated as arrays/objects to prevent hook order issues
   const safeInvoices = invoices || []

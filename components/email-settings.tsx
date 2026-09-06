@@ -22,27 +22,119 @@ import {
   Trash2,
   Plus
 } from 'lucide-react'
-import { useEmailService, type EmailProvider, type EmailTemplate } from '@/contexts/email-service-context'
 import { useTranslation } from '@/contexts/language-context'
+
+interface EmailProviderConfig {
+  enabled: boolean
+  provider: 'sendgrid' | 'mailgun' | 'smtp' | 'mock'
+  apiKey: string
+  domain: string
+  fromEmail: string
+  fromName: string
+}
+
+interface EmailTemplate {
+  id: string
+  name: string
+  subject: string
+  content: string
+  variables: string[]
+}
+
+interface EmailNotification {
+  id: string
+  recipient: string
+  subject: string
+  status: 'sent' | 'failed' | 'pending'
+  sentAt?: string
+  error?: string
+}
 
 export function EmailSettings() {
   const { t } = useTranslation()
-  const { 
-    config, 
-    templates, 
-    notifications,
-    updateConfig, 
-    sendEmail, 
-    sendTemplateEmail,
-    addTemplate,
-    updateTemplate,
-    deleteTemplate,
-    testEmailConnection 
-  } = useEmailService()
+  const [config, setConfig] = useState<EmailProviderConfig>({
+    enabled: false,
+    provider: 'mock',
+    apiKey: '',
+    domain: '',
+    fromEmail: '',
+    fromName: 'Seth Medical Clinic',
+  })
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [notifications, setNotifications] = useState<EmailNotification[]>([])
   
   const [isTesting, setIsTesting] = useState(false)
   const [testEmail, setTestEmail] = useState('')
   const [activeTab, setActiveTab] = useState('config')
+
+  const updateConfig = (updates: Partial<EmailProviderConfig>) => {
+    setConfig(prev => ({ ...prev, ...updates }))
+  }
+
+  const sendEmail = async (to: string, subject: string, body: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, body }),
+      })
+      const notification: EmailNotification = {
+        id: `email-${Date.now()}`,
+        recipient: to,
+        subject,
+        status: response.ok ? 'sent' : 'failed',
+        sentAt: new Date().toISOString(),
+      }
+      setNotifications(prev => [notification, ...prev])
+      return response.ok
+    } catch (error) {
+      const notification: EmailNotification = {
+        id: `email-${Date.now()}`,
+        recipient: to,
+        subject,
+        status: 'failed',
+        sentAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+      setNotifications(prev => [notification, ...prev])
+      return false
+    }
+  }
+
+  const sendTemplateEmail = async (to: string, templateId: string, variables: Record<string, string>): Promise<boolean> => {
+    const template = templates.find(t => t.id === templateId)
+    if (!template) return false
+    let content = template.content
+    for (const [key, value] of Object.entries(variables)) {
+      content = content.replace(new RegExp(`{{${key}}}`, 'g'), value)
+    }
+    return sendEmail(to, template.subject, content)
+  }
+
+  const addTemplate = (template: Omit<EmailTemplate, 'id'>) => {
+    setTemplates(prev => [...prev, { ...template, id: `template-${Date.now()}` }])
+  }
+
+  const updateTemplate = (id: string, updates: Partial<EmailTemplate>) => {
+    setTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+  }
+
+  const deleteTemplate = (id: string) => {
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  const testEmailConnection = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/email/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      return response.ok
+    } catch (error) {
+      return false
+    }
+  }
 
   const handleConfigUpdate = (field: keyof typeof config, value: any) => {
     updateConfig({ [field]: value })
@@ -73,7 +165,7 @@ export function EmailSettings() {
     }
   }
 
-  const getProviderLabel = (provider: EmailProvider) => {
+  const getProviderLabel = (provider: EmailProviderConfig['provider']) => {
     switch (provider) {
       case 'sendgrid': return 'SendGrid'
       case 'mailgun': return 'Mailgun'
@@ -138,7 +230,7 @@ export function EmailSettings() {
                 <Label htmlFor="email-provider">Email Provider</Label>
                 <Select
                   value={config.provider}
-                  onValueChange={(value) => handleConfigUpdate('provider', value as EmailProvider)}
+                  onValueChange={(value) => handleConfigUpdate('provider', value as EmailProviderConfig['provider'])}
                   disabled={!config.enabled}
                 >
                   <SelectTrigger id="email-provider">

@@ -25,30 +25,137 @@ import {
   CreditCard,
   Smartphone
 } from 'lucide-react'
-import { useSMSService, type SMSProvider, type SMSTemplate } from '@/contexts/sms-service-context'
 import { useTranslation } from '@/contexts/language-context'
+
+interface SMSProviderConfig {
+  enabled: boolean
+  provider: 'africas_talking' | 'twilio' | 'mock'
+  apiKey: string
+  username: string
+  accountSid: string
+  authToken: string
+  fromNumber: string
+}
+
+interface SMSTemplate {
+  id: string
+  name: string
+  content: string
+  type: string
+  variables: string[]
+}
+
+interface SMSNotification {
+  id: string
+  recipient: string
+  content: string
+  status: 'sent' | 'delivered' | 'failed' | 'pending'
+  sentAt?: string
+  cost?: number
+  error?: string
+}
 
 export function SMSSettings() {
   const { t } = useTranslation()
-  const { 
-    config, 
-    templates, 
-    notifications,
-    updateConfig, 
-    sendSMS, 
-    sendTemplateSMS,
-    addTemplate,
-    updateTemplate,
-    deleteTemplate,
-    testSMSConnection,
-    getSMSBalance
-  } = useSMSService()
+  const [config, setConfig] = useState<SMSProviderConfig>({
+    enabled: false,
+    provider: 'mock',
+    apiKey: '',
+    username: '',
+    accountSid: '',
+    authToken: '',
+    fromNumber: '',
+  })
+  const [templates, setTemplates] = useState<SMSTemplate[]>([])
+  const [notifications, setNotifications] = useState<SMSNotification[]>([])
   
   const [isTesting, setIsTesting] = useState(false)
   const [testPhone, setTestPhone] = useState('')
   const [testMessage, setTestMessage] = useState('')
   const [activeTab, setActiveTab] = useState('config')
   const [balance, setBalance] = useState<number | null>(null)
+
+  const updateConfig = (updates: Partial<SMSProviderConfig>) => {
+    setConfig(prev => ({ ...prev, ...updates }))
+  }
+
+  const sendSMS = async (to: string, message: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, message }),
+      })
+      const notification: SMSNotification = {
+        id: `sms-${Date.now()}`,
+        recipient: to,
+        content: message,
+        status: response.ok ? 'sent' : 'failed',
+        sentAt: new Date().toISOString(),
+      }
+      setNotifications(prev => [notification, ...prev])
+      return response.ok
+    } catch (error) {
+      const notification: SMSNotification = {
+        id: `sms-${Date.now()}`,
+        recipient: to,
+        content: message,
+        status: 'failed',
+        sentAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+      setNotifications(prev => [notification, ...prev])
+      return false
+    }
+  }
+
+  const sendTemplateSMS = async (to: string, templateId: string, variables: Record<string, string>): Promise<boolean> => {
+    const template = templates.find(t => t.id === templateId)
+    if (!template) return false
+    let content = template.content
+    for (const [key, value] of Object.entries(variables)) {
+      content = content.replace(new RegExp(`{{${key}}}`, 'g'), value)
+    }
+    return sendSMS(to, content)
+  }
+
+  const addTemplate = (template: Omit<SMSTemplate, 'id'>) => {
+    setTemplates(prev => [...prev, { ...template, id: `template-${Date.now()}` }])
+  }
+
+  const updateTemplate = (id: string, updates: Partial<SMSTemplate>) => {
+    setTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+  }
+
+  const deleteTemplate = (id: string) => {
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  const testSMSConnection = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/sms/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      return response.ok
+    } catch (error) {
+      return false
+    }
+  }
+
+  const getSMSBalance = async (): Promise<number> => {
+    try {
+      const response = await fetch('/api/sms/balance')
+      if (response.ok) {
+        const data = await response.json()
+        return data.balance || 0
+      }
+    } catch (error) {
+      console.warn('Failed to fetch SMS balance:', error)
+    }
+    return 0
+  }
 
   // Load balance on mount
   useEffect(() => {
@@ -82,7 +189,7 @@ export function SMSSettings() {
     }
   }
 
-  const getProviderLabel = (provider: SMSProvider) => {
+  const getProviderLabel = (provider: SMSProviderConfig['provider']) => {
     switch (provider) {
       case 'africas_talking': return "Africa's Talking"
       case 'twilio': return 'Twilio'
@@ -159,7 +266,7 @@ export function SMSSettings() {
                 <Label htmlFor="sms-provider">SMS Provider</Label>
                 <Select
                   value={config.provider}
-                  onValueChange={(value) => handleConfigUpdate('provider', value as SMSProvider)}
+                  onValueChange={(value) => handleConfigUpdate('provider', value as SMSProviderConfig['provider'])}
                   disabled={!config.enabled}
                 >
                   <SelectTrigger id="sms-provider">

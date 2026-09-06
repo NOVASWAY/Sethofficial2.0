@@ -185,7 +185,7 @@ export function FinancialOverview() {
         totalExpenses,
         netProfit,
         profitMargin,
-        growthRate: calculateGrowthRate(totalRevenue, period),
+        growthRate: calculateGrowthRate(totalRevenue, monthlyData.length >= 2 ? monthlyData[monthlyData.length - 2].revenue : 0),
       },
       revenue: {
         cash: cashRevenue,

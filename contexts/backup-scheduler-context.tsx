@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useSettings } from './settings-context'
 import { useToast } from '@/hooks/use-toast'
 
 export type BackupInterval = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'disabled'
@@ -54,8 +53,22 @@ export function BackupSchedulerProvider({ children }: { children: ReactNode }) {
     error?: string
   }>>([])
 
-  const { exportBackup } = useSettings()
   const { toast } = useToast()
+
+  const exportBackup = (): string => {
+    const data: Record<string, any> = {}
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('clinic_')) {
+          data[key] = localStorage.getItem(key)
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting backup:', error)
+    }
+    return JSON.stringify(data, null, 2)
+  }
 
   // Load schedule from localStorage on mount
   useEffect(() => {

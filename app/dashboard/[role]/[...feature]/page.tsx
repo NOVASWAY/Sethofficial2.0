@@ -12,12 +12,12 @@ import { CardSkeleton, PatientListSkeleton } from '@/components/ui/loading'
 const featureComponents: Record<string, () => Promise<{ default: React.ComponentType<any> }>> = {
   'patients': () => import('@/components/patient-management').then(mod => ({ default: mod.PatientManagement })),
   'appointments': () => import('@/components/appointment-booking').then(mod => ({ default: mod.AppointmentBooking })),
-  'billing': () => import('@/app/dashboard/_role_backup/billing/page').then(mod => ({ default: mod.default })),
+  'billing': () => import('@/app/dashboard/features/billing/page').then(mod => ({ default: mod.default })),
   'queue': () => import('@/components/queue-management').then(mod => ({ default: mod.QueueManagement })),
   'consultation': () => import('@/components/consultation-module').then(mod => ({ default: mod.ConsultationModule })),
   'pharmacy': () => import('@/components/pharmacy-management').then(mod => ({ default: mod.PharmacyManagement })),
-  'inventory': () => import('@/app/dashboard/_role_backup/inventory/page').then(mod => ({ default: mod.default })),
-  'prescriptions': () => import('@/app/dashboard/_role_backup/prescriptions/page').then(mod => {
+  'inventory': () => import('@/app/dashboard/features/inventory/page').then(mod => ({ default: mod.default })),
+  'prescriptions': () => import('@/app/dashboard/features/prescriptions/page').then(mod => {
     if (!mod || !mod.default) {
       throw new Error('Prescriptions module did not export a default component')
     }
@@ -26,30 +26,30 @@ const featureComponents: Record<string, () => Promise<{ default: React.Component
     console.error('[FeaturePage] Error loading prescriptions module:', error)
     throw error
   }),
-  'visits': () => import('@/app/dashboard/_role_backup/visits/page').then(mod => ({ default: mod.default })),
-  'registration': () => import('@/app/dashboard/_role_backup/registration/page').then(mod => ({ default: mod.default })),
-  'invoices': () => import('@/app/dashboard/_role_backup/invoices/page').then(mod => ({ default: mod.default })),
-  'reports': () => import('@/app/dashboard/_role_backup/reports/page').then(mod => ({ default: mod.default })),
-  'users': () => import('@/app/dashboard/_role_backup/users/page').then(mod => ({ default: mod.default })),
-  'settings': () => import('@/app/dashboard/_role_backup/settings/page').then(mod => ({ default: mod.default })),
-  'lab': () => import('@/app/dashboard/_role_backup/lab/page').then(mod => ({ default: mod.default })),
-  'pharmacy-dispensing': () => import('@/app/dashboard/_role_backup/pharmacy-dispensing/page').then(mod => ({ default: mod.default })),
-  'financial-overview': () => import('@/app/dashboard/_role_backup/financial-overview/page').then(mod => ({ default: mod.default })),
-  'sha-tracking': () => import('@/app/dashboard/_role_backup/sha-tracking/page').then(mod => ({ default: mod.default })),
-  'stock-receiving': () => import('@/app/dashboard/_role_backup/stock-receiving/page').then(mod => ({ default: mod.default })),
-  'stock-reconciliation': () => import('@/app/dashboard/_role_backup/stock-reconciliation/page').then(mod => ({ default: mod.default })),
-  'expiry-alerts': () => import('@/app/dashboard/_role_backup/expiry-alerts/page').then(mod => ({ default: mod.default })),
-  'services': () => import('@/app/dashboard/_role_backup/services/page').then(mod => ({ default: mod.default })),
-  'medicines': () => import('@/app/dashboard/_role_backup/medicines/page').then(mod => ({ default: mod.default })),
-  'inventory-reports': () => import('@/app/dashboard/_role_backup/inventory-reports/page').then(mod => ({ default: mod.default })),
-  'workflow': () => import('@/app/dashboard/_role_backup/workflow/page').then(mod => ({ default: mod.default })),
-  'audit-logs': () => import('@/app/dashboard/_role_backup/audit-logs/page').then(mod => ({ default: mod.default })),
+  'visits': () => import('@/app/dashboard/features/visits/page').then(mod => ({ default: mod.default })),
+  'registration': () => import('@/app/dashboard/features/registration/page').then(mod => ({ default: mod.default })),
+  'invoices': () => import('@/app/dashboard/features/invoices/page').then(mod => ({ default: mod.default })),
+  'reports': () => import('@/app/dashboard/features/reports/page').then(mod => ({ default: mod.default })),
+  'users': () => import('@/app/dashboard/features/users/page').then(mod => ({ default: mod.default })),
+  'settings': () => import('@/app/dashboard/features/settings/page').then(mod => ({ default: mod.default })),
+  'lab': () => import('@/app/dashboard/features/lab/page').then(mod => ({ default: mod.default })),
+  'pharmacy-dispensing': () => import('@/app/dashboard/features/pharmacy-dispensing/page').then(mod => ({ default: mod.default })),
+  'financial-overview': () => import('@/app/dashboard/features/financial-overview/page').then(mod => ({ default: mod.default })),
+  'sha-tracking': () => import('@/app/dashboard/features/sha-tracking/page').then(mod => ({ default: mod.default })),
+  'stock-receiving': () => import('@/app/dashboard/features/stock-receiving/page').then(mod => ({ default: mod.default })),
+  'stock-reconciliation': () => import('@/app/dashboard/features/stock-reconciliation/page').then(mod => ({ default: mod.default })),
+  'expiry-alerts': () => import('@/app/dashboard/features/expiry-alerts/page').then(mod => ({ default: mod.default })),
+  'services': () => import('@/app/dashboard/features/services/page').then(mod => ({ default: mod.default })),
+  'medicines': () => import('@/app/dashboard/features/medicines/page').then(mod => ({ default: mod.default })),
+  'inventory-reports': () => import('@/app/dashboard/features/inventory-reports/page').then(mod => ({ default: mod.default })),
+  'workflow': () => import('@/app/dashboard/features/workflow/page').then(mod => ({ default: mod.default })),
+  'audit-logs': () => import('@/app/dashboard/features/audit-logs/page').then(mod => ({ default: mod.default })),
 }
 
 // Handle nested routes like lab/queue, lab/results
 const nestedFeatureComponents: Record<string, () => Promise<{ default: React.ComponentType<any> }>> = {
-  'lab/queue': () => import('@/app/dashboard/_role_backup/lab/queue/page').then(mod => ({ default: mod.default })),
-  'lab/results': () => import('@/app/dashboard/_role_backup/lab/results/page').then(mod => ({ default: mod.default })),
+  'lab/queue': () => import('@/app/dashboard/features/lab/queue/page').then(mod => ({ default: mod.default })),
+  'lab/results': () => import('@/app/dashboard/features/lab/results/page').then(mod => ({ default: mod.default })),
 }
 
 function FeatureContent() {
