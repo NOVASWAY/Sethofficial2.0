@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const patientId = searchParams.get("patientId")
   const status = searchParams.get("status")
   const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "50")
-  const skip = (page - 1) * limit
+  const perPage = parseInt(searchParams.get("per_page") || searchParams.get("limit") || "50")
+  const skip = (page - 1) * perPage
 
   const where: Record<string, unknown> = {}
   if (patientId) where.patientId = patientId
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     prisma.invoice.findMany({
       where,
       skip,
-      take: limit,
+      take: perPage,
       orderBy: { createdAt: "desc" },
       include: {
         patient: { select: { id: true, firstName: true, lastName: true, patientNumber: true } },
@@ -33,7 +33,16 @@ export async function GET(req: NextRequest) {
     prisma.invoice.count({ where }),
   ])
 
-  return NextResponse.json({ invoices, total, page, limit })
+  return NextResponse.json({
+    success: true,
+    data: {
+      data: invoices,
+      page,
+      per_page: perPage,
+      total,
+      total_pages: Math.ceil(total / perPage),
+    },
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -83,5 +92,5 @@ export async function POST(req: NextRequest) {
     include: { invoiceItems: true },
   })
 
-  return NextResponse.json(invoice, { status: 201 })
+  return NextResponse.json({ success: true, data: invoice }, { status: 201 })
 }

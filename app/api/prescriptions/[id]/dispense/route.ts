@@ -64,5 +64,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
-  return NextResponse.json({ success: true, message: "Prescription dispensed successfully" })
+  return NextResponse.json({ success: true, data: { message: "Prescription dispensed successfully" } })
 }

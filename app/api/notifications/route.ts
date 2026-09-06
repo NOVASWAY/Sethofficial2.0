@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const unreadOnly = searchParams.get("unreadOnly") === "true"
+  const unreadOnly = searchParams.get("unreadOnly") === "true" || searchParams.get("unread_only") === "true"
   const limit = parseInt(searchParams.get("limit") || "20")
 
   const where: Record<string, unknown> = {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     where: { recipientId: session.user.id, isRead: false },
   })
 
-  return NextResponse.json({ notifications, unreadCount })
+  return NextResponse.json({ success: true, data: notifications, unreadCount })
 }
 
 export async function POST(req: NextRequest) {
@@ -49,5 +49,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json(notification, { status: 201 })
+  return NextResponse.json({ success: true, data: notification }, { status: 201 })
 }

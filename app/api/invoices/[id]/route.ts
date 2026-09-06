@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
   }
 
-  return NextResponse.json(invoice)
+  return NextResponse.json({ success: true, data: invoice })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -44,5 +44,5 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     include: { invoiceItems: true },
   })
 
-  return NextResponse.json(invoice)
+  return NextResponse.json({ success: true, data: invoice })
 }

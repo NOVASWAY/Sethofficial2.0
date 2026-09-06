@@ -35,5 +35,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     },
   })
 
-  return NextResponse.json(updated)
+  return NextResponse.json({ success: true, data: updated })
 }

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "Prescription not found" }, { status: 404 })
   }
 
-  return NextResponse.json(prescription)
+  return NextResponse.json({ success: true, data: prescription })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -40,5 +40,5 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     include: { items: true },
   })
 
-  return NextResponse.json(prescription)
+  return NextResponse.json({ success: true, data: prescription })
 }

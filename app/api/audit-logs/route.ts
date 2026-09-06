@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const userId = searchParams.get("userId")
   const action = searchParams.get("action")
   const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "50")
-  const skip = (page - 1) * limit
+  const perPage = parseInt(searchParams.get("per_page") || searchParams.get("limit") || "50")
+  const skip = (page - 1) * perPage
 
   const where: Record<string, unknown> = {}
   if (userId) where.userId = userId
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     prisma.auditLog.findMany({
       where,
       skip,
-      take: limit,
+      take: perPage,
       orderBy: { timestamp: "desc" },
       include: {
         user: { select: { id: true, name: true, role: true } },
@@ -31,5 +31,14 @@ export async function GET(req: NextRequest) {
     prisma.auditLog.count({ where }),
   ])
 
-  return NextResponse.json({ logs, total, page, limit })
+  return NextResponse.json({
+    success: true,
+    data: {
+      data: logs,
+      page,
+      per_page: perPage,
+      total,
+      total_pages: Math.ceil(total / perPage),
+    },
+  })
 }

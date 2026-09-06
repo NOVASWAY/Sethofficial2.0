@@ -75,8 +75,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({
     success: true,
-    totalPaid,
-    remaining: Math.max(0, Number(invoice.totalAmount) - totalPaid),
-    status: newStatus,
+    data: {
+      totalPaid,
+      remaining: Math.max(0, Number(invoice.totalAmount) - totalPaid),
+      status: newStatus,
+    },
   })
 }

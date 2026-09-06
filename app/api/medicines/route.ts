@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const lowStock = searchParams.get("lowStock") === "true"
   const expiring = searchParams.get("expiring") === "true"
   const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "50")
-  const skip = (page - 1) * limit
+  const perPage = parseInt(searchParams.get("per_page") || searchParams.get("limit") || "50")
+  const skip = (page - 1) * perPage
 
   const where: Record<string, unknown> = {}
   if (search) {
@@ -38,13 +38,22 @@ export async function GET(req: NextRequest) {
     prisma.medicine.findMany({
       where,
       skip,
-      take: limit,
+      take: perPage,
       orderBy: { name: "asc" },
     }),
     prisma.medicine.count({ where }),
   ])
 
-  return NextResponse.json({ medicines, total, page, limit })
+  return NextResponse.json({
+    success: true,
+    data: {
+      data: medicines,
+      page,
+      per_page: perPage,
+      total,
+      total_pages: Math.ceil(total / perPage),
+    },
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -73,5 +82,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json(medicine, { status: 201 })
+  return NextResponse.json({ success: true, data: medicine }, { status: 201 })
 }

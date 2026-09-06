@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     orderBy: { serviceName: "asc" },
   })
 
-  return NextResponse.json(services)
+  return NextResponse.json({ success: true, data: { services } })
 }
 
 export async function POST(req: NextRequest) {
@@ -40,5 +40,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json(service, { status: 201 })
+  return NextResponse.json({ success: true, data: service }, { status: 201 })
 }

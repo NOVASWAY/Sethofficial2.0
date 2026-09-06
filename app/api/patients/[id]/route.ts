@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   })
 
   if (!patient) return NextResponse.json({ error: "Patient not found" }, { status: 404 })
-  return NextResponse.json(patient)
+  return NextResponse.json({ success: true, data: patient })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   })
 
-  return NextResponse.json(patient)
+  return NextResponse.json({ success: true, data: patient })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
@@ -58,5 +58,5 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (session.user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   await prisma.patient.delete({ where: { id: params.id } })
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, data: null })
 }

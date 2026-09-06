@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const orderId = searchParams.get("orderId")
   const status = searchParams.get("status")
   const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "50")
-  const skip = (page - 1) * limit
+  const perPage = parseInt(searchParams.get("per_page") || searchParams.get("limit") || "50")
+  const skip = (page - 1) * perPage
 
   const where: Record<string, unknown> = {}
   if (orderId) where.orderId = orderId
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     prisma.labTestResult.findMany({
       where,
       skip,
-      take: limit,
+      take: perPage,
       orderBy: { createdAt: "desc" },
       include: {
         order: {
@@ -37,5 +37,14 @@ export async function GET(req: NextRequest) {
     prisma.labTestResult.count({ where }),
   ])
 
-  return NextResponse.json({ results, total, page, limit })
+  return NextResponse.json({
+    success: true,
+    data: {
+      data: results,
+      page,
+      per_page: perPage,
+      total,
+      total_pages: Math.ceil(total / perPage),
+    },
+  })
 }

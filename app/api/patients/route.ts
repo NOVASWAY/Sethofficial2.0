@@ -9,9 +9,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "50")
+  const perPage = parseInt(searchParams.get("per_page") || searchParams.get("limit") || "50")
   const search = searchParams.get("search") || ""
-  const skip = (page - 1) * limit
+  const skip = (page - 1) * perPage
 
   const where = search
     ? {
@@ -29,13 +29,22 @@ export async function GET(req: NextRequest) {
     prisma.patient.findMany({
       where,
       skip,
-      take: limit,
+      take: perPage,
       orderBy: { createdAt: "desc" },
     }),
     prisma.patient.count({ where }),
   ])
 
-  return NextResponse.json({ patients, total, page, limit, pages: Math.ceil(total / limit) })
+  return NextResponse.json({
+    success: true,
+    data: {
+      data: patients,
+      page,
+      per_page: perPage,
+      total,
+      total_pages: Math.ceil(total / perPage),
+    },
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -75,5 +84,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json(patient, { status: 201 })
+  return NextResponse.json({ success: true, data: patient }, { status: 201 })
 }

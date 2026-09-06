@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       data: { currentStock: newQty },
     })
 
-    return NextResponse.json(movement, { status: 201 })
+    return NextResponse.json({ success: true, data: movement }, { status: 201 })
   } catch (error) {
     console.error("Error creating stock movement:", error)
     return NextResponse.json({ error: "Failed to create stock movement" }, { status: 500 })
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       referenceType: m.referenceType,
     }))
 
-    return NextResponse.json({ data: mapped })
+    return NextResponse.json({ success: true, data: mapped })
   } catch (error) {
     console.error("Error fetching stock movements:", error)
     return NextResponse.json({ error: "Failed to fetch stock movements" }, { status: 500 })
