@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
-import { Users, Search, Plus, Shield, User, Heart, Pill, Settings, Mail, Phone, Lock, CheckCircle2, AlertCircle, UserPlus, Trash2, RefreshCw } from "lucide-react"
+import { Users, Search, Plus, Shield, User, Heart, Pill, Settings, Mail, Phone, Lock, CheckCircle2, AlertCircle, UserPlus, Trash2, RefreshCw, FlaskConical, UserCog } from "lucide-react"
 import { userAPI } from "@/lib/api-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useParams } from "next/navigation"
@@ -140,10 +140,12 @@ export default function UsersPage() {
     },
   ]
 
-  const roleConfig = {
+  const roleConfig: Record<string, { label: string; icon: React.ComponentType<any>; color: string }> = {
     receptionist: { label: "Receptionist", icon: User, color: "bg-blue-500" },
-    clinician: { label: "Clinician/Nurse", icon: Heart, color: "bg-primary" },
+    nurse: { label: "Nurse", icon: UserCog, color: "bg-green-500" },
+    clinician: { label: "Clinician", icon: Heart, color: "bg-primary" },
     pharmacist: { label: "Pharmacist", icon: Pill, color: "bg-accent" },
+    lab_technician: { label: "Lab Technician", icon: FlaskConical, color: "bg-purple-500" },
     admin: { label: "Administrator", icon: Shield, color: "bg-destructive" },
   }
 
@@ -322,6 +324,8 @@ export default function UsersPage() {
         return ['patients', 'consultations', 'appointments']
       case 'pharmacist':
         return ['pharmacy', 'inventory', 'reports']
+      case 'lab_technician':
+        return ['lab', 'patients', 'reports']
       case 'receptionist':
         return ['patients', 'appointments', 'billing']
       default:
@@ -732,8 +736,9 @@ export default function UsersPage() {
                       <SelectContent>
                         <SelectItem value="receptionist">Receptionist</SelectItem>
                         <SelectItem value="nurse">Nurse</SelectItem>
-                        <SelectItem value="clinician">Clinician/Doctor</SelectItem>
+                        <SelectItem value="clinician">Clinician</SelectItem>
                         <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                        <SelectItem value="lab_technician">Lab Technician</SelectItem>
                         <SelectItem value="admin">Administrator</SelectItem>
                       </SelectContent>
                     </Select>
@@ -850,8 +855,9 @@ export default function UsersPage() {
                       <SelectContent>
                         <SelectItem value="receptionist">Receptionist</SelectItem>
                         <SelectItem value="nurse">Nurse</SelectItem>
-                        <SelectItem value="clinician">Clinician/Doctor</SelectItem>
+                        <SelectItem value="clinician">Clinician</SelectItem>
                         <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                        <SelectItem value="lab_technician">Lab Technician</SelectItem>
                         <SelectItem value="admin">Administrator</SelectItem>
                       </SelectContent>
                     </Select>
@@ -992,9 +998,10 @@ export default function UsersPage() {
                       <p className="text-sm text-blue-700">
                         {selectedUser?.role === 'admin' && 'Administrators typically have access to all system features.'}
                         {selectedUser?.role === 'clinician' && 'Clinicians typically need: Patients, Consultations, and Reports.'}
-                        {selectedUser?.role === 'pharmacist' && 'Pharmacists typically need: Pharmacy, Inventory, and Reports.'}
-                        {selectedUser?.role === 'receptionist' && 'Receptionists typically need: Patients, Appointments, and Billing.'}
                         {selectedUser?.role === 'nurse' && 'Nurses typically need: Patients, Consultations, and Appointments.'}
+                        {selectedUser?.role === 'pharmacist' && 'Pharmacists typically need: Pharmacy, Inventory, and Reports.'}
+                        {selectedUser?.role === 'lab_technician' && 'Lab Technicians typically need: Lab, Patients, and Reports.'}
+                        {selectedUser?.role === 'receptionist' && 'Receptionists typically need: Patients, Appointments, and Billing.'}
                       </p>
                     </div>
                   </div>
