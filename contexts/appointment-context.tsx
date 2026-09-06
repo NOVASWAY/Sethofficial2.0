@@ -52,6 +52,8 @@ interface AppointmentContextType {
   getTodayQueue: () => QueueItem[]
 }
 
+const AppointmentContext = createContext<AppointmentContextType | undefined>(undefined)
+
 const QUEUE_STORAGE_KEY = 'clinic_queue'
 
 export function AppointmentProvider({ children }: { children: ReactNode }) {
