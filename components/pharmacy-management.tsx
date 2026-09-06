@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,6 +37,8 @@ import {
   Receipt,
   Download,
   X,
+  RefreshCw,
+  Loader2,
 } from "lucide-react"
 
 interface PharmacyManagementProps {
@@ -102,158 +104,18 @@ interface SaleItem {
   totalPrice: number
 }
 
-const mockMedications: Medication[] = [
-  {
-    id: "MED001",
-    name: "Paracetamol",
-    genericName: "Acetaminophen",
-    category: "Analgesic",
-    manufacturer: "Pharma Ltd",
-    batchNumber: "PAR2024001",
-    expiryDate: "2025-12-31",
-    quantity: 500,
-    unitPrice: 5,
-    reorderLevel: 100,
-    location: "Shelf A1",
-    description: "Pain reliever and fever reducer",
-    sideEffects: ["Nausea", "Allergic reactions"],
-    dosageForm: "Tablet",
-    strength: "500mg",
-    status: "In Stock",
-  },
-  {
-    id: "MED002",
-    name: "Amoxicillin",
-    genericName: "Amoxicillin",
-    category: "Antibiotic",
-    manufacturer: "MedCorp",
-    batchNumber: "AMX2024002",
-    expiryDate: "2024-08-15",
-    quantity: 25,
-    unitPrice: 15,
-    reorderLevel: 50,
-    location: "Shelf B2",
-    description: "Broad-spectrum antibiotic",
-    sideEffects: ["Diarrhea", "Nausea", "Skin rash"],
-    dosageForm: "Capsule",
-    strength: "250mg",
-    status: "Low Stock",
-  },
-  {
-    id: "MED003",
-    name: "Metformin",
-    genericName: "Metformin HCl",
-    category: "Antidiabetic",
-    manufacturer: "DiabCare",
-    batchNumber: "MET2024003",
-    expiryDate: "2026-03-20",
-    quantity: 0,
-    unitPrice: 8,
-    reorderLevel: 75,
-    location: "Shelf C1",
-    description: "Type 2 diabetes medication",
-    sideEffects: ["Stomach upset", "Metallic taste"],
-    dosageForm: "Tablet",
-    strength: "500mg",
-    status: "Out of Stock",
-  },
-  {
-    id: "MED004",
-    name: "Aspirin",
-    genericName: "Acetylsalicylic Acid",
-    category: "Analgesic",
-    manufacturer: "CardioMed",
-    batchNumber: "ASP2023001",
-    expiryDate: "2024-01-30",
-    quantity: 150,
-    unitPrice: 3,
-    reorderLevel: 100,
-    location: "Shelf A2",
-    description: "Pain reliever and blood thinner",
-    sideEffects: ["Stomach irritation", "Bleeding"],
-    dosageForm: "Tablet",
-    strength: "75mg",
-    status: "Expired",
-  },
-]
-
-const mockPrescriptions: Prescription[] = [
-  {
-    id: "RX001",
-    patientId: "P001",
-    patientName: "John Doe",
-    prescribedBy: "Dr. Smith",
-    date: "2024-01-20",
-    status: "Pending",
-    notes: "Take with food",
-    medications: [
-      {
-        medicationId: "MED001",
-        medicationName: "Paracetamol",
-        dosage: "500mg",
-        frequency: "3 times daily",
-        duration: "7 days",
-        quantity: 21,
-        instructions: "Take after meals",
-      },
-      {
-        medicationId: "MED002",
-        medicationName: "Amoxicillin",
-        dosage: "250mg",
-        frequency: "2 times daily",
-        duration: "10 days",
-        quantity: 20,
-        instructions: "Complete full course",
-      },
-    ],
-  },
-  {
-    id: "RX002",
-    patientId: "P002",
-    patientName: "Sarah Johnson",
-    date: "2024-01-18",
-    prescribedBy: "Dr. Brown",
-    status: "Dispensed",
-    notes: "Regular checkup prescription",
-    medications: [
-      {
-        medicationId: "MED003",
-        medicationName: "Metformin",
-        dosage: "500mg",
-        frequency: "2 times daily",
-        duration: "30 days",
-        quantity: 60,
-        instructions: "Take with breakfast and dinner",
-      },
-    ],
-  },
-]
-
-const mockWalkInSales: WalkInSale[] = [
-  {
-    id: "WS001",
-    customerName: "Jane Smith",
-    customerPhone: "+254712345678",
-    date: "2024-01-20",
-    items: [
-      {
-        medicationId: "MED001",
-        medicationName: "Paracetamol 500mg",
-        quantity: 10,
-        unitPrice: 5,
-        totalPrice: 50,
-      },
-    ],
-    totalAmount: 50,
-    paymentMethod: "Cash",
-    status: "Completed",
-  },
-]
+function computeMedStatus(med: { currentStock: number; reorderLevel: number; expiryDate?: string | Date | null }): Medication['status'] {
+  if (med.currentStock === 0) return "Out of Stock"
+  if (med.expiryDate && new Date(med.expiryDate) < new Date()) return "Expired"
+  if (med.currentStock <= med.reorderLevel) return "Low Stock"
+  return "In Stock"
+}
 
 export function PharmacyManagement({ role }: PharmacyManagementProps) {
-  const [medications, setMedications] = useState<Medication[]>(mockMedications)
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>(mockPrescriptions)
-  const [walkInSales, setWalkInSales] = useState<WalkInSale[]>(mockWalkInSales)
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [walkInSales, setWalkInSales] = useState<WalkInSale[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("inventory")
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
@@ -264,6 +126,79 @@ export function PharmacyManagement({ role }: PharmacyManagementProps) {
   const [isViewMedicationOpen, setIsViewMedicationOpen] = useState(false)
   const [isViewPrescriptionOpen, setIsViewPrescriptionOpen] = useState(false)
   const [isNewWalkInSaleOpen, setIsNewWalkInSaleOpen] = useState(false)
+
+  const fetchMedications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/medicines?limit=200")
+      if (!res.ok) throw new Error("Failed to fetch medicines")
+      const data = await res.json()
+      const raw = data.medicines || data || []
+      const mapped: Medication[] = raw.map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        genericName: m.genericName || "",
+        category: m.category || "",
+        manufacturer: m.manufacturer || "",
+        batchNumber: m.batchNumber || "",
+        expiryDate: m.expiryDate ? m.expiryDate.split("T")[0] : "",
+        quantity: m.currentStock ?? 0,
+        unitPrice: Number(m.unitPrice) || 0,
+        reorderLevel: m.reorderLevel ?? 10,
+        location: m.location || "",
+        description: m.description || "",
+        sideEffects: typeof m.sideEffects === "string"
+          ? (m.sideEffects ? m.sideEffects.split(",").map((s: string) => s.trim()) : [])
+          : Array.isArray(m.sideEffects) ? m.sideEffects : [],
+        dosageForm: m.dosageForm || "",
+        strength: m.strength || "",
+        status: computeMedStatus(m),
+      }))
+      setMedications(mapped)
+    } catch (err) {
+      console.error("Failed to load medications:", err)
+    }
+  }, [])
+
+  const fetchPrescriptions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/prescriptions?limit=200")
+      if (!res.ok) throw new Error("Failed to fetch prescriptions")
+      const data = await res.json()
+      const raw = data.prescriptions || data || []
+      const mapped: Prescription[] = raw.map((p: any) => ({
+        id: p.prescriptionNumber || p.id,
+        patientId: p.patientId || "",
+        patientName: p.patient
+          ? `${p.patient.firstName || ""} ${p.patient.lastName || ""}`.trim() || "Unknown Patient"
+          : "Unknown Patient",
+        prescribedBy: p.doctor?.name || "Unknown",
+        date: p.createdAt ? p.createdAt.split("T")[0] : "",
+        status: p.dispensed ? "Dispensed" : (p.status === "cancelled" ? "Cancelled" : "Pending"),
+        notes: p.instructions || "",
+        medications: (p.items || []).map((item: any) => ({
+          medicationId: item.medicationId || "",
+          medicationName: item.medicationName || item.medication?.name || "Unknown",
+          dosage: item.dosage || "",
+          frequency: item.frequency || "",
+          duration: item.durationDays ? `${item.durationDays} days` : "",
+          quantity: item.quantity || 0,
+          instructions: item.instructions || "",
+        })),
+      }))
+      setPrescriptions(mapped)
+    } catch (err) {
+      console.error("Failed to load prescriptions:", err)
+    }
+  }, [])
+
+  useEffect(() => {
+    const loadAll = async () => {
+      setLoading(true)
+      await Promise.all([fetchMedications(), fetchPrescriptions()])
+      setLoading(false)
+    }
+    loadAll()
+  }, [fetchMedications, fetchPrescriptions])
 
   const filteredMedications = medications.filter((med) => {
     const matchesSearch =
@@ -327,6 +262,14 @@ export function PharmacyManagement({ role }: PharmacyManagementProps) {
           <p className="text-muted-foreground">Manage inventory and prescriptions</p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            onClick={() => { fetchMedications(); fetchPrescriptions() }}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           {canDispenseMedication && (
             <Dialog open={isNewWalkInSaleOpen} onOpenChange={setIsNewWalkInSaleOpen}>
               <DialogTrigger asChild>
@@ -922,6 +865,8 @@ export function PharmacyManagement({ role }: PharmacyManagementProps) {
 }
 
 function NewMedicationForm({ onClose }: { onClose: () => void }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     genericName: "",
@@ -939,10 +884,42 @@ function NewMedicationForm({ onClose }: { onClose: () => void }) {
     strength: "",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("New medication data:", formData)
-    onClose()
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/medicines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          genericName: formData.genericName,
+          category: formData.category,
+          manufacturer: formData.manufacturer,
+          batchNumber: formData.batchNumber,
+          expiryDate: formData.expiryDate || null,
+          currentStock: formData.quantity,
+          unitPrice: formData.unitPrice,
+          reorderLevel: formData.reorderLevel,
+          location: formData.location,
+          description: formData.description,
+          sideEffects: formData.sideEffects,
+          dosageForm: formData.dosageForm,
+          strength: formData.strength,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to create medication")
+      }
+      onClose()
+      window.location.reload()
+    } catch (err: any) {
+      setError(err.message || "Failed to save")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -1117,11 +1094,18 @@ function NewMedicationForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit">Add Medication</Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+          ) : "Add Medication"}
+        </Button>
       </div>
+      {error && (
+        <p className="text-sm text-destructive mt-2">{error}</p>
+      )}
     </form>
   )
 }
