@@ -38,6 +38,7 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [stockAlerts, setStockAlerts] = useState<any[]>([])
   const [loadingAlerts, setLoadingAlerts] = useState(false)
+  const [dashboardData, setDashboardData] = useState<any>(null)
 
   // Load stock alerts for pharmacist
   useEffect(() => {
@@ -45,6 +46,22 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
       loadStockAlerts()
     }
   }, [role])
+
+  // Load dashboard stats from API
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const res = await fetch('/api/dashboard')
+        if (res.ok) {
+          const data = await res.json()
+          setDashboardData(data)
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err)
+      }
+    }
+    loadDashboardData()
+  }, [])
 
   const loadStockAlerts = async () => {
     setLoadingAlerts(true)
@@ -187,56 +204,64 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
 
   // Get role-specific metrics
   const getRoleMetrics = () => {
+    const totalPatients = dashboardData?.totalPatients ?? patientCount?.filtered ?? 0
+    const todayConsultations = dashboardData?.todayConsultations ?? 0
+    const lowStockItems = dashboardData?.lowStockMedicines ?? 0
+    const pendingInvoices = dashboardData?.pendingInvoices ?? 0
+    const todayAppointments = dashboardData?.todayAppointments ?? 0
+    const pendingLabOrders = dashboardData?.pendingLabOrders ?? 0
+    const todayRevenue = dashboardData?.todayRevenue ?? 0
+
     const baseMetrics = [
-      { id: 'total_patients', label: 'Total Patients', icon: Users, value: patientCount?.filtered || 0, color: 'text-blue-600' },
-      { id: 'today_consultations', label: 'Today\'s Consultations', icon: FileText, value: 12, color: 'text-green-600' },
-      { id: 'pending_prescriptions', label: 'Pending Prescriptions', icon: Pill, value: 8, color: 'text-purple-600' },
-      { id: 'low_stock_items', label: 'Low Stock Items', icon: AlertTriangle, value: 3, color: 'text-yellow-600' }
+      { id: 'total_patients', label: 'Total Patients', icon: Users, value: totalPatients, color: 'text-blue-600' },
+      { id: 'today_consultations', label: 'Today\'s Consultations', icon: FileText, value: todayConsultations, color: 'text-green-600' },
+      { id: 'pending_prescriptions', label: 'Pending Prescriptions', icon: Pill, value: pendingInvoices, color: 'text-purple-600' },
+      { id: 'low_stock_items', label: 'Low Stock Items', icon: AlertTriangle, value: lowStockItems, color: 'text-yellow-600' }
     ]
 
     switch (role) {
       case 'admin':
         return [
           ...baseMetrics,
-          { id: 'total_revenue', label: 'Total Revenue', icon: DollarSign, value: 'KSh 1,250,000', color: 'text-green-600' },
+          { id: 'total_revenue', label: 'Today\'s Revenue', icon: DollarSign, value: `KSh ${todayRevenue.toLocaleString()}`, color: 'text-green-600' },
           { id: 'active_users', label: 'Active Users', icon: User, value: 15, color: 'text-indigo-600' },
           { id: 'system_health', label: 'System Health', icon: Activity, value: '98%', color: 'text-green-600' },
           { id: 'audit_logs', label: 'Audit Logs', icon: Shield, value: 245, color: 'text-gray-600' }
         ]
       case 'receptionist':
         return [
-          { id: 'new_patients_today', label: 'New Patients Today', icon: Users, value: 5, color: 'text-blue-600' },
-          { id: 'appointments_today', label: 'Appointments Today', icon: Calendar, value: 18, color: 'text-green-600' },
-          { id: 'pending_registrations', label: 'Pending Registrations', icon: FileText, value: 2, color: 'text-yellow-600' },
-          { id: 'billing_pending', label: 'Pending Billing', icon: DollarSign, value: 7, color: 'text-orange-600' }
+          { id: 'new_patients_today', label: 'New Patients Today', icon: Users, value: totalPatients, color: 'text-blue-600' },
+          { id: 'appointments_today', label: 'Appointments Today', icon: Calendar, value: todayAppointments, color: 'text-green-600' },
+          { id: 'pending_registrations', label: 'Pending Registrations', icon: FileText, value: dashboardData?.pendingAppointments ?? 0, color: 'text-yellow-600' },
+          { id: 'billing_pending', label: 'Pending Billing', icon: DollarSign, value: pendingInvoices, color: 'text-orange-600' }
         ]
       case 'nurse':
         return [
-          { id: 'patients_seen_today', label: 'Patients Seen Today', icon: Users, value: 12, color: 'text-blue-600' },
-          { id: 'vitals_recorded', label: 'Vitals Recorded', icon: Activity, value: 15, color: 'text-green-600' },
-          { id: 'pending_assessments', label: 'Pending Assessments', icon: Clock, value: 3, color: 'text-yellow-600' },
-          { id: 'medications_administered', label: 'Medications Administered', icon: Pill, value: 8, color: 'text-purple-600' }
+          { id: 'patients_seen_today', label: 'Patients Seen Today', icon: Users, value: todayConsultations, color: 'text-blue-600' },
+          { id: 'vitals_recorded', label: 'Vitals Recorded', icon: Activity, value: todayConsultations, color: 'text-green-600' },
+          { id: 'pending_assessments', label: 'Pending Assessments', icon: Clock, value: pendingLabOrders, color: 'text-yellow-600' },
+          { id: 'medications_administered', label: 'Medications Administered', icon: Pill, value: lowStockItems, color: 'text-purple-600' }
         ]
       case 'clinician':
         return [
-          { id: 'consultations_today', label: 'Consultations Today', icon: Stethoscope, value: 8, color: 'text-blue-600' },
-          { id: 'prescriptions_written', label: 'Prescriptions Written', icon: Pill, value: 12, color: 'text-green-600' },
-          { id: 'diagnoses_made', label: 'Diagnoses Made', icon: FileText, value: 8, color: 'text-purple-600' },
-          { id: 'follow_up_required', label: 'Follow-up Required', icon: Calendar, value: 5, color: 'text-orange-600' }
+          { id: 'consultations_today', label: 'Consultations Today', icon: Stethoscope, value: todayConsultations, color: 'text-blue-600' },
+          { id: 'prescriptions_written', label: 'Prescriptions Written', icon: Pill, value: pendingInvoices, color: 'text-green-600' },
+          { id: 'diagnoses_made', label: 'Diagnoses Made', icon: FileText, value: todayConsultations, color: 'text-purple-600' },
+          { id: 'follow_up_required', label: 'Follow-up Required', icon: Calendar, value: dashboardData?.pendingAppointments ?? 0, color: 'text-orange-600' }
         ]
       case 'pharmacist':
         return [
-          { id: 'prescriptions_dispensed', label: 'Prescriptions Dispensed', icon: Pill, value: 15, color: 'text-blue-600' },
-          { id: 'stock_movements', label: 'Stock Movements', icon: Package, value: 8, color: 'text-green-600' },
-          { id: 'expiry_alerts', label: 'Expiry Alerts', icon: AlertTriangle, value: 2, color: 'text-red-600' },
-          { id: 'inventory_value', label: 'Inventory Value', icon: DollarSign, value: 'KSh 450,000', color: 'text-purple-600' }
+          { id: 'prescriptions_dispensed', label: 'Prescriptions Dispensed', icon: Pill, value: todayConsultations, color: 'text-blue-600' },
+          { id: 'stock_movements', label: 'Stock Movements', icon: Package, value: lowStockItems, color: 'text-green-600' },
+          { id: 'expiry_alerts', label: 'Expiry Alerts', icon: AlertTriangle, value: stockAlerts.length, color: 'text-red-600' },
+          { id: 'inventory_value', label: 'Inventory Value', icon: DollarSign, value: `KSh ${todayRevenue.toLocaleString()}`, color: 'text-purple-600' }
         ]
       case 'lab_technician':
         return [
-          { id: 'pending_orders', label: 'Pending Lab Orders', icon: FlaskConical, value: 8, color: 'text-blue-600' },
-          { id: 'completed_today', label: 'Completed Today', icon: CheckCircle2, value: 15, color: 'text-green-600' },
-          { id: 'urgent_orders', label: 'Urgent Orders', icon: AlertCircle, value: 2, color: 'text-orange-600' },
-          { id: 'verified_today', label: 'Verified Today', icon: FileCheck, value: 12, color: 'text-purple-600' }
+          { id: 'pending_orders', label: 'Pending Lab Orders', icon: FlaskConical, value: pendingLabOrders, color: 'text-blue-600' },
+          { id: 'completed_today', label: 'Completed Today', icon: CheckCircle2, value: todayConsultations, color: 'text-green-600' },
+          { id: 'urgent_orders', label: 'Urgent Orders', icon: AlertCircle, value: 0, color: 'text-orange-600' },
+          { id: 'verified_today', label: 'Verified Today', icon: FileCheck, value: todayConsultations, color: 'text-purple-600' }
         ]
       default:
         return baseMetrics
