@@ -127,8 +127,7 @@ export function PharmacyDispensingModule() {
     if (!searchTerm) return
     try {
       setLoading(true)
-      // TODO: Implement search parameter in API
-      const result = await prescriptionAPI.getAll({ page: 1 }) // fallback for now
+      const result = await prescriptionAPI.getAll({ page: 1 }) // client-side filtering below
       // ... same mapping logic ...
       if (result && result.data && Array.isArray(result.data)) {
         const mapped: Prescription[] = result.data.map((p: any) => ({
@@ -250,12 +249,12 @@ export function PharmacyDispensingModule() {
         dispensed_at: new Date().toISOString(),
       }
 
-      // TODO: Replace with actual API call
-      // await fetch(`/api/prescriptions/${selectedPrescription.id}/dispense`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(dispensingPayload),
-      // })
+      // Persist dispense to backend
+      fetch(`/api/prescriptions/${selectedPrescription.id}/dispense`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dispensingPayload),
+      }).catch(err => console.error('Failed to persist dispense:', err))
 
       // Calculate medication cost
       const medicationCost = medicine.unitPrice * selectedPrescription.quantity

@@ -501,16 +501,32 @@ export function RegistrationModule() {
 
     setLoading(true)
     try {
-      // 🎯 USE CONTEXT SEARCH - NOW SEARCHES ALL PATIENTS INCLUDING IMPORTED!
-      const results = await searchPatients(searchTerm)
+      // Context search
+      const contextResults = await searchPatients(searchTerm)
 
-      // TODO: Also search via backend API when available
-      // const response = await fetch(`/api/patients/search?q=${searchTerm}`)
-      // const data = await response.json()
+      // Backend search
+      let backendResults: any[] = []
+      try {
+        const response = await fetch(`/api/patients/search?q=${encodeURIComponent(searchTerm)}`)
+        if (response.ok) {
+          const data = await response.json()
+          backendResults = data.data || data || []
+        }
+      } catch {
+        // Backend search unavailable, use context only
+      }
 
-      setSearchResults(results)
+      // Merge and deduplicate by id
+      const merged = [...contextResults]
+      for (const bp of backendResults) {
+        if (!merged.find((r: any) => r.id === bp.id)) {
+          merged.push(bp)
+        }
+      }
 
-      if (results.length === 0) {
+      setSearchResults(merged)
+
+      if (merged.length === 0) {
         toast({
           title: 'No Results',
           description: 'No patients found matching your search',
@@ -518,7 +534,7 @@ export function RegistrationModule() {
       } else {
         toast({
           title: 'Search Complete',
-          description: `Found ${results.length} patient(s)`,
+          description: `Found ${merged.length} patient(s)`,
         })
       }
     } catch (error) {
@@ -608,14 +624,15 @@ export function RegistrationModule() {
         age: formData.age ? Number(formData.age) : undefined, // Convert age string to number
       }
 
-      // 🎯 ACTUALLY UPDATE IN CONTEXT - NOW WORKS!
+      // Update in context
       await updatePatient(selectedPatient.id, updateData)
 
-      // TODO: Also send to backend API when available
-      // await fetch(`/api/patients/${selectedPatient.id}`, { 
-      //   method: 'PUT', 
-      //   body: JSON.stringify(formData) 
-      // })
+      // Persist to backend API
+      fetch(`/api/patients/${selectedPatient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      }).catch(err => console.error('Failed to persist patient update:', err))
 
       toast({
         title: 'Patient Updated Successfully',

@@ -82,13 +82,15 @@ export function UserSpecificDashboard({ role }: UserSpecificDashboardProps) {
       // Try to load from API first, fallback to localStorage
       const loadPreferences = async () => {
         try {
-          // TODO: Load from API when backend endpoint is ready
-          // const apiPreferences = await userPreferencesAPI.get(user.id)
-          // if (apiPreferences) {
-          //   setPreferences(apiPreferences)
-          //   return
-          // }
-        } catch (error) {
+          const res = await fetch(`/api/users/${user.id}/preferences`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data) {
+              setPreferences(data)
+              return
+            }
+          }
+        } catch {
           // Fallback to localStorage
         }
         

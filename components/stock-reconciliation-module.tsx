@@ -15,6 +15,7 @@ import {
   CheckCircle2, Search, Plus, FileText, Calendar, BarChart3
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/contexts/auth-context'
 
 interface Medication {
   id: string
@@ -48,6 +49,7 @@ interface StockMovement {
 
 export function StockReconciliationModule() {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -178,7 +180,6 @@ export function StockReconciliationModule() {
 
     setLoading(true)
     try {
-      // TODO: Replace with actual API call
       const medication = medications.find(m => m.id === adjustmentForm.medication_id)
       if (!medication) return
 
@@ -193,11 +194,18 @@ export function StockReconciliationModule() {
         unit_cost: adjustmentForm.unit_cost || undefined,
         total_cost: adjustmentForm.unit_cost ? Math.abs(adjustmentForm.quantity) * adjustmentForm.unit_cost : undefined,
         notes: adjustmentForm.notes,
-        created_by: 'Current User',
+        created_by: user?.name || user?.email || 'System',
         created_at: new Date().toISOString(),
       }
 
       setMovements([newMovement, ...movements])
+
+      // Persist to backend API
+      fetch('/api/stock-movements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMovement),
+      }).catch(err => console.error('Failed to persist stock movement:', err))
       
       // Update medication quantity
       setMedications(prev => prev.map(m => 

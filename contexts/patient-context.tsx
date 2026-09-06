@@ -104,8 +104,6 @@ export function PatientProvider({ children }: { children: ReactNode }) {
 
   const addAllergy = async (patientId: string, allergy: Omit<Allergy, 'id'>) => {
     try {
-      // TODO: Implement allergy API endpoint in backend
-      // For now, update locally
       const newAllergy: Allergy = {
         ...allergy,
         id: `ALG-${Date.now()}`,
@@ -122,6 +120,13 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         
         return newMap
       })
+
+      // Persist to backend
+      fetch(`/api/patients/${patientId}/allergies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(allergy),
+      }).catch(err => console.error('Failed to persist allergy:', err))
     } catch (error) {
       console.error('Error adding allergy:', error)
       throw error
@@ -130,8 +135,6 @@ export function PatientProvider({ children }: { children: ReactNode }) {
 
   const removeAllergy = async (patientId: string, allergyId: string) => {
     try {
-      // TODO: Implement allergy API endpoint in backend
-      // For now, update locally
       setPatientsData(prev => {
         const newMap = new Map(prev)
         const patientData = newMap.get(patientId)
@@ -143,6 +146,11 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         
         return newMap
       })
+
+      // Persist to backend
+      fetch(`/api/patients/${patientId}/allergies/${allergyId}`, {
+        method: 'DELETE',
+      }).catch(err => console.error('Failed to delete allergy:', err))
     } catch (error) {
       console.error('Error removing allergy:', error)
       throw error

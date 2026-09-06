@@ -99,8 +99,16 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       try {
         const invoicesData = await invoiceAPI.getAll()
         setInvoices(invoicesData.data || [])
-        // TODO: Load payments from API when endpoint is available
-        setPayments([])
+        // Load payments from invoices
+        const allPayments: Payment[] = []
+        for (const inv of invoicesData.data || []) {
+          if (inv.payments && inv.payments.length > 0) {
+            for (const p of inv.payments) {
+              allPayments.push({ ...p, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber })
+            }
+          }
+        }
+        setPayments(allPayments)
       } catch (error) {
         console.error('Error loading invoices from API:', error)
         setInvoices([])

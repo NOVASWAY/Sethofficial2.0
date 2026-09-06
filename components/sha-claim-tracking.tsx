@@ -14,6 +14,7 @@ import {
   DollarSign, Calendar, Download, Eye, TrendingUp, RefreshCw
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/contexts/auth-context'
 import { reportsAPI, shaClaimAPI } from '@/lib/api-client'
 
 interface SHAClaim {
@@ -129,6 +130,7 @@ const defaultClaimDetails: ClaimDetail[] = [
 
 export function SHAClaimTracking() {
   const { toast } = useToast()
+  const { user } = useAuth()
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isSubmitOpen, setIsSubmitOpen] = useState(false)
@@ -172,7 +174,7 @@ export function SHAClaimTracking() {
           paymentDate: claim.payment_date,
           reviewNotes: claim.notes,
           rejectionReason: claim.rejection_reason,
-          recordedBy: 'System', // TODO: Get from auth context
+          recordedBy: user?.name || user?.email || 'System',
           shaWebsiteReference: claim.claim_number || '',
         }))
         setClaims(transformedClaims)

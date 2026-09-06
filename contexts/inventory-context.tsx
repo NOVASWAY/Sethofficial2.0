@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { defaultMedicines, type Medicine } from '@/components/medicine-catalog'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/contexts/auth-context'
 import { pharmacyAPI } from '../lib/api-client'
 
 // Removed localStorage keys - now using API calls
@@ -36,6 +37,7 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
+  const { user } = useAuth()
 
   // Add expiry data to medicines
   const medicinesWithExpiry = defaultMedicines.map((med, index) => {
@@ -127,8 +129,35 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     const loadData = async () => {
       try {
         await loadMedicines()
-        // TODO: Load stock movements from API when endpoint is available
-        setStockMovements([])
+        // Load stock movements from API (fetch all medicines' movements)
+        try {
+          const medsData = await pharmacyAPI.getMedicines()
+          const meds = medsData.data || []
+          let allMovements: StockMovement[] = []
+          for (const med of meds) {
+            try {
+              const movementsData = await pharmacyAPI.getStockMovements(med.id)
+              if (movementsData?.data) {
+                allMovements = [...allMovements, ...movementsData.data.map((m: any) => ({
+                  id: m.id,
+                  medicineId: m.medicineId || med.id,
+                  medicineName: m.medicineName || `${med.name} ${med.strength || ''}`.trim(),
+                  movementType: m.movementType,
+                  quantity: m.quantity,
+                  reason: m.notes || m.reason || '',
+                  performedBy: m.performedBy || 'System',
+                  timestamp: m.timestamp || m.createdAt,
+                  referenceNumber: m.referenceId,
+                }))]
+              }
+            } catch {
+              // Individual medicine movements unavailable
+            }
+          }
+          setStockMovements(allMovements)
+        } catch {
+          setStockMovements([])
+        }
       } catch (error) {
         console.error('Failed to load inventory from API:', error)
         // Fallback to default medicines
@@ -222,7 +251,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       movementType,
       quantity: Math.abs(stockChange),
       reason,
-      performedBy: 'Current User', // TODO: Get from auth context
+      performedBy: user?.name || user?.email || 'System',
       timestamp: new Date().toISOString(),
       referenceNumber,
     }

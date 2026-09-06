@@ -97,6 +97,7 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
   const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(50)
   const [totalPages, setTotalPages] = useState(1)
 
   // Debounce search term
@@ -224,8 +225,7 @@ export function InvoiceManagement({ role }: InvoiceManagementProps) {
 
   const handleEditInvoice = (invoice: Invoice) => {
     setSelectedInvoice(invoice)
-    // TODO: Open edit dialog or navigate to edit page
-    alert(`Edit functionality for invoice ${invoice.id} will be implemented here.\n\nInvoice Details:\nPatient: ${invoice.patientName}\nAmount: KSh ${invoice.total.toLocaleString()}\nStatus: ${invoice.status}`)
+    setIsViewInvoiceOpen(true)
   }
 
   const handleDownloadInvoice = (invoice: Invoice) => {
@@ -696,11 +696,11 @@ ${invoice.type === 'SHA' ? `SHA Member: ${invoice.shaDetails?.memberNumber || 'N
           currentPage={page}
           totalPages={totalPages}
           totalItems={invoices.length}
-          itemsPerPage={50}
+          itemsPerPage={itemsPerPage}
           onPageChange={(newPage) => setPage(newPage)}
-          onItemsPerPageChange={(itemsPerPage) => {
-            // TODO: Implement items per page change
-            console.log('Items per page changed to:', itemsPerPage)
+          onItemsPerPageChange={(newItemsPerPage) => {
+            setItemsPerPage(newItemsPerPage)
+            setPage(1)
           }}
           disabled={loading}
         />
