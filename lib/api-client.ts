@@ -577,11 +577,41 @@ export const prescriptionAPI = {
   /**
    * Create prescription
    * POST /prescriptions
+   * Accepts camelCase (backend shape) and legacy snake_case payloads;
+   * maps `medicines[]` to `items[]` so consultation-created prescriptions
+   * carry real line items instead of empty headers.
    */
   create: async (prescriptionData: any) => {
+    const d = prescriptionData || {}
+    const uuidOrUndef = (v: any) => (typeof v === 'string' && v.length > 0 ? v : undefined)
+    const srcItems: any[] = Array.isArray(d.items) ? d.items
+      : Array.isArray(d.medicines) ? d.medicines
+      : []
+    const items = srcItems.map((m: any) => ({
+      medicineId: uuidOrUndef(m.medicineId ?? m.medicationId ?? m.medicine_id),
+      medicationId: uuidOrUndef(m.medicationId ?? m.medicineId ?? m.medication_id),
+      quantity: Number(m.quantity ?? 1),
+      dosage: m.dosage || '',
+      frequency: m.frequency || '',
+      durationDays: Number(m.durationDays ?? m.duration_days ?? m.duration ?? 0),
+      instructions: m.instructions || '',
+    }))
+    const normalized = {
+      patientId: d.patientId ?? d.patient_id,
+      doctorId: uuidOrUndef(d.doctorId ?? d.doctor_id),
+      consultationId: uuidOrUndef(d.consultationId ?? d.consultation_id),
+      clinicianId: uuidOrUndef(d.clinicianId ?? d.clinician_id),
+      medicationName: d.medicationName ?? d.medication_name,
+      dosage: d.dosage,
+      frequency: d.frequency,
+      durationDays: d.durationDays !== undefined ? Number(d.durationDays) : undefined,
+      quantity: d.quantity !== undefined ? Number(d.quantity) : undefined,
+      instructions: d.instructions,
+      items: items.length > 0 ? items : undefined,
+    }
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/prescriptions', {
       method: 'POST',
-      body: JSON.stringify(prescriptionData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
@@ -766,11 +796,38 @@ export const invoiceAPI = {
   /**
    * Create invoice
    * POST /invoices
+   * Accepts camelCase and legacy snake_case payloads (patient_id/items with
+   * unit_price/total_price get mapped to the backend shape).
    */
   create: async (invoiceData: any) => {
+    const d = invoiceData || {}
+    const srcItems: any[] = Array.isArray(d.items) ? d.items : []
+    const normalized = {
+      patientId: d.patientId ?? d.patient_id,
+      consultationId: d.consultationId ?? d.consultation_id ?? undefined,
+      date: d.date,
+      subtotal: d.subtotal !== undefined ? Number(d.subtotal) : undefined,
+      taxAmount: d.taxAmount !== undefined ? Number(d.taxAmount ?? d.tax_amount) : undefined,
+      totalAmount: d.totalAmount !== undefined ? Number(d.totalAmount ?? d.total_amount) : undefined,
+      paymentStatus: d.paymentStatus ?? d.payment_status,
+      paymentMethod: d.paymentMethod ?? d.payment_method,
+      items: srcItems.length > 0 ? srcItems.map((it: any) => ({
+        itemType: String(it.itemType ?? it.item_type ?? 'service'),
+        itemId: it.itemId ?? it.item_id ?? undefined,
+        description: String(it.description ?? ''),
+        quantity: Number(it.quantity ?? 1),
+        unitPrice: Number(it.unitPrice ?? it.unit_price ?? 0),
+        totalPrice: Number(it.totalPrice ?? it.total_price ?? 0),
+        shaCovered: Boolean(it.shaCovered ?? it.sha_covered ?? false),
+        shaAmount: Number(it.shaAmount ?? it.sha_amount ?? 0),
+        patientAmount: it.patientAmount !== undefined || it.patient_amount !== undefined
+          ? Number(it.patientAmount ?? it.patient_amount)
+          : undefined,
+      })) : undefined,
+    }
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/invoices', {
       method: 'POST',
-      body: JSON.stringify(invoiceData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },

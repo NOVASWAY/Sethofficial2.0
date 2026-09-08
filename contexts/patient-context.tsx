@@ -237,25 +237,61 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     try {
       // Load patient basic info
       const patient = await patientAPI.getById(patientId)
-      
+
       // Load patient consultations
-      const consultationsData = await consultationAPI.getByPatientId(patientId)
-      
+      const consultationsData = await consultationAPI.getByPatientId(patientId).catch(() => ({ data: [] }))
+
+      // Hydrate stored allergies (DB stores string[] or Allergy[]) into the check map
+      const rawAllergies: unknown[] = Array.isArray((patient as any)?.allergies)
+        ? (patient as any).allergies
+        : Array.isArray((patient as any)?.data?.allergies)
+          ? (patient as any).data.allergies
+          : []
+      const hydrated: Allergy[] = rawAllergies.map((a: unknown, i: number) => {
+        if (typeof a === "string") {
+          return {
+            id: `DB-${patientId}-${i}`,
+            allergen: a,
+            severity: "moderate" as const,
+            reaction: "Recorded in patient file — confirm severity with patient",
+            recordedDate: new Date().toISOString(),
+          }
+        }
+        const o = a as Record<string, unknown>
+        return {
+          id: String(o.id || `DB-${patientId}-${i}`),
+          allergen: String(o.allergen || o.name || ""),
+          severity: (["mild", "moderate", "severe", "life-threatening"] as const).includes(o.severity as any)
+            ? (o.severity as Allergy["severity"])
+            : "moderate",
+          reaction: String(o.reaction || ""),
+          recordedDate: String(o.recordedDate || new Date().toISOString()),
+        }
+      }).filter((a) => a.allergen)
+
       // Initialize patient data if not exists
       if (!patientsData.has(patientId)) {
-        initializePatient(patientId, patient.name || 'Unknown Patient')
+        initializePatient(patientId, patient.name || patient.firstName || 'Unknown Patient')
       }
-      
-      // Update with loaded data
+
+      // Update with loaded data (merge allergies, don't wipe manually added ones)
       setPatientsData(prev => {
         const newMap = new Map(prev)
         const patientData = newMap.get(patientId)
-        
+
         if (patientData) {
           patientData.consultations = consultationsData.data || []
+          const known = new Set(patientData.allergies.map((x) => x.allergen.toLowerCase()))
+          for (const h of hydrated) {
+            if (!known.has(h.allergen.toLowerCase())) {
+              patientData.allergies.push(h)
+              known.add(h.allergen.toLowerCase())
+            }
+          }
+          if ((patient as any)?.bloodType) patientData.bloodType = (patient as any).bloodType
           newMap.set(patientId, patientData)
         }
-        
+
         return newMap
       })
     } catch (error) {

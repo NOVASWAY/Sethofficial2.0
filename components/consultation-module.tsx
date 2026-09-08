@@ -75,7 +75,7 @@ export function ConsultationModule() {
     }
     return null
   }
-  const { checkMedicationAllergy, addConsultation } = usePatient()
+  const { checkMedicationAllergy, addConsultation, loadPatientData: loadPatientAllergies } = usePatient()
   const { setPendingConsultation } = useWorkflow()
   const [activeTab, setActiveTab] = useState('vitals')
   const [loading, setLoading] = useState(false)
@@ -211,6 +211,9 @@ export function ConsultationModule() {
           patient_id: patient.id,
           patient_name: patient.name
         }))
+
+        // Hydrate stored allergies into the allergy-check map (non-blocking)
+        loadPatientAllergies(patient.id).catch(() => {})
       }
     } catch (error) {
       console.error("Error loading patient data:", error)

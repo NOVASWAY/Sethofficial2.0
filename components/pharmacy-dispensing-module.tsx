@@ -56,7 +56,7 @@ export function PharmacyDispensingModule() {
   const router = useRouter()
   const { user } = useAuth()
   const { medicines, updateStock, checkStock, getMedicine } = useInventory()
-  const { checkMedicationAllergy, getPatientAllergies } = usePatient()
+  const { checkMedicationAllergy, getPatientAllergies, loadPatientData } = usePatient()
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -175,6 +175,13 @@ export function PharmacyDispensingModule() {
 
     setLoading(true)
     try {
+      // Hydrate stored allergies from the patient file BEFORE checking —
+      // otherwise the check runs against an empty in-memory map.
+      try {
+        await loadPatientData(selectedPrescription.patient_id)
+      } catch {
+        // Continue with in-memory data if offline; server dispense stays guarded
+      }
       // Check for medication allergies FIRST
       const allergy = checkMedicationAllergy(selectedPrescription.patient_id, selectedPrescription.medication_name)
       if (allergy) {
@@ -247,6 +254,8 @@ export function PharmacyDispensingModule() {
         batch_number: batchNumber,
         notes: dispensingNotes,
         dispensed_at: new Date().toISOString(),
+        // Backend shape: line items drive server-side stock decrement + movement log
+        items: [{ medicineId: medicine.id, quantity: selectedPrescription.quantity }],
       }
 
       // Persist dispense to backend
