@@ -951,6 +951,40 @@ export const appointmentAPI = {
 }
 
 // ========================================
+// QUEUE APIs (server-backed daily queue)
+// ========================================
+
+export const queueAPI = {
+  getToday: async () => {
+    const response = await apiCall<{ success: boolean; data: any[] }>(`/queue`)
+    return response.data || []
+  },
+
+  checkIn: async (entry: { patientId?: string; patientName: string; phone?: string; appointmentId?: string; priority?: string; notes?: string }) => {
+    const response = await apiCall<{ success: boolean; data: any }>(`/queue`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    })
+    return response.data
+  },
+
+  updateStatus: async (id: string, status: string) => {
+    const response = await apiCall<{ success: boolean; data: any }>(`/queue/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    })
+    return response.data
+  },
+
+  remove: async (id: string) => {
+    const response = await apiCall<{ success: boolean; data: any }>(`/queue/${id}`, {
+      method: 'DELETE',
+    })
+    return response.data
+  },
+}
+
+// ========================================
 // SHA CLAIMS APIs
 // ========================================
 

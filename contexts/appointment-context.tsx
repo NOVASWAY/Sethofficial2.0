@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { appointmentAPI } from '../lib/api-client'
+import { appointmentAPI, queueAPI } from '../lib/api-client'
 
 export interface Appointment {
   id: string
@@ -34,6 +34,8 @@ export interface QueueItem {
   status: 'waiting' | 'called' | 'in-consultation' | 'completed'
   clinicianAssigned?: string
   notes?: string
+  /** Server queue row id — set after background sync. Absent when offline-only. */
+  serverId?: string
 }
 
 interface AppointmentContextType {
@@ -61,7 +63,23 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load from API + localStorage on mount
+  // Map a server queue row to the local QueueItem shape
+  const fromServerEntry = (e: any): QueueItem => ({
+    id: `srv-${e.id}`,
+    serverId: e.id,
+    patientId: e.patientId || '',
+    patientName: e.patientName,
+    patientNumber: e.patient?.patientNumber || '',
+    appointmentId: e.appointmentId || undefined,
+    checkInTime: e.checkedInAt || e.createdAt,
+    queueNumber: parseInt(String(e.queueNumber).replace(/\D/g, '')) || 0,
+    priority: (['normal', 'urgent', 'emergency'] as const).includes(e.priority) ? e.priority : 'normal',
+    visitType: e.appointmentId ? 'appointment' : 'walk-in',
+    status: (['waiting', 'called', 'in-consultation', 'completed'] as const).includes(e.status) ? e.status : 'waiting',
+    notes: e.notes || undefined,
+  })
+
+  // Load from API + localStorage on mount (server first, localStorage fallback)
   useEffect(() => {
     const loadAppointments = async () => {
       try {
@@ -70,6 +88,18 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Error loading appointments from API:', error)
         setAppointments([])
+      }
+
+      // Server-backed queue first so all stations see the same list
+      try {
+        const serverQueue = await queueAPI.getToday()
+        if (Array.isArray(serverQueue) && serverQueue.length > 0) {
+          setQueue(serverQueue.map(fromServerEntry))
+          setIsInitialized(true)
+          return
+        }
+      } catch {
+        // Offline or API unavailable — fall through to localStorage
       }
 
       // Load queue from localStorage (persists across refreshes within same browser)
@@ -172,6 +202,19 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     }
 
     setQueue(prev => [...prev, queueItem])
+
+    // Best-effort server sync so other stations see this check-in.
+    // Offline failures keep the local item (localStorage + outbox cover it).
+    queueAPI.checkIn({
+      patientId: appointment.patientId || undefined,
+      patientName: appointment.patientName,
+      appointmentId,
+      priority: 'normal',
+    }).then((saved: any) => {
+      if (saved?.id) {
+        setQueue(prev => prev.map(q => q.id === queueItem.id ? { ...q, serverId: saved.id } : q))
+      }
+    }).catch(() => {})
   }
 
   const addToQueue = (queueData: Omit<QueueItem, 'id' | 'queueNumber' | 'checkInTime' | 'status'>) => {
@@ -186,6 +229,19 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     }
 
     setQueue(prev => [...prev, queueItem])
+
+    // Best-effort server sync (walk-ins included)
+    queueAPI.checkIn({
+      patientId: (queueData as any).patientId || undefined,
+      patientName: queueData.patientName,
+      appointmentId: (queueData as any).appointmentId || undefined,
+      priority: queueData.priority || 'normal',
+      notes: (queueData as any).notes || undefined,
+    }).then((saved: any) => {
+      if (saved?.id) {
+        setQueue(prev => prev.map(q => q.id === queueItem.id ? { ...q, serverId: saved.id } : q))
+      }
+    }).catch(() => {})
   }
 
   const callNextPatient = (clinicianId: string): QueueItem | null => {
@@ -214,6 +270,10 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
         q.id === queueId ? { ...q, status } : q
       )
     )
+    const item = queue.find(q => q.id === queueId)
+    if (item?.serverId) {
+      queueAPI.updateStatus(item.serverId, status).catch(() => {})
+    }
   }
 
   const updateQueueNotes = (queueId: string, notes: string) => {
@@ -225,7 +285,11 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
   }
 
   const removeFromQueue = (queueId: string) => {
+    const item = queue.find(q => q.id === queueId)
     setQueue(prev => prev.filter(q => q.id !== queueId))
+    if (item?.serverId) {
+      queueAPI.remove(item.serverId).catch(() => {})
+    }
   }
 
   const getAppointmentsByDate = (date: string): Appointment[] => {

@@ -410,8 +410,20 @@ export const mpesaStkSchema = z.object({
   phoneNumber: z.string().min(9, "Phone number is required"),
 })
 
-export function normalizeKePhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "")
+export const queueEntrySchema = z.object({
+  patientId: z.string().uuid().optional(),
+  patientName: z.string().min(1, "Patient name is required").max(200),
+  phone: z.string().optional(),
+  appointmentId: z.string().uuid().optional(),
+  priority: z.enum(["normal", "urgent", "emergency"]).optional(),
+  notes: z.string().optional(),
+})
+
+export const queueStatusSchema = z.object({
+  status: z.enum(["waiting", "called", "in_consultation", "completed", "cancelled"]),
+})
+
+export function normalizeKePhone(raw: string): string | null {  const digits = raw.replace(/\D/g, "")
   if (/^254\d{9}$/.test(digits)) return digits
   if (/^0\d{9}$/.test(digits)) return `254${digits.slice(1)}`
   if (/^\+254\d{9}$/.test(raw.replace(/[\s-]/g, ""))) return digits.replace(/^\+/, "")

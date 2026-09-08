@@ -80,6 +80,7 @@ model User {
   userPreferences   UserPreference?
   userSettings      UserSetting?
   patientContexts   PatientContext[]   @relation("PatientContextUser")
+  queueEntries      QueueEntry[]
 
   @@map("users")
 }
@@ -121,6 +122,7 @@ model Patient {
   importSessions  ImportSession[]
   importAuditLogs ImportAuditLog[]
   patientContexts PatientContext[]
+  queueEntries    QueueEntry[]
 
   @@index([patientNumber])
   @@index([firstName, lastName])
@@ -185,6 +187,7 @@ model Appointment {
   doctor        User          @relation("AppointmentDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
   consultation  Consultation[]
   tasks         Task[]
+  queueEntries  QueueEntry[]
 
   @@index([patientId])
   @@index([doctorId])
@@ -1414,4 +1417,32 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model QueueEntry {
+  id            String   @id @default(uuid()) @db.Uuid
+  queueNumber   String   @map("queue_number") @db.VarChar(20)
+  queueDate     DateTime @default(now()) @map("queue_date") @db.Date
+  patientId     String?  @map("patient_id") @db.Uuid
+  patientName   String   @map("patient_name") @db.VarChar(200)
+  phone         String?  @db.VarChar(20)
+  appointmentId String?  @map("appointment_id") @db.Uuid
+  status        String   @default("waiting") @db.VarChar(20)
+  priority      String   @default("normal") @db.VarChar(20)
+  notes         String?  @db.Text
+  checkedInAt   DateTime @default(now()) @map("checked_in_at") @db.Timestamptz()
+  calledAt      DateTime? @map("called_at") @db.Timestamptz()
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz()
+  createdById   String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  patient     Patient?     @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  createdBy   User?        @relation(fields: [createdById], references: [id])
+
+  @@index([queueDate])
+  @@index([status])
+  @@index([patientId])
+  @@map("queue_entries")
 }
