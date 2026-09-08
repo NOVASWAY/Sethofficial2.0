@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
       if (response.success) {
         setSuccess(true)
       } else {
-        setError(response.message || 'Failed to send password reset email')
+        setError((response as any).data?.message || 'Failed to send password reset email')
       }
     } catch (error: any) {
       console.error('Password reset request error:', error)

@@ -145,48 +145,48 @@ export const authAPI = {
 
   /**
    * Request password reset
-   * POST /auth/password-reset/request
+   * POST /auth/password-reset
    */
   requestPasswordReset: async (email: string) => {
-    return apiCall<{ success: boolean; message: string }>('/auth/password-reset/request', {
+    return apiCall<{ success: boolean; data: { message: string } }>('/auth/password-reset', {
       method: 'POST',
       body: JSON.stringify({ email }),
     })
   },
 
   /**
-   * Verify password reset token
-   * GET /auth/password-reset/verify/{token}
+   * Verify password reset token (called from reset-password page)
+   * Not a real API - just checks if token format is valid. The real verify happens on submit.
    */
   verifyPasswordResetToken: async (token: string) => {
-    return apiCall<{ valid: boolean; reason?: string }>(`/auth/password-reset/verify/${token}`)
+    return apiCall<{ success: boolean; data: { valid: boolean; reason?: string } }>(`/auth/password-reset/verify?token=${token}`)
   },
 
   /**
    * Reset password with token
-   * POST /auth/password-reset
+   * PUT /auth/password-reset
    */
   resetPassword: async (token: string, newPassword: string) => {
     return apiCall('/auth/password-reset', {
-      method: 'POST',
-      body: JSON.stringify({ token, new_password: newPassword }),
+      method: 'PUT',
+      body: JSON.stringify({ token, newPassword }),
     })
   },
 
   /**
    * Verify email address
-   * GET /auth/verify-email/{token}
+   * GET /auth/verify-email?token=...
    */
   verifyEmail: async (token: string) => {
-    return apiCall(`/auth/verify-email/${token}`)
+    return apiCall(`/auth/verify-email?token=${token}`)
   },
 
   /**
    * Resend email verification
-   * POST /auth/resend-verification
+   * POST /auth/verify-email
    */
   resendVerification: async (email: string) => {
-    return apiCall('/auth/resend-verification', {
+    return apiCall('/auth/verify-email', {
       method: 'POST',
       body: JSON.stringify({ email }),
     })
