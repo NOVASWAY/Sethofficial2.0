@@ -19,41 +19,43 @@ export function MobileBottomNav() {
 
   const role = session?.user?.role || "receptionist"
 
+  const base = `/dashboard/${role}`
+
   const items = [
     {
       label: "Home",
-      href: "/dashboard",
-      icon: <LayoutDashboard className="w-5 h-5" />,
-      roles: ["admin", "receptionist", "clinician", "nurse", "pharmacist", "lab_technician"],
+      href: base,
+      icon: <LayoutDashboard className="w-6 h-6" />,
+      roles: ["admin", "receptionist", "clinician", "nurse", "pharmacist", "lab_technician", "doctor"],
     },
     {
       label: "Patients",
-      href: "/dashboard/patients",
-      icon: <Users className="w-5 h-5" />,
-      roles: ["admin", "receptionist", "clinician", "nurse"],
+      href: `${base}/patients`,
+      icon: <Users className="w-6 h-6" />,
+      roles: ["admin", "receptionist", "clinician", "nurse", "doctor"],
     },
     {
       label: "Schedule",
-      href: "/dashboard/appointments",
-      icon: <Calendar className="w-5 h-5" />,
-      roles: ["admin", "receptionist", "clinician", "nurse"],
+      href: `${base}/appointments`,
+      icon: <Calendar className="w-6 h-6" />,
+      roles: ["admin", "receptionist", "clinician", "nurse", "doctor"],
     },
     {
       label: "Consult",
-      href: "/dashboard/consultations",
-      icon: <Stethoscope className="w-5 h-5" />,
-      roles: ["admin", "clinician"],
+      href: `${base}/consultation`,
+      icon: <Stethoscope className="w-6 h-6" />,
+      roles: ["admin", "clinician", "doctor"],
     },
     {
       label: "Pharmacy",
-      href: "/dashboard/pharmacy",
-      icon: <Pill className="w-5 h-5" />,
+      href: `${base}/pharmacy`,
+      icon: <Pill className="w-6 h-6" />,
       roles: ["admin", "pharmacist"],
     },
     {
       label: "Billing",
-      href: "/dashboard/billing",
-      icon: <CreditCard className="w-5 h-5" />,
+      href: `${base}/invoices`,
+      icon: <CreditCard className="w-6 h-6" />,
       roles: ["admin", "receptionist"],
     },
   ]
@@ -70,14 +72,14 @@ export function MobileBottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg transition-colors min-w-0 flex-1",
+                "flex flex-col items-center justify-center gap-0.5 px-3 rounded-lg transition-colors min-w-0 flex-1 min-h-[52px] py-1.5",
                 isActive
                   ? "text-blue-600 dark:text-blue-400"
                   : "text-gray-500 dark:text-gray-400"
               )}
             >
               <span className="flex-shrink-0">{item.icon}</span>
-              <span className="text-[10px] font-medium truncate">{item.label}</span>
+              <span className="text-[11px] font-medium truncate">{item.label}</span>
             </Link>
           )
         })}

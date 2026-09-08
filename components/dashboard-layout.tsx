@@ -12,6 +12,7 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 import { NotificationCenter } from "@/components/notification-center"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
+import { MobileBottomNav } from "@/components/mobile-bottom-nav"
 import { useTranslation } from "@/contexts/language-context"
 import { PatientProvider } from "@/contexts/patient-context"
 import { InventoryProvider } from "@/contexts/inventory-context"
@@ -444,7 +445,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             </header>
 
             {/* Page content */}
-            <main className="p-4 lg:p-6">{children}</main>
+            <main className="p-4 pb-24 lg:p-6 lg:pb-6">{children}</main>
+            <MobileBottomNav />
           </div>
           </div>
               </AuditLogProvider>
