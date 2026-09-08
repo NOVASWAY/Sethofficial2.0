@@ -9,6 +9,71 @@ interface PrintableInvoiceProps {
 }
 
 export function PrintableInvoice({ invoice, onClose }: PrintableInvoiceProps) {
+  const openDoc = (title: string, bodyHtml: string, pageCss = "") => {
+    const printWindow = window.open('', '_blank', 'width=800,height=600')
+    if (!printWindow) {
+      alert('Please allow popups to print')
+      return null
+    }
+    printWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title>
+<style>${pageCss}</style></head><body>${bodyHtml}
+<script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };</script>
+</body></html>`)
+    printWindow.document.close()
+    return printWindow
+  }
+
+  const buildReceiptHtml = () => {
+    const inv = invoice as any
+    const items = (invoice.items || []).map((it: any) => `
+      <div class="r-row"><span>${it.description || it.name} x${it.quantity || 1}</span><span>${Number(it.totalPrice ?? it.total ?? 0).toFixed(2)}</span></div>`).join("")
+    return `<div class="receipt">
+      <div class="r-center"><strong>SETH MEDICAL CLINIC</strong><br/>Internal Receipt — non-fiscal<br/>Fiscal receipt issued separately by KRA machine</div>
+      <div class="r-sep"></div>
+      <div class="r-row"><span>Receipt:</span><span>${invoice.id}</span></div>
+      <div class="r-row"><span>Date:</span><span>${new Date().toLocaleString('en-GB')}</span></div>
+      <div class="r-row"><span>Patient:</span><span>${invoice.patientName || ''}</span></div>
+      <div class="r-row"><span>Method:</span><span>${inv.paymentDetails?.method || invoice.paymentMethod || 'Cash'}</span></div>
+      ${inv.paymentDetails?.transactionId ? `<div class="r-row"><span>Ref:</span><span>${inv.paymentDetails.transactionId}</span></div>` : ''}
+      <div class="r-sep"></div>
+      ${items}
+      <div class="r-sep"></div>
+      <div class="r-row r-total"><span>TOTAL KES</span><span>${Number(invoice.total || 0).toFixed(2)}</span></div>
+      <div class="r-sep"></div>
+      <div class="r-center">Thank you — get well soon</div>
+    </div>`
+  }
+
+  const receiptCss = `@page{size:80mm auto;margin:4mm}*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;font-size:11px;color:#000;background:#fff}
+.receipt{width:72mm;margin:0 auto}.r-center{text-align:center}.r-sep{border-top:1px dashed #000;margin:6px 0}
+.r-row{display:flex;justify-content:space-between;gap:8px;margin:2px 0}.r-total{font-size:14px;font-weight:bold}`
+
+  const handlePrintReceipt = () => {
+    openDoc(`Receipt ${invoice.id}`, buildReceiptHtml(), receiptCss)
+  }
+
+  const handleDownload = () => {
+    const blob = new Blob([buildReceiptHtml()], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `receipt-${invoice.id}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleShare = async () => {
+    const inv = invoice as any
+    const text = `Seth Medical Clinic receipt ${invoice.id} — KES ${Number(invoice.total || 0).toFixed(2)} (${inv.paymentDetails?.method || invoice.paymentMethod || 'Cash'})`
+    if ((navigator as any).share) {
+      try { await (navigator as any).share({ title: `Receipt ${invoice.id}`, text }) } catch { /* dismissed */ }
+    } else {
+      handleDownload()
+    }
+  }
+
   const handlePrint = () => {
     // Create a new window for printing
     const printWindow = window.open('', '_blank', 'width=800,height=600')
@@ -392,15 +457,33 @@ export function PrintableInvoice({ invoice, onClose }: PrintableInvoiceProps) {
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Invoice Preview</h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={handlePrint}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                className="bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-lg hover:bg-blue-700 flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
                 Print Invoice
+              </button>
+              <button
+                onClick={handlePrintReceipt}
+                className="bg-green-600 text-white px-4 py-2 min-h-[44px] rounded-lg hover:bg-green-700"
+              >
+                Receipt (80mm)
+              </button>
+              <button
+                onClick={handleDownload}
+                className="bg-gray-700 text-white px-4 py-2 min-h-[44px] rounded-lg hover:bg-gray-800"
+              >
+                Download
+              </button>
+              <button
+                onClick={handleShare}
+                className="bg-purple-600 text-white px-4 py-2 min-h-[44px] rounded-lg hover:bg-purple-700"
+              >
+                Share
               </button>
               {onClose && (
                 <button
