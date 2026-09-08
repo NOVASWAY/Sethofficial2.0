@@ -1758,8 +1758,8 @@ export const labAPI = {
    */
   getPendingOrders: async (params?: { priority?: string; test_type?: string; limit?: number }) => {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
-    const response = await apiCall<{ success: boolean; data: LabTestOrder[]; message?: string; error?: string }>(`/lab/orders/pending${query}`)
-    return response.data
+    const response = await apiCall<any>(`/lab/pending${query}`)
+    return Array.isArray(response) ? response : (response?.data || [])
   },
 
   /**
