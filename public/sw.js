@@ -10,8 +10,10 @@ const API_CACHE = `api-${CACHE_VERSION}`
 // Assets to cache on install
 const STATIC_ASSETS = [
   '/',
+  '/offline',
   '/dashboard',
   '/favicon.ico',
+  '/icon-192.png',
 ]
 
 // API endpoints to cache
@@ -163,6 +165,12 @@ async function handleStaticRequest(request) {
     return networkResponse
   } catch (error) {
     console.error('Service Worker: Static fetch failed', error)
+    // Navigation fallback: serve the offline page for document requests
+    if (request.mode === 'navigate') {
+      const cache = await caches.open(STATIC_CACHE)
+      const offline = await cache.match('/offline')
+      if (offline) return offline
+    }
     throw error
   }
 }
