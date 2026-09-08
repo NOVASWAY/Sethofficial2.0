@@ -16,6 +16,9 @@ import { useTranslation } from "@/contexts/language-context"
 import { PatientProvider } from "@/contexts/patient-context"
 import { InventoryProvider } from "@/contexts/inventory-context"
 import { AppointmentProvider } from "@/contexts/appointment-context"
+import { PurchaseOrderProvider } from "@/contexts/purchase-order-context"
+import { InvoiceProvider } from "@/contexts/invoice-context"
+import { AuditLogProvider } from "@/contexts/audit-log-context"
 import {
   Heart,
   User,
@@ -379,6 +382,9 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
     <PatientProvider>
       <InventoryProvider>
         <AppointmentProvider>
+          <PurchaseOrderProvider>
+            <InvoiceProvider>
+              <AuditLogProvider>
           <div className="min-h-screen bg-background">
           {/* Mobile sidebar overlay */}
           {sidebarOpen && (
@@ -441,6 +447,9 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             <main className="p-4 lg:p-6">{children}</main>
           </div>
           </div>
+              </AuditLogProvider>
+            </InvoiceProvider>
+          </PurchaseOrderProvider>
         </AppointmentProvider>
       </InventoryProvider>
     </PatientProvider>

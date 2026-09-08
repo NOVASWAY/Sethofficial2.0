@@ -132,7 +132,7 @@ export function PharmacyManagement({ role }: PharmacyManagementProps) {
       const res = await fetch("/api/medicines?limit=200")
       if (!res.ok) throw new Error("Failed to fetch medicines")
       const data = await res.json()
-      const raw = data.medicines || data || []
+      const raw = data.data?.data || data.medicines || data.data || data || []
       const mapped: Medication[] = raw.map((m: any) => ({
         id: m.id,
         name: m.name,
@@ -164,7 +164,7 @@ export function PharmacyManagement({ role }: PharmacyManagementProps) {
       const res = await fetch("/api/prescriptions?limit=200")
       if (!res.ok) throw new Error("Failed to fetch prescriptions")
       const data = await res.json()
-      const raw = data.prescriptions || data || []
+      const raw = data.data?.data || data.prescriptions || data.data || data || []
       const mapped: Prescription[] = raw.map((p: any) => ({
         id: p.prescriptionNumber || p.id,
         patientId: p.patientId || "",
