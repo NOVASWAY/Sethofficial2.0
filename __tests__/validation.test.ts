@@ -1,4 +1,4 @@
-import { validators, validateForm, validationSchemas } from '@/lib/validation'
+import { validators, validateForm, validationSchemas, normalizeKePhone, mpesaStkSchema } from '@/lib/validation'
 
 describe('Validators', () => {
   describe('required', () => {
@@ -216,5 +216,46 @@ describe('Validation Schemas', () => {
       validationSchemas.patient
     )
     expect(result.isValid).toBe(true)
+  })
+})
+
+describe('normalizeKePhone', () => {
+  test('accepts 254 format', () => {
+    expect(normalizeKePhone('254712345678')).toBe('254712345678')
+  })
+
+  test('converts 0-prefixed to 254', () => {
+    expect(normalizeKePhone('0712345678')).toBe('254712345678')
+  })
+
+  test('accepts 9-digit local', () => {
+    expect(normalizeKePhone('712345678')).toBe('254712345678')
+  })
+
+  test('rejects invalid numbers', () => {
+    expect(normalizeKePhone('12345')).toBeNull()
+    expect(normalizeKePhone('')).toBeNull()
+    expect(normalizeKePhone('abcd')).toBeNull()
+  })
+})
+
+describe('mpesaStkSchema', () => {
+  test('rejects missing fields', () => {
+    expect(() => mpesaStkSchema.parse({})).toThrow()
+  })
+
+  test('rejects non-positive amount', () => {
+    expect(() =>
+      mpesaStkSchema.parse({ invoiceId: '123e4567-e89b-12d3-a456-426614174000', amount: 0, phoneNumber: '0712345678' })
+    ).toThrow()
+  })
+
+  test('accepts valid payload', () => {
+    const parsed = mpesaStkSchema.parse({
+      invoiceId: '123e4567-e89b-12d3-a456-426614174000',
+      amount: 500,
+      phoneNumber: '0712345678',
+    })
+    expect(parsed.amount).toBe(500)
   })
 })

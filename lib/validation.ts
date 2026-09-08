@@ -403,3 +403,18 @@ export const workflowSchema = z.object({
   currentStep: z.string().min(1, "Current step is required"),
   notes: z.string().optional(),
 })
+
+export const mpesaStkSchema = z.object({
+  invoiceId: z.string().uuid("Invalid invoice ID"),
+  amount: z.number().positive("Amount must be positive"),
+  phoneNumber: z.string().min(9, "Phone number is required"),
+})
+
+export function normalizeKePhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "")
+  if (/^254\d{9}$/.test(digits)) return digits
+  if (/^0\d{9}$/.test(digits)) return `254${digits.slice(1)}`
+  if (/^\+254\d{9}$/.test(raw.replace(/[\s-]/g, ""))) return digits.replace(/^\+/, "")
+  if (/^\d{9}$/.test(digits)) return `254${digits}`
+  return null
+}

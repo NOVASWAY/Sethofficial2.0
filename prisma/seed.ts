@@ -6,12 +6,18 @@ const prisma = new PrismaClient()
 async function main() {
   console.log("Seeding database...")
 
-  // Create default users
+  const isProd = process.env.NODE_ENV === "production"
+  const defaultPassword = process.env.SEED_DEFAULT_PASSWORD
+  if (isProd && !defaultPassword) {
+    throw new Error("Refusing to seed with default passwords: set SEED_DEFAULT_PASSWORD (12+ chars) or per-user SEED_<USERNAME>_PASSWORD.")
+  }
+
+  // Create default users — passwords come from env, never hardcoded defaults in production
   const users = [
     {
       username: "admin",
       email: "admin@sethmedical.com",
-      password: "admin123",
+      password: process.env.SEED_ADMIN_PASSWORD || defaultPassword || "admin123",
       role: "admin",
       name: "System Administrator",
       department: "Administration",
@@ -19,7 +25,7 @@ async function main() {
     {
       username: "receptionist",
       email: "receptionist@sethmedical.com",
-      password: "receptionist123",
+      password: process.env.SEED_RECEPTIONIST_PASSWORD || defaultPassword || "receptionist123",
       role: "receptionist",
       name: "Jane Receptionist",
       department: "Front Desk",
@@ -27,7 +33,7 @@ async function main() {
     {
       username: "nurse",
       email: "nurse@sethmedical.com",
-      password: "nurse123",
+      password: process.env.SEED_NURSE_PASSWORD || defaultPassword || "nurse123",
       role: "nurse",
       name: "Nurse Joy",
       department: "Nursing",
@@ -35,7 +41,7 @@ async function main() {
     {
       username: "clinician",
       email: "clinician@sethmedical.com",
-      password: "clinician123",
+      password: process.env.SEED_CLINICIAN_PASSWORD || defaultPassword || "clinician123",
       role: "clinician",
       name: "Dr. Smith",
       department: "General Practice",
@@ -43,7 +49,7 @@ async function main() {
     {
       username: "pharmacist",
       email: "pharmacist@sethmedical.com",
-      password: "pharmacist123",
+      password: process.env.SEED_PHARMACIST_PASSWORD || defaultPassword || "pharmacist123",
       role: "pharmacist",
       name: "Pharmacist Lee",
       department: "Pharmacy",
@@ -51,12 +57,22 @@ async function main() {
     {
       username: "labtech",
       email: "labtech@sethmedical.com",
-      password: "labtech123",
+      password: process.env.SEED_LABTECH_PASSWORD || defaultPassword || "labtech123",
       role: "lab_technician",
       name: "Lab Tech Paul",
       department: "Laboratory",
     },
   ]
+
+  const minLen = isProd ? 12 : 8
+  for (const u of users) {
+    if (!u.password || u.password.length < minLen) {
+      throw new Error(`Seed password for ${u.username} must be at least ${minLen} characters.`)
+    }
+    if (isProd && /^(admin123|receptionist123|nurse123|clinician123|pharmacist123|labtech123)$/.test(u.password)) {
+      throw new Error(`Refusing to seed default password for ${u.username} in production.`)
+    }
+  }
 
   for (const userData of users) {
     const passwordHash = await hash(userData.password, 12)
