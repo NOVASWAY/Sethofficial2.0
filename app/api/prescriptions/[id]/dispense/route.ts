@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { validateBody } from "@/lib/api-handler"
 import { dispenseSchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
+import { writeAudit } from "@/lib/audit"
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -63,6 +64,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     apiCache.invalidate("^dashboard:metrics")
     apiCache.invalidate("^lab:pending")
+
+    writeAudit({
+      userId: session.user.id,
+      action: "prescription.dispensed",
+      resource: "prescription",
+      resourceId: params.id,
+      result: "success",
+      details: { prescriptionNumber: prescription.prescriptionNumber, items: body.items?.length || 0 },
+      req,
+    }).catch(() => {})
 
     return NextResponse.json({ success: true, data: { message: "Prescription dispensed successfully" } })
   } catch (error) {

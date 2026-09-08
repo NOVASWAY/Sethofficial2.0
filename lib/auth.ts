@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { compare } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { writeAudit } from "@/lib/audit"
 
 declare module "next-auth" {
   interface Session {
@@ -55,11 +56,24 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!user || !user.isActive) {
+          writeAudit({
+            action: "auth.login_failed",
+            resource: "session",
+            result: "failure",
+            details: { username: credentials.username, reason: "unknown_or_inactive" },
+          }).catch(() => {})
           throw new Error("Invalid credentials")
         }
 
         const isValid = await compare(credentials.password, user.passwordHash)
         if (!isValid) {
+          writeAudit({
+            userId: user.id,
+            action: "auth.login_failed",
+            resource: "session",
+            result: "failure",
+            details: { username: credentials.username, reason: "bad_password" },
+          }).catch(() => {})
           throw new Error("Invalid credentials")
         }
 
@@ -76,6 +90,14 @@ export const authOptions: NextAuthOptions = {
         const permissions = user.permissions && Array.isArray(user.permissions) && (user.permissions as string[]).length > 0
           ? user.permissions as string[]
           : ROLE_PERMISSIONS[user.role] || []
+
+        writeAudit({
+          userId: user.id,
+          action: "auth.login",
+          resource: "session",
+          result: "success",
+          details: { username: user.username, role: user.role },
+        }).catch(() => {})
 
         return {
           id: user.id,

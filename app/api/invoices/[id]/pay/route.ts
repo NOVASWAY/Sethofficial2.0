@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { validateBody } from "@/lib/api-handler"
 import { paymentSchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
+import { writeAudit } from "@/lib/audit"
 import { randomUUID } from "crypto"
 
 async function nextTransactionNumber(): Promise<string> {
@@ -80,6 +81,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ])
 
     apiCache.invalidate("^dashboard:metrics")
+
+    writeAudit({
+      userId: session.user.id,
+      action: "payment.received",
+      resource: "invoice",
+      resourceId: params.id,
+      result: "success",
+      details: { receiptNumber, amount: body.amount, method: body.paymentMethod || "cash", totalPaid, status: newStatus },
+      req,
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,

@@ -5,6 +5,7 @@ import { userSchema } from "@/lib/validation"
 import { hash } from "bcryptjs"
 import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
 import { apiCache } from "@/lib/cache"
+import { writeAudit } from "@/lib/audit"
 
 export const GET = withErrorHandling(async (req, _ctx, session) => {
   if (session.user.role !== "admin") {
@@ -88,6 +89,16 @@ export const POST = withErrorHandling(async (req, _ctx, session) => {
   }
 
   apiCache.invalidate("^dashboard:metrics")
+
+  writeAudit({
+    userId: session.user.id,
+    action: "user.created",
+    resource: "user",
+    resourceId: user.id,
+    result: "success",
+    details: { username: user.username, role: user.role },
+    req,
+  }).catch(() => {})
 
   return NextResponse.json({ success: true, data: user }, { status: 201 })
 })

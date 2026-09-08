@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { writeAudit } from "@/lib/audit"
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -118,11 +119,27 @@ export async function POST(req: NextRequest) {
         },
       }),
     ])
+
+    writeAudit({
+      action: "payment.mpesa_received",
+      resource: "invoice",
+      resourceId: transaction.invoiceId,
+      result: "success",
+      details: { checkoutRequestId, mpesaReceipt, amount: transaction.amount, status: newStatus },
+      req,
+    }).catch(() => {})
   } else {
     await prisma.mpesaTransaction.updateMany({
       where: { checkoutRequestId },
       data: { status: "Failed", resultCode, resultDesc },
     })
+    writeAudit({
+      action: "payment.mpesa_failed",
+      resource: "invoice",
+      result: "failure",
+      details: { checkoutRequestId, resultCode, resultDesc },
+      req,
+    }).catch(() => {})
   }
 
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Success" })
