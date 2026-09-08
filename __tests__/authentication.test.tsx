@@ -1,200 +1,99 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import { useRouter } from 'next/navigation'
 import LoginPage from '@/app/page'
-import { useAuth } from '@/contexts/auth-context'
+import { signIn, useSession } from 'next-auth/react'
 
-// Mock Next.js router
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: jest.fn(),
-    replace: jest.fn(),
-    prefetch: jest.fn()
-  })
+jest.mock('next-auth/react', () => ({
+  signIn: jest.fn(),
+  useSession: jest.fn(),
 }))
 
-// Mock auth context
-jest.mock('@/contexts/auth-context', () => ({
-  useAuth: jest.fn(),
-  AuthProvider: ({ children }: { children: React.ReactNode }) => children
-}))
-
-// Mock API client
-jest.mock('@/lib/api-client', () => ({
-  apiClient: {
-    post: jest.fn()
-  }
-}))
-
-describe('Authentication Flow', () => {
-  const mockLogin = jest.fn()
-  const mockPush = jest.fn()
-
+describe('Login Page', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    
-    ;(useAuth as jest.Mock).mockReturnValue({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      login: mockLogin,
-      logout: jest.fn(),
-      isLoading: false
-    })
-
-    ;(useRouter as jest.Mock).mockReturnValue({
-      push: mockPush,
-      replace: jest.fn(),
-      prefetch: jest.fn()
+    ;(useSession as jest.Mock).mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
     })
   })
 
-  test('renders login form', () => {
+  test('renders login form with username and password fields', () => {
     render(<LoginPage />)
-    
-    expect(screen.getByLabelText(/username|email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /login|sign in/i })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your username')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 
-  test('validates required fields', async () => {
+  test('displays Seth Medical Clinic branding', () => {
     render(<LoginPage />)
-    
-    const submitButton = screen.getByRole('button', { name: /login|sign in/i })
-    fireEvent.click(submitButton)
-    
+    expect(screen.getByText('Seth Medical Clinic')).toBeInTheDocument()
+    expect(screen.getByText('Management System')).toBeInTheDocument()
+  })
+
+  test('disables sign in button when fields are empty', () => {
+    render(<LoginPage />)
+    const button = screen.getByRole('button', { name: /sign in/i })
+    expect(button).toBeDisabled()
+  })
+
+  test('enables sign in button when fields are filled', () => {
+    render(<LoginPage />)
+    fireEvent.change(screen.getByPlaceholderText('Enter your username'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'admin123' } })
+    const button = screen.getByRole('button', { name: /sign in/i })
+    expect(button).not.toBeDisabled()
+  })
+
+  test('calls signIn with credentials on form submit', async () => {
+    ;(signIn as jest.Mock).mockResolvedValue({ error: null })
+    render(<LoginPage />)
+
+    fireEvent.change(screen.getByPlaceholderText('Enter your username'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'admin123' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
     await waitFor(() => {
-      expect(screen.getByText(/required|please enter/i)).toBeInTheDocument()
-    })
-  })
-
-  test('handles successful login', async () => {
-    mockLogin.mockResolvedValue({
-      success: true,
-      data: {
-        access_token: 'test-token',
-        user: { id: '123', username: 'testuser', role: 'clinician' }
-      }
-    })
-
-    render(<LoginPage />)
-    
-    const usernameInput = screen.getByLabelText(/username|email/i)
-    const passwordInput = screen.getByLabelText(/password/i)
-    
-    fireEvent.change(usernameInput, { target: { value: 'testuser' } })
-    fireEvent.change(passwordInput, { target: { value: 'password123' } })
-    
-    const submitButton = screen.getByRole('button', { name: /login|sign in/i })
-    fireEvent.click(submitButton)
-    
-    await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith({
-        username: 'testuser',
-        password: 'password123'
+      expect(signIn).toHaveBeenCalledWith('credentials', {
+        username: 'admin',
+        password: 'admin123',
+        redirect: false,
       })
     })
+  })
+
+  test('shows error message on failed login', async () => {
+    ;(signIn as jest.Mock).mockResolvedValue({ error: 'CredentialsSignin' })
+    render(<LoginPage />)
+
+    fireEvent.change(screen.getByPlaceholderText('Enter your username'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'wrong' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/dashboard/i))
+      expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument()
     })
   })
 
-  test('handles login errors', async () => {
-    mockLogin.mockRejectedValue({
-      message: 'Invalid credentials'
-    })
-
+  test('shows loading state while signing in', async () => {
+    ;(signIn as jest.Mock).mockImplementation(() => new Promise(() => {}))
     render(<LoginPage />)
-    
-    const usernameInput = screen.getByLabelText(/username|email/i)
-    const passwordInput = screen.getByLabelText(/password/i)
-    
-    fireEvent.change(usernameInput, { target: { value: 'testuser' } })
-    fireEvent.change(passwordInput, { target: { value: 'wrongpassword' } })
-    
-    const submitButton = screen.getByRole('button', { name: /login|sign in/i })
-    fireEvent.click(submitButton)
-    
-    await waitFor(() => {
-      expect(screen.getByText(/invalid|credentials|error/i)).toBeInTheDocument()
-    })
-  })
 
-  test('shows loading state during login', async () => {
-    mockLogin.mockImplementation(() => new Promise(() => {})) // Never resolves
+    fireEvent.change(screen.getByPlaceholderText('Enter your username'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'admin123' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    render(<LoginPage />)
-    
-    const usernameInput = screen.getByLabelText(/username|email/i)
-    const passwordInput = screen.getByLabelText(/password/i)
-    
-    fireEvent.change(usernameInput, { target: { value: 'testuser' } })
-    fireEvent.change(passwordInput, { target: { value: 'password123' } })
-    
-    const submitButton = screen.getByRole('button', { name: /login|sign in/i })
-    fireEvent.click(submitButton)
-    
     await waitFor(() => {
-      expect(submitButton).toBeDisabled()
-      expect(screen.getByText(/loading|logging in/i)).toBeInTheDocument()
+      expect(screen.getByText(/signing in/i)).toBeInTheDocument()
     })
   })
 
   test('redirects authenticated users', () => {
-    ;(useAuth as jest.Mock).mockReturnValue({
-      user: { id: '123', username: 'testuser' },
-      token: 'test-token',
-      isAuthenticated: true,
-      login: mockLogin,
-      logout: jest.fn(),
-      isLoading: false
+    ;(useSession as jest.Mock).mockReturnValue({
+      data: { user: { role: 'admin' } },
+      status: 'authenticated',
     })
-
-    render(<LoginPage />)
-    
-    // Should redirect to dashboard
-    expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/dashboard/i))
-  })
-
-  test('validates password length', async () => {
-    render(<LoginPage />)
-    
-    const usernameInput = screen.getByLabelText(/username|email/i)
-    const passwordInput = screen.getByLabelText(/password/i)
-    
-    fireEvent.change(usernameInput, { target: { value: 'testuser' } })
-    fireEvent.change(passwordInput, { target: { value: 'short' } })
-    
-    const submitButton = screen.getByRole('button', { name: /login|sign in/i })
-    fireEvent.click(submitButton)
-    
-    await waitFor(() => {
-      expect(screen.getByText(/password|length|minimum/i)).toBeInTheDocument()
-    })
-  })
-
-  test('handles network errors', async () => {
-    mockLogin.mockRejectedValue({
-      message: 'Network error',
-      code: 'NETWORK_ERROR'
-    })
-
-    render(<LoginPage />)
-    
-    const usernameInput = screen.getByLabelText(/username|email/i)
-    const passwordInput = screen.getByLabelText(/password/i)
-    
-    fireEvent.change(usernameInput, { target: { value: 'testuser' } })
-    fireEvent.change(passwordInput, { target: { value: 'password123' } })
-    
-    const submitButton = screen.getByRole('button', { name: /login|sign in/i })
-    fireEvent.click(submitButton)
-    
-    await waitFor(() => {
-      expect(screen.getByText(/network|connection|error/i)).toBeInTheDocument()
-    })
+    const { container } = render(<LoginPage />)
+    expect(container.innerHTML).toBe('')
   })
 })
-
