@@ -780,11 +780,18 @@ export const invoiceAPI = {
   /**
    * Process payment for invoice
    * POST /invoices/:id/pay
+   * Accepts both camelCase ({amount, paymentMethod, reference}) and legacy
+   * snake_case ({amount_paid, payment_method, transaction_id/reference_number}).
    */
   processPayment: async (id: string, paymentData: any) => {
+    const normalized = {
+      amount: Number(paymentData.amount ?? paymentData.amount_paid ?? 0),
+      paymentMethod: paymentData.paymentMethod ?? paymentData.payment_method ?? 'cash',
+      reference: paymentData.reference ?? paymentData.transaction_id ?? paymentData.reference_number,
+    }
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/invoices/${id}/pay`, {
       method: 'POST',
-      body: JSON.stringify(paymentData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
