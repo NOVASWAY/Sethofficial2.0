@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { userSchema } from "@/lib/validation"
 import { hash } from "bcryptjs"
+import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
+import { apiCache } from "@/lib/cache"
 
 export const GET = withErrorHandling(async (req, _ctx, session) => {
   if (session.user.role !== "admin") {
@@ -65,6 +67,27 @@ export const POST = withErrorHandling(async (req, _ctx, session) => {
       createdAt: true,
     },
   })
+
+  if (body.email) {
+    const token = generateVerificationToken()
+    const hashedToken = hashToken(token)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+    await prisma.verificationToken.create({
+      data: { identifier: user.id, token: hashedToken, expires: expiresAt },
+    })
+
+    const baseUrl = process.env.NEXTAUTH_URL || "https://sethofficial2-0.vercel.app"
+    const template = EMAIL_TEMPLATES.verification(token, baseUrl)
+
+    sendEmail({
+      to: body.email,
+      subject: template.subject,
+      html: template.html,
+    }).catch(() => {})
+  }
+
+  apiCache.invalidate("^dashboard:metrics")
 
   return NextResponse.json({ success: true, data: user }, { status: 201 })
 })
