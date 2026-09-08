@@ -6,6 +6,7 @@ import { hash } from "bcryptjs"
 import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
 import { apiCache } from "@/lib/cache"
 import { writeAudit } from "@/lib/audit"
+import { requireMfaForSensitiveAction } from "@/lib/mfa-gate"
 
 export const GET = withErrorHandling(async (req, _ctx, session) => {
   if (session.user.role !== "admin") {
@@ -45,6 +46,12 @@ export const POST = withErrorHandling(async (req, _ctx, session) => {
   }
 
   const body = await validateBody(req, userSchema)
+
+  const mfa = await requireMfaForSensitiveAction(session.user.id)
+  if (!mfa.ok) {
+    return NextResponse.json({ success: false, error: mfa.error }, { status: 403 })
+  }
+
   const passwordHash = await hash(body.password, 12)
 
   const user = await prisma.user.create({

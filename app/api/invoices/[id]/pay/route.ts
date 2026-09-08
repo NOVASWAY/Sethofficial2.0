@@ -6,6 +6,7 @@ import { validateBody } from "@/lib/api-handler"
 import { paymentSchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
 import { writeAudit } from "@/lib/audit"
+import { requireMfaForSensitiveAction } from "@/lib/mfa-gate"
 import { randomUUID } from "crypto"
 
 async function nextTransactionNumber(): Promise<string> {
@@ -31,6 +32,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
 
     const body = await validateBody(req, paymentSchema)
+
+    const mfa = await requireMfaForSensitiveAction(session.user.id)
+    if (!mfa.ok) {
+      writeAudit({
+        userId: session.user.id,
+        action: "payment.denied_mfa",
+        resource: "invoice",
+        resourceId: params.id,
+        result: "denied",
+        details: { amount: body.amount },
+        req,
+      }).catch(() => {})
+      return NextResponse.json({ success: false, error: mfa.error }, { status: 403 })
+    }
 
     const invoice = await prisma.invoice.findUnique({
       where: { id: params.id },

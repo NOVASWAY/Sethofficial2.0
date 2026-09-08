@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import * as OTPAuth from "otpauth"
 import crypto from "crypto"
+import { mfaLimiter, throttle } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
   try {
+    const t = throttle(req.headers, mfaLimiter, "mfa-verify")
+    if (!t.allowed) {
+      return NextResponse.json(
+        { success: false, error: `Too many attempts. Try again in ${t.retryAfterSec}s.` },
+        { status: 429, headers: { "Retry-After": String(t.retryAfterSec) } }
+      )
+    }
     const body = await req.json()
     const { sessionToken, code, method } = body
 

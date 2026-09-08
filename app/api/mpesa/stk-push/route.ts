@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { validateBody } from "@/lib/api-handler"
 import { mpesaStkSchema, normalizeKePhone } from "@/lib/validation"
+import { requireMfaForSensitiveAction } from "@/lib/mfa-gate"
 
 async function getMpesaToken(): Promise<string> {
   const auth = Buffer.from(
@@ -43,6 +44,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await validateBody(req, mpesaStkSchema)
+
+    const mfa = await requireMfaForSensitiveAction(session.user.id)
+    if (!mfa.ok) {
+      return NextResponse.json({ success: false, error: mfa.error }, { status: 403 })
+    }
 
     const phone = normalizeKePhone(body.phoneNumber)
     if (!phone) {

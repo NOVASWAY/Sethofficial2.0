@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { hash } from "bcryptjs"
 import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
+import { authLimiter, throttle } from "@/lib/rate-limit"
+
+function throttled(req: NextRequest) {
+  const t = throttle(req.headers, authLimiter, "password-reset")
+  if (!t.allowed) {
+    return NextResponse.json(
+      { success: false, error: `Too many attempts. Try again in ${t.retryAfterSec}s.` },
+      { status: 429, headers: { "Retry-After": String(t.retryAfterSec) } }
+    )
+  }
+  return null
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = throttled(req)
+    if (limited) return limited
     const body = await req.json()
     const { email } = body
 
@@ -53,6 +67,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const limited = throttled(req)
+    if (limited) return limited
     const body = await req.json()
     const { token, newPassword } = body
 

@@ -49,6 +49,25 @@ export const apiLimiter = new RateLimiter(60 * 1000, 100)
 export const authLimiter = new RateLimiter(15 * 60 * 1000, 10)
 export const mfaLimiter = new RateLimiter(15 * 60 * 1000, 5)
 
+// NOTE (pilot stopgap): these limiters are in-memory per serverless instance.
+// They blunt casual brute force but do not replace Redis-backed throttle + lockout.
+export function clientIpFromHeaders(headers: Headers): string {
+  return headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || headers.get("x-real-ip")
+    || "unknown"
+}
+
+export function throttle(
+  headers: Headers,
+  limiter: RateLimiter,
+  scope: string
+): { allowed: true } | { allowed: false; retryAfterSec: number } {
+  const key = `${scope}:${clientIpFromHeaders(headers)}`
+  const { allowed, resetAt } = limiter.check(key)
+  if (allowed) return { allowed: true }
+  return { allowed: false, retryAfterSec: Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)) }
+}
+
 export function rateLimitResponse(remaining: number, resetAt: number): Record<string, string> {
   return {
     "X-RateLimit-Remaining": String(remaining),

@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
+import { authLimiter, throttle } from "@/lib/rate-limit"
+
+function throttled(req: NextRequest) {
+  const t = throttle(req.headers, authLimiter, "verify-email")
+  if (!t.allowed) {
+    return NextResponse.json(
+      { success: false, error: `Too many attempts. Try again in ${t.retryAfterSec}s.` },
+      { status: 429, headers: { "Retry-After": String(t.retryAfterSec) } }
+    )
+  }
+  return null
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = throttled(req)
+    if (limited) return limited
     const body = await req.json()
     const { email } = body
 
@@ -56,6 +70,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const limited = throttled(req)
+    if (limited) return limited
     const { searchParams } = new URL(req.url)
     const token = searchParams.get("token")
 
