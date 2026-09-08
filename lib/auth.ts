@@ -85,7 +85,8 @@ export const authOptions: NextAuthOptions = {
           department: user.department,
           email: user.email,
           permissions,
-        }
+          mfaEnabled: user.mfaEnabled,
+        } as any
       },
     }),
   ],
@@ -105,6 +106,7 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name
         token.department = user.department
         token.permissions = (user as any).permissions || []
+        token.mfaEnabled = (user as any).mfaEnabled || false
       }
       return token
     },
@@ -117,7 +119,8 @@ export const authOptions: NextAuthOptions = {
         department: token.department,
         email: session.user.email,
         permissions: token.permissions || [],
-      }
+        mfaEnabled: (token as any).mfaEnabled || false,
+      } as any
       return session
     },
   },

@@ -72,6 +72,18 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("Invalid credentials. Please try again.")
+      } else if (result?.ok) {
+        const res = await fetch("/api/auth/session")
+        const session = await res.json()
+        const user = session?.user
+        if (user?.mfaEnabled) {
+          const mfaRes = await fetch("/api/mfa/create-session", { method: "POST" })
+          const mfaData = await mfaRes.json()
+          if (mfaData.success && mfaData.data?.sessionToken) {
+            window.location.href = `/mfa-verify?session=${mfaData.data.sessionToken}`
+            return
+          }
+        }
       }
     } catch {
       setError("An error occurred. Please try again.")
