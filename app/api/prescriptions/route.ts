@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { prescriptionSchema } from "@/lib/validation"
+import { apiCache } from "@/lib/cache"
 
 export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
@@ -86,6 +87,9 @@ export const POST = withErrorHandling(async (req, _ctx, session) => {
     },
     include: { items: true },
   })
+
+  apiCache.invalidate("^dashboard:metrics")
+  apiCache.invalidate("^lab:pending")
 
   return NextResponse.json({ success: true, data: prescription }, { status: 201 })
 })
