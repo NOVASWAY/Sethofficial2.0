@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { patientSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const page = parseInt(searchParams.get("page") || "1")
   const perPage = parseInt(searchParams.get("per_page") || searchParams.get("limit") || "50")
@@ -45,15 +42,11 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = withErrorHandling(async (req) => {
+  const body = await validateBody(req, patientSchema)
 
-  const body = await req.json()
-
-  // Generate patient number
   const lastPatient = await prisma.patient.findFirst({
     orderBy: { createdAt: "desc" },
     select: { patientNumber: true },
@@ -85,4 +78,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: patient }, { status: 201 })
-}
+})

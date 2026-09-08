@@ -76,16 +76,6 @@ const InvoiceContext = createContext<InvoiceContextType | undefined>(undefined)
 
 // Removed localStorage keys - now using API calls
 
-// Generate invoice number
-const generateInvoiceNumber = (): string => {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
-  return `INV-${year}${month}${day}-${random}`
-}
-
 // No default mock data - system starts empty
 
 export function InvoiceProvider({ children }: { children: ReactNode }) {
@@ -135,14 +125,23 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
-    setInvoices(prev =>
-      prev.map(invoice =>
-        invoice.id === id
-          ? { ...invoice, ...updates, updatedAt: new Date().toISOString() }
-          : invoice
+  const updateInvoice = useCallback(async (id: string, updates: Partial<Invoice>) => {
+    try {
+      await fetch(`/api/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      setInvoices(prev =>
+        prev.map(invoice =>
+          invoice.id === id
+            ? { ...invoice, ...updates, updatedAt: new Date().toISOString() }
+            : invoice
+        )
       )
-    )
+    } catch (error) {
+      console.error('Error updating invoice via API:', error)
+    }
   }, [])
 
   const getInvoiceById = useCallback((id: string): Invoice | undefined => {
@@ -166,28 +165,50 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     })
   }, [invoices])
 
-  const addPayment = useCallback((paymentData: Omit<Payment, 'id' | 'createdAt'>) => {
-    const newPayment: Payment = {
-      ...paymentData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    }
-
-    setPayments(prev => [newPayment, ...prev])
-
-    // Update invoice payment status
-    const invoice = invoices.find(inv => inv.id === paymentData.invoiceId)
-    if (invoice) {
-      const totalPaid = invoice.amountPaid + paymentData.amount
-      const newBalance = invoice.total - totalPaid
-
-      updateInvoice(invoice.id, {
-        amountPaid: totalPaid,
-        balance: newBalance,
-        paymentStatus: newBalance <= 0 ? 'paid' : newBalance < invoice.total ? 'partial' : 'pending',
+  const addPayment = useCallback(async (paymentData: Omit<Payment, 'id' | 'createdAt'>) => {
+    try {
+      // Persist payment to API
+      await fetch(`/api/invoices/${paymentData.invoiceId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: paymentData.amount,
+          paymentMethod: paymentData.method,
+          reference: paymentData.reference || paymentData.transactionCode,
+          notes: paymentData.notes,
+        }),
       })
+
+      const newPayment: Payment = {
+        ...paymentData,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+      }
+      setPayments(prev => [newPayment, ...prev])
+
+      // Update invoice payment status locally
+      const invoice = invoices.find(inv => inv.id === paymentData.invoiceId)
+      if (invoice) {
+        const totalPaid = invoice.amountPaid + paymentData.amount
+        const newBalance = invoice.total - totalPaid
+        setInvoices(prev =>
+          prev.map(inv =>
+            inv.id === invoice.id
+              ? {
+                  ...inv,
+                  amountPaid: totalPaid,
+                  balance: newBalance,
+                  paymentStatus: newBalance <= 0 ? 'paid' : newBalance < inv.total ? 'partial' : 'pending',
+                  updatedAt: new Date().toISOString(),
+                }
+              : inv
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Error adding payment via API:', error)
     }
-  }, [invoices, updateInvoice])
+  }, [invoices])
 
   const getPaymentsByInvoice = useCallback((invoiceId: string): Payment[] => {
     return payments.filter(pay => pay.invoiceId === invoiceId)

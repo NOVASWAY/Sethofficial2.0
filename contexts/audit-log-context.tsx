@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useAuth } from '@/contexts/auth-context'
 
 export interface AuditLog {
   id: string
@@ -27,92 +28,26 @@ interface AuditLogContextType {
 
 const AuditLogContext = createContext<AuditLogContextType | undefined>(undefined)
 
-const AUDIT_LOGS_STORAGE_KEY = 'clinic_audit_logs_data'
-const MAX_LOGS = 1000 // Keep only last 1000 logs to prevent storage overflow
-
-// Default mock logs for first-time users
-const defaultLogs: AuditLog[] = [
-  {
-    id: '1',
-    timestamp: new Date().toISOString(),
-    userId: 'user-001',
-    userName: 'Admin User',
-    userRole: 'admin',
-    action: 'CREATE_PATIENT',
-    module: 'registration',
-    entityType: 'patient',
-    entityId: 'PAT-2025-0001',
-    details: 'Registered new patient: John Doe',
-    severity: 'info',
-  },
-  {
-    id: '2',
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    userId: 'user-002',
-    userName: 'Dr. Sarah Johnson',
-    userRole: 'clinician',
-    action: 'CREATE_CONSULTATION',
-    module: 'consultation',
-    entityType: 'consultation',
-    entityId: 'CON-202510-001',
-    details: 'Completed consultation for patient PAT-2025-0001',
-    severity: 'info',
-  },
-  {
-    id: '3',
-    timestamp: new Date(Date.now() - 7200000).toISOString(),
-    userId: 'user-003',
-    userName: 'Pharmacist Jane',
-    userRole: 'pharmacist',
-    action: 'DISPENSE_MEDICATION',
-    module: 'pharmacy',
-    entityType: 'prescription',
-    entityId: 'RX-202510-001',
-    details: 'Dispensed Amoxicillin 500mg x 21',
-    severity: 'info',
-  },
-]
-
 export function AuditLogProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
   const [logs, setLogs] = useState<AuditLog[]>([])
-  const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load from localStorage on mount
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      setIsInitialized(true)
-      return
-    }
-    
-    try {
-      const savedLogs = localStorage.getItem(AUDIT_LOGS_STORAGE_KEY)
-      if (savedLogs) {
-        setLogs(JSON.parse(savedLogs))
-      } else {
-        setLogs(defaultLogs)
+    const loadLogs = async () => {
+      try {
+        const res = await fetch('/api/audit-logs?limit=500')
+        const data = await res.json()
+        if (data.success && data.data) {
+          setLogs(data.data.data || data.data)
+        }
+      } catch {
+        setLogs([])
       }
-    } catch (error) {
-      console.error('Error loading audit logs from localStorage:', error)
-      setLogs(defaultLogs)
-    } finally {
-      setIsInitialized(true)
     }
+    loadLogs()
   }, [])
 
-  // Save logs to localStorage whenever they change (with size limit)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !isInitialized) return
-    
-    try {
-      // Keep only the most recent MAX_LOGS entries
-      const logsToSave = logs.slice(0, MAX_LOGS)
-      localStorage.setItem(AUDIT_LOGS_STORAGE_KEY, JSON.stringify(logsToSave))
-    } catch (error) {
-      console.error('Error saving audit logs to localStorage:', error)
-    }
-  }, [logs, isInitialized])
-
-  const logAction = (
+  const logAction = async (
     action: string,
     module: string,
     entityType: string,
@@ -120,19 +55,12 @@ export function AuditLogProvider({ children }: { children: ReactNode }) {
     details: string,
     severity: AuditLog['severity'] = 'info'
   ) => {
-    // Get current user from auth context (mock for now)
-    const currentUser = {
-      id: 'current-user',
-      name: 'Current User',
-      role: 'admin',
-    }
-
     const newLog: AuditLog = {
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
-      userId: currentUser.id,
-      userName: currentUser.name,
-      userRole: currentUser.role,
+      userId: user?.id || 'unknown',
+      userName: user?.name || 'Unknown User',
+      userRole: user?.role || 'unknown',
       action,
       module,
       entityType,
@@ -142,6 +70,23 @@ export function AuditLogProvider({ children }: { children: ReactNode }) {
     }
 
     setLogs(prev => [newLog, ...prev])
+
+    try {
+      await fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          resource: module,
+          resourceType: entityType,
+          resourceId: entityId,
+          details: { message: details, severity },
+          result: 'success',
+        }),
+      })
+    } catch {
+      // Log locally even if API fails
+    }
   }
 
   const getLogsByUser = (userId: string): AuditLog[] => {
@@ -183,4 +128,3 @@ export function useAuditLog() {
   }
   return context
 }
-

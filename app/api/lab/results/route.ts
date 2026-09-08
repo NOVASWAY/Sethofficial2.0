@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling } from "@/lib/api-handler"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const orderId = searchParams.get("orderId")
   const status = searchParams.get("status")
@@ -47,4 +43,4 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { medicineSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const search = searchParams.get("search") || ""
   const lowStock = searchParams.get("lowStock") === "true"
@@ -24,8 +21,6 @@ export async function GET(req: NextRequest) {
     ]
   }
   if (lowStock) {
-    // Fetch all and filter in JS since we can't do raw Prisma field comparison easily
-    // Alternatively, use a fixed threshold
     where.currentStock = { lte: 10 }
   }
   if (expiring) {
@@ -54,13 +49,10 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const body = await req.json()
+export const POST = withErrorHandling(async (req) => {
+  const body = await validateBody(req, medicineSchema)
 
   const medicine = await prisma.medicine.create({
     data: {
@@ -83,4 +75,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: medicine }, { status: 201 })
-}
+})

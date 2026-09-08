@@ -28,6 +28,7 @@ export default withAuth(
       receptionist: ["/dashboard/receptionist"],
       nurse: ["/dashboard/nurse"],
       clinician: ["/dashboard/clinician"],
+      doctor: ["/dashboard/doctor"],
       pharmacist: ["/dashboard/pharmacist"],
       lab_technician: ["/dashboard/lab_technician"],
     }

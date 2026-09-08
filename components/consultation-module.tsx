@@ -248,7 +248,6 @@ export function ConsultationModule() {
       const servicesData = await serviceCatalogAPI.getAll()
 
       if (servicesData && Array.isArray(servicesData)) {
-        // Transform API response to match Service interface
         const transformed = servicesData.map((service: any) => ({
           id: service.id || service.service_id || crypto.randomUUID(),
           service_code: service.service_code || service.code || '',
@@ -259,74 +258,15 @@ export function ConsultationModule() {
         }))
         setServices(transformed)
       } else {
-        // Fallback to mock services if API fails or returns no data
-        const mockServices: Service[] = [
-          {
-            id: '1',
-            service_code: 'CONSULT-001',
-            service_name: 'General Consultation',
-            category: 'consultation',
-            unit_price: 500,
-            sha_approved: true,
-          },
-          {
-            id: '2',
-            service_code: 'LAB-001',
-            service_name: 'Complete Blood Count',
-            category: 'laboratory',
-            unit_price: 800,
-            sha_approved: true,
-          },
-          {
-            id: '3',
-            service_code: 'PROC-001',
-            service_name: 'Wound Dressing',
-            category: 'procedure',
-            unit_price: 500,
-            sha_approved: true,
-          },
-        ]
-        setServices(mockServices)
-        toast({
-          title: "Info",
-          description: "Using default services. Service catalog API not available.",
-          variant: "default"
-        })
+        setServices([])
       }
     } catch (error) {
       console.error("Error loading services:", error)
-      // Fallback to mock services on error
-      const mockServices: Service[] = [
-        {
-          id: '1',
-          service_code: 'CONSULT-001',
-          service_name: 'General Consultation',
-          category: 'consultation',
-          unit_price: 500,
-          sha_approved: true,
-        },
-        {
-          id: '2',
-          service_code: 'LAB-001',
-          service_name: 'Complete Blood Count',
-          category: 'laboratory',
-          unit_price: 800,
-          sha_approved: true,
-        },
-        {
-          id: '3',
-          service_code: 'PROC-001',
-          service_name: 'Wound Dressing',
-          category: 'procedure',
-          unit_price: 500,
-          sha_approved: true,
-        },
-      ]
-      setServices(mockServices)
+      setServices([])
       toast({
         title: "Warning",
-        description: "Failed to load services from API. Using default services.",
-        variant: "default"
+        description: "Could not load service catalog. Services may need to be configured in Settings.",
+        variant: "destructive"
       })
     } finally {
       setLoading(false)

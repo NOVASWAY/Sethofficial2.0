@@ -12,6 +12,7 @@ declare module "next-auth" {
       name: string
       department: string
       email: string
+      permissions: string[]
     }
   }
 
@@ -21,6 +22,7 @@ declare module "next-auth" {
     role: string
     name: string
     department: string
+    permissions: string[]
   }
 }
 
@@ -31,6 +33,7 @@ declare module "next-auth/jwt" {
     role: string
     name: string
     department: string
+    permissions: string[]
   }
 }
 
@@ -60,6 +63,20 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
 
+        const ROLE_PERMISSIONS: Record<string, string[]> = {
+          admin: ["all"],
+          receptionist: ["patients", "appointments", "invoices", "visits"],
+          nurse: ["patients", "appointments", "visits", "reports", "prescriptions"],
+          clinician: ["patients", "appointments", "visits", "reports", "prescriptions", "invoices"],
+          doctor: ["patients", "appointments", "visits", "reports", "prescriptions", "invoices"],
+          pharmacist: ["pharmacy", "inventory", "reports", "invoices", "patients", "prescriptions"],
+          lab_technician: ["lab", "lab_orders", "lab_results", "patients"],
+        }
+
+        const permissions = user.permissions && Array.isArray(user.permissions) && (user.permissions as string[]).length > 0
+          ? user.permissions as string[]
+          : ROLE_PERMISSIONS[user.role] || []
+
         return {
           id: user.id,
           username: user.username,
@@ -67,6 +84,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           department: user.department,
           email: user.email,
+          permissions,
         }
       },
     }),
@@ -86,6 +104,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.name = user.name
         token.department = user.department
+        token.permissions = (user as any).permissions || []
       }
       return token
     },
@@ -97,6 +116,7 @@ export const authOptions: NextAuthOptions = {
         name: token.name,
         department: token.department,
         email: session.user.email,
+        permissions: token.permissions || [],
       }
       return session
     },

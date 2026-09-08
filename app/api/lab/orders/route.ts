@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { labOrderSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get("status")
   const patientId = searchParams.get("patientId")
@@ -45,15 +42,11 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = withErrorHandling(async (req, _ctx, session) => {
+  const body = await validateBody(req, labOrderSchema)
 
-  const body = await req.json()
-
-  // Generate order number
   const lastOrder = await prisma.labTestOrder.findFirst({
     orderBy: { createdAt: "desc" },
     select: { orderNumber: true },
@@ -84,4 +77,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: order }, { status: 201 })
-}
+})

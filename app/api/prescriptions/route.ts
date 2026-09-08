@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { prescriptionSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get("patientId")
   const consultationId = searchParams.get("consultationId")
@@ -45,15 +42,11 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = withErrorHandling(async (req, _ctx, session) => {
+  const body = await validateBody(req, prescriptionSchema)
 
-  const body = await req.json()
-
-  // Generate prescription number
   const last = await prisma.prescription.findFirst({
     orderBy: { createdAt: "desc" },
     select: { prescriptionNumber: true },
@@ -67,11 +60,11 @@ export async function POST(req: NextRequest) {
     data: {
       prescriptionNumber,
       patientId: body.patientId,
-      doctorId: body.doctorId,
-      consultationId: body.consultationId,
-      clinicianId: body.clinicianId,
-      medicationId: body.medicineId,
-      medicationName: body.medicationName || body.medicineName || "Unknown",
+      doctorId: body.doctorId || session.user.id,
+      consultationId: body.consultationId || undefined,
+      clinicianId: body.clinicianId || undefined,
+      medicationId: body.medicineId || undefined,
+      medicationName: body.medicationName || "Unknown",
       dosage: body.dosage || "",
       frequency: body.frequency || "",
       durationDays: body.durationDays || 0,
@@ -80,13 +73,13 @@ export async function POST(req: NextRequest) {
       medicines: body.items ? JSON.stringify(body.items) : "[]",
       items: body.items
         ? {
-            create: body.items.map((item: Record<string, unknown>) => ({
-              medicationId: item.medicineId || item.medicationId,
-              quantity: item.quantity,
-              dosage: item.dosage,
-              frequency: item.frequency,
-              durationDays: item.durationDays || item.duration,
-              instructions: item.instructions,
+            create: body.items.map((item: any) => ({
+              medicationId: String(item.medicineId || item.medicationId),
+              quantity: Number(item.quantity),
+              dosage: item.dosage || "",
+              frequency: item.frequency || "",
+              durationDays: Number(item.durationDays || item.duration || 0),
+              instructions: item.instructions || "",
             })),
           }
         : undefined,
@@ -95,4 +88,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: prescription }, { status: 201 })
-}
+})

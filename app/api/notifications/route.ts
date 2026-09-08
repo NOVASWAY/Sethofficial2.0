@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling } from "@/lib/api-handler"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req, _ctx, session) => {
   const { searchParams } = new URL(req.url)
   const unreadOnly = searchParams.get("unreadOnly") === "true" || searchParams.get("unread_only") === "true"
   const limit = parseInt(searchParams.get("limit") || "20")
@@ -27,12 +23,9 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: notifications, unreadCount })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const POST = withErrorHandling(async (req, _ctx, session) => {
   const body = await req.json()
 
   const notification = await prisma.notification.create({
@@ -50,4 +43,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: notification }, { status: 201 })
-}
+})

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { appointmentSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const date = searchParams.get("date")
   const doctorId = searchParams.get("doctorId")
@@ -44,15 +41,11 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = withErrorHandling(async (req) => {
+  const body = await validateBody(req, appointmentSchema)
 
-  const body = await req.json()
-
-  // Check for conflicts
   const conflicting = await prisma.appointment.findFirst({
     where: {
       doctorId: body.doctorId,
@@ -63,7 +56,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (conflicting) {
-    return NextResponse.json({ error: "Time slot already booked" }, { status: 409 })
+    return NextResponse.json({ success: false, error: "Time slot already booked" }, { status: 409 })
   }
 
   const appointment = await prisma.appointment.create({
@@ -82,4 +75,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: appointment }, { status: 201 })
-}
+})

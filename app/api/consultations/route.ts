@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { consultationSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get("patientId")
   const doctorId = searchParams.get("doctorId")
@@ -44,15 +41,11 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = withErrorHandling(async (req, _ctx, session) => {
+  const body = await validateBody(req, consultationSchema)
 
-  const body = await req.json()
-
-  // Generate consultation number
   const lastConsultation = await prisma.consultation.findFirst({
     orderBy: { createdAt: "desc" },
     select: { consultationNumber: true },
@@ -70,12 +63,12 @@ export async function POST(req: NextRequest) {
       clinicianId: session.user.id,
       appointmentId: body.appointmentId,
       visitDate: new Date(body.visitDate),
-      visitTime: body.visitTime,
+      visitTime: body.visitTime || "",
       chiefComplaint: body.chiefComplaint,
-      vitalSigns: body.vitalSigns,
+      vitalSigns: body.vitalSigns as any,
       physicalExamination: body.physicalExamination,
       diagnosis: body.diagnosis,
-      icd11Codes: body.icd11Codes,
+      icd11Codes: body.icd11Codes as any,
       treatmentPlan: body.treatmentPlan,
       notes: body.notes,
       followUpDate: body.followUpDate ? new Date(body.followUpDate) : null,
@@ -87,4 +80,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: consultation }, { status: 201 })
-}
+})

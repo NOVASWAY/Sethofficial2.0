@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { defaultMedicines, type Medicine } from '@/components/medicine-catalog'
+import { type Medicine } from '@/components/medicine-catalog'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/auth-context'
 import { pharmacyAPI } from '../lib/api-client'
@@ -38,76 +38,6 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
   const { user } = useAuth()
-
-  // Add expiry data to medicines
-  const medicinesWithExpiry = defaultMedicines.map((med, index) => {
-    // Add sample batch data for demonstration
-    const batches = []
-
-    // Add some expired batches for first 2 medicines
-    if (index === 0) {
-      batches.push({
-        batchNumber: 'BATCH-2023-001',
-        expiryDate: '2024-12-01', // Expired
-        quantity: 200,
-        receivedDate: '2023-06-01',
-      })
-    }
-
-    if (index === 1) {
-      batches.push({
-        batchNumber: 'BATCH-2024-002',
-        expiryDate: '2025-01-15', // Expired
-        quantity: 150,
-        receivedDate: '2023-08-01',
-      })
-    }
-
-    // Add critical expiry (within 30 days) for next 2 medicines
-    if (index === 2 || index === 3) {
-      const criticalDate = new Date()
-      criticalDate.setDate(criticalDate.getDate() + 20) // 20 days from now
-      batches.push({
-        batchNumber: `BATCH-2024-${index + 10}`,
-        expiryDate: criticalDate.toISOString().split('T')[0],
-        quantity: 300,
-        receivedDate: '2024-06-01',
-      })
-    }
-
-    // Add warning expiry (within 90 days) for next 2 medicines
-    if (index === 4 || index === 5) {
-      const warningDate = new Date()
-      warningDate.setDate(warningDate.getDate() + 60) // 60 days from now
-      batches.push({
-        batchNumber: `BATCH-2024-${index + 20}`,
-        expiryDate: warningDate.toISOString().split('T')[0],
-        quantity: 500,
-        receivedDate: '2024-08-01',
-      })
-    }
-
-    // Add normal expiry for others
-    const normalDate = new Date()
-    normalDate.setMonth(normalDate.getMonth() + 12) // 1 year from now
-    batches.push({
-      batchNumber: `BATCH-2025-${index + 1}`,
-      expiryDate: normalDate.toISOString().split('T')[0],
-      quantity: med.currentStock - batches.reduce((sum, b) => sum + b.quantity, 0),
-      receivedDate: '2025-01-01',
-    })
-
-    // Find nearest expiry
-    const nearestExpiry = batches.reduce((nearest, batch) => {
-      return new Date(batch.expiryDate) < new Date(nearest) ? batch.expiryDate : nearest
-    }, batches[0].expiryDate)
-
-    return {
-      ...med,
-      batches,
-      nearestExpiry,
-    }
-  })
 
   const [medicines, setMedicines] = useState<Medicine[]>([])
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([])
@@ -197,14 +127,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return false
     }
 
-    // Calculate new stock based on movement type
     let newStock = medicine.currentStock
     let stockChange = 0
 
     switch (movementType) {
       case 'dispensing':
       case 'sale':
-        // Deduct stock
         if (medicine.currentStock < quantity) {
           toast({
             variant: 'error',
@@ -216,64 +144,87 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         newStock = medicine.currentStock - quantity
         stockChange = -quantity
         break
-
       case 'receiving':
       case 'return':
-        // Add stock
         newStock = medicine.currentStock + quantity
         stockChange = quantity
         break
-
       case 'adjustment':
-        // Direct adjustment
         newStock = quantity
         stockChange = quantity - medicine.currentStock
         break
-
       default:
         return false
     }
 
-    // Update medicine stock
-    setMedicines(prev =>
-      prev.map(m =>
-        m.id === medicineId
-          ? { ...m, currentStock: newStock, updatedAt: new Date().toISOString() }
-          : m
+    try {
+      // Persist to API
+      await fetch(`/api/medicines/${medicineId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentStock: newStock }),
+      })
+
+      await fetch('/api/stock-movements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          medicationId: medicineId,
+          movementType,
+          quantity: Math.abs(stockChange),
+          previousQuantity: medicine.currentStock,
+          newQuantity: newStock,
+          referenceType: referenceNumber || movementType,
+          notes: reason,
+        }),
+      })
+
+      // Update local state
+      setMedicines(prev =>
+        prev.map(m =>
+          m.id === medicineId
+            ? { ...m, currentStock: newStock, updatedAt: new Date().toISOString() }
+            : m
+        )
       )
-    )
 
-    // Record stock movement
-    const movement: StockMovement = {
-      id: crypto.randomUUID(),
-      medicineId,
-      medicineName: `${medicine.name} ${medicine.strength}`,
-      movementType,
-      quantity: Math.abs(stockChange),
-      reason,
-      performedBy: user?.name || user?.email || 'System',
-      timestamp: new Date().toISOString(),
-      referenceNumber,
-    }
+      const movement: StockMovement = {
+        id: crypto.randomUUID(),
+        medicineId,
+        medicineName: `${medicine.name} ${medicine.strength}`,
+        movementType,
+        quantity: Math.abs(stockChange),
+        reason,
+        performedBy: user?.name || user?.email || 'System',
+        timestamp: new Date().toISOString(),
+        referenceNumber,
+      }
+      setStockMovements(prev => [movement, ...prev])
 
-    setStockMovements(prev => [movement, ...prev])
+      if (newStock <= medicine.minStock && newStock > 0) {
+        toast({
+          title: 'Low Stock Alert',
+          description: `${medicine.name} is running low. Current: ${newStock}, Min: ${medicine.minStock}`,
+          variant: 'info',
+        })
+      } else if (newStock === 0) {
+        toast({
+          title: 'Out of Stock',
+          description: `${medicine.name} is now out of stock`,
+          variant: 'error',
+        })
+      }
 
-    // Show alert if stock is low
-    if (newStock <= medicine.minStock && newStock > 0) {
+      return true
+    } catch (error) {
+      console.error('Failed to update stock via API:', error)
       toast({
-        title: 'Low Stock Alert',
-        description: `${medicine.name} is running low. Current: ${newStock}, Min: ${medicine.minStock}`,
-        variant: 'info',
-      })
-    } else if (newStock === 0) {
-      toast({
-        title: 'Out of Stock',
-        description: `${medicine.name} is now out of stock`,
         variant: 'error',
+        title: 'Stock Update Failed',
+        description: 'Could not save stock changes to server',
       })
+      return false
     }
-
-    return true
   }
 
   const getLowStockMedicines = (): Medicine[] => {

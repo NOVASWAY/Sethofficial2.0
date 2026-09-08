@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { invoiceSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get("patientId")
   const status = searchParams.get("status")
@@ -43,15 +40,11 @@ export async function GET(req: NextRequest) {
       total_pages: Math.ceil(total / perPage),
     },
   })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export const POST = withErrorHandling(async (req, _ctx, session) => {
+  const body = await validateBody(req, invoiceSchema)
 
-  const body = await req.json()
-
-  // Generate invoice number
   const lastInvoice = await prisma.invoice.findFirst({
     orderBy: { createdAt: "desc" },
     select: { invoiceNumber: true },
@@ -75,16 +68,16 @@ export async function POST(req: NextRequest) {
       paymentMethod: body.paymentMethod,
       invoiceItems: body.items
         ? {
-            create: body.items.map((item: Record<string, unknown>) => ({
-              itemType: item.itemType,
-              itemId: item.itemId,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              totalPrice: item.totalPrice,
-              shaCovered: item.shaCovered || false,
-              shaAmount: item.shaAmount || 0,
-              patientAmount: item.patientAmount,
+            create: body.items.map((item: any) => ({
+              itemType: String(item.itemType),
+              itemId: item.itemId || null,
+              description: String(item.description),
+              quantity: Number(item.quantity),
+              unitPrice: Number(item.unitPrice),
+              totalPrice: Number(item.totalPrice),
+              shaCovered: Boolean(item.shaCovered),
+              shaAmount: Number(item.shaAmount || 0),
+              patientAmount: Number(item.patientAmount || 0),
             })),
           }
         : undefined,
@@ -93,4 +86,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: invoice }, { status: 201 })
-}
+})

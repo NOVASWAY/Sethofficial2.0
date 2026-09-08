@@ -46,150 +46,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { Skeleton } from "@/components/ui/skeleton"
 import { DashboardSkeleton } from "@/components/ui/loading"
 
-// Mock SHA claims data
-const mockSHAClaims = [
-  {
-    id: "SHA-2024-001",
-    patientName: "John Doe",
-    patientId: "P001",
-    memberNumber: "SHA-123456",
-    dateOfService: "2024-10-01",
-    diagnosis: "A09 - Diarrhoea and gastroenteritis",
-    services: [
-      { code: "OPD-001", name: "Consultation", amount: 500 },
-      { code: "LAB-001", name: "Blood Test", amount: 800 },
-    ],
-    totalAmount: 1300,
-    status: "pending",
-    submittedDate: "2024-10-02",
-    claimNumber: "CLM-001-2024",
-  },
-  {
-    id: "SHA-2024-002",
-    patientName: "Jane Smith",
-    patientId: "P002",
-    memberNumber: "SHA-789012",
-    dateOfService: "2024-10-02",
-    diagnosis: "J06.9 - Acute upper respiratory infection",
-    services: [
-      { code: "OPD-001", name: "Consultation", amount: 500 },
-      { code: "PHARM-001", name: "Medication", amount: 1200 },
-    ],
-    totalAmount: 1700,
-    status: "approved",
-    submittedDate: "2024-10-03",
-    approvedDate: "2024-10-05",
-    claimNumber: "CLM-002-2024",
-  },
-  {
-    id: "SHA-2024-003",
-    patientName: "Peter Kamau",
-    patientId: "P003",
-    memberNumber: "SHA-345678",
-    dateOfService: "2024-10-03",
-    diagnosis: "I10 - Essential hypertension",
-    services: [
-      { code: "OPD-001", name: "Consultation", amount: 500 },
-      { code: "LAB-002", name: "ECG", amount: 1500 },
-      { code: "PHARM-002", name: "Antihypertensive drugs", amount: 2000 },
-    ],
-    totalAmount: 4000,
-    status: "rejected",
-    submittedDate: "2024-10-04",
-    rejectedDate: "2024-10-06",
-    rejectionReason: "Incomplete documentation",
-    claimNumber: "CLM-003-2024",
-  },
-]
-
-// Mock audit trail data
-const mockAuditLog = [
-  {
-    id: "AUD-001",
-    timestamp: "2024-10-02 09:15:23",
-    user: "Dr. Sarah Smith",
-    role: "Clinician",
-    action: "Created Patient Record",
-    entity: "Patient",
-    entityId: "P001",
-    details: "New patient registration: John Doe",
-    ipAddress: "192.168.1.10",
-    status: "success",
-  },
-  {
-    id: "AUD-002",
-    timestamp: "2024-10-02 09:30:45",
-    user: "Nurse Mary",
-    role: "Nurse",
-    action: "Recorded Vitals",
-    entity: "Visit",
-    entityId: "V001",
-    details: "BP: 120/80, Temp: 37.2°C, Weight: 70kg",
-    ipAddress: "192.168.1.15",
-    status: "success",
-  },
-  {
-    id: "AUD-003",
-    timestamp: "2024-10-02 10:00:12",
-    user: "Admin User",
-    role: "Administrator",
-    action: "Failed Login Attempt",
-    entity: "Authentication",
-    entityId: "N/A",
-    details: "Invalid credentials provided",
-    ipAddress: "192.168.1.99",
-    status: "failure",
-  },
-  {
-    id: "AUD-004",
-    timestamp: "2024-10-02 10:15:33",
-    user: "John Receptionist",
-    role: "Receptionist",
-    action: "Generated Invoice",
-    entity: "Invoice",
-    entityId: "INV-001",
-    details: "Invoice for Patient P001, Amount: KES 1,300",
-    ipAddress: "192.168.1.20",
-    status: "success",
-  },
-  {
-    id: "AUD-005",
-    timestamp: "2024-10-02 10:45:56",
-    user: "Mary Pharmacist",
-    role: "Pharmacist",
-    action: "Dispensed Medication",
-    entity: "Prescription",
-    entityId: "RX-001",
-    details: "Amoxicillin 500mg, Qty: 21 tablets",
-    ipAddress: "192.168.1.25",
-    status: "success",
-  },
-]
-
-// Mock patient statistics
-const mockPatientStats = {
-  totalPatients: 1247,
-  newPatients: 89,
-  activePatients: 856,
-  byGender: {
-    male: 612,
-    female: 635,
-  },
-  byAgeGroup: [
-    { group: "0-18", count: 245 },
-    { group: "19-35", count: 387 },
-    { group: "36-50", count: 298 },
-    { group: "51-65", count: 215 },
-    { group: "66+", count: 102 },
-  ],
-  byInsurance: {
-    sha: 456,
-    nhif: 123,
-    private: 89,
-    cash: 579,
-  },
-}
-
 export function ReportsModule() {
   const [reportType, setReportType] = useState("sha-monthly")
   const [dateRange, setDateRange] = useState("thisMonth")
@@ -352,6 +208,29 @@ export function ReportsModule() {
     const monthlyRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0)
     const monthlyPatients = filteredPatients.length
 
+    // Computed patient statistics from real data
+    const byAgeGroup = [
+      { group: "0-18", count: safePatients.filter(p => { const age = p.age || Math.floor((Date.now() - new Date(p.dateOfBirth || p.date_of_birth).getTime()) / 31557600000); return age >= 0 && age <= 18 }).length },
+      { group: "19-35", count: safePatients.filter(p => { const age = p.age || Math.floor((Date.now() - new Date(p.dateOfBirth || p.date_of_birth).getTime()) / 31557600000); return age >= 19 && age <= 35 }).length },
+      { group: "36-50", count: safePatients.filter(p => { const age = p.age || Math.floor((Date.now() - new Date(p.dateOfBirth || p.date_of_birth).getTime()) / 31557600000); return age >= 36 && age <= 50 }).length },
+      { group: "51-65", count: safePatients.filter(p => { const age = p.age || Math.floor((Date.now() - new Date(p.dateOfBirth || p.date_of_birth).getTime()) / 31557600000); return age >= 51 && age <= 65 }).length },
+      { group: "66+", count: safePatients.filter(p => { const age = p.age || Math.floor((Date.now() - new Date(p.dateOfBirth || p.date_of_birth).getTime()) / 31557600000); return age >= 66 }).length },
+    ]
+
+    const byInsurance: Record<string, number> = {}
+    safePatients.forEach(p => {
+      const type = p.insuranceType || p.insurance_type || "cash"
+      byInsurance[type] = (byInsurance[type] || 0) + 1
+    })
+
+    const patientStats = {
+      totalPatients: totalPatients,
+      newPatients: filteredPatients.length,
+      activePatients: totalPatients,
+      byAgeGroup,
+      byInsurance,
+    }
+
     return {
       totalRevenue,
       revenueByMethod,
@@ -368,6 +247,7 @@ export function ReportsModule() {
       filteredInvoices,
       filteredPatients,
       filteredPurchaseOrders,
+      patientStats,
     }
   }, [invoices, patients, medicines, purchaseOrders, logs, getTotalRevenue, getRevenueByMethod, getOutstandingBalance, getTotalOrdersValue, getPendingOrdersCount, getLowStockMedicines, customDateRange])
 
@@ -809,7 +689,7 @@ export function ReportsModule() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockPatientStats.byAgeGroup.map((group) => (
+                  {realData.patientStats?.byAgeGroup?.map((group: any) => (
                     <div key={group.group} className="flex items-center justify-between">
                       <span className="text-sm font-medium">{group.group} years</span>
                       <div className="flex items-center gap-2">
@@ -817,7 +697,7 @@ export function ReportsModule() {
                           <div
                             className="bg-primary h-2 rounded-full"
                             style={{
-                              width: `${(group.count / mockPatientStats.totalPatients) * 100}% `,
+                              width: `${(group.count / (realData.patientStats?.totalPatients || 1)) * 100}% `,
                             }}
                           />
                         </div>
@@ -836,7 +716,7 @@ export function ReportsModule() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(mockPatientStats.byInsurance).map(([type, count]) => (
+                  {Object.entries(realData.patientStats?.byInsurance || {}).map(([type, count]) => (
                     <div key={type} className="flex items-center justify-between">
                       <span className="text-sm font-medium capitalize">{type}</span>
                       <div className="flex items-center gap-2">
@@ -844,7 +724,7 @@ export function ReportsModule() {
                           <div
                             className="bg-primary h-2 rounded-full"
                             style={{
-                              width: `${(count / mockPatientStats.totalPatients) * 100}% `,
+                              width: `${(count / (realData.patientStats?.totalPatients || 1)) * 100}% `,
                             }}
                           />
                         </div>

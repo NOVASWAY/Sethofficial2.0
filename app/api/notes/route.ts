@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrorHandling, validateBody } from "@/lib/api-handler"
+import { noteSchema } from "@/lib/validation"
 
-export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
+export const GET = withErrorHandling(async (req, _ctx, session) => {
   const { searchParams } = new URL(req.url)
   const resourceType = searchParams.get("resource_type")
   const resourceId = searchParams.get("resource_id")
@@ -21,13 +18,10 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: notes })
-}
+})
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const body = await req.json()
+export const POST = withErrorHandling(async (req, _ctx, session) => {
+  const body = await validateBody(req, noteSchema)
 
   const note = await prisma.note.create({
     data: {
@@ -40,4 +34,4 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, data: note }, { status: 201 })
-}
+})
