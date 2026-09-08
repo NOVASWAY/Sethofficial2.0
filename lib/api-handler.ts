@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession, Session } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { ZodSchema, ZodError } from "zod"
+import { apiLimiter, rateLimitResponse } from "@/lib/rate-limit"
 
 type RouteHandler = (
   req: NextRequest,
@@ -9,7 +10,6 @@ type RouteHandler = (
   session: Session
 ) => Promise<NextResponse>
 
-// Role-based authorization
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ["all"],
   receptionist: ["patients", "appointments", "invoices", "visits"],
@@ -50,16 +50,49 @@ function handleZodError(error: ZodError): NextResponse {
   )
 }
 
+function getClientIP(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || req.headers.get("x-real-ip")
+    || "unknown"
+}
+
 export function withErrorHandling(handler: RouteHandler) {
   return async (req: NextRequest, context: { params: Record<string, string> } = { params: {} }) => {
+    const startTime = Date.now()
+    const ip = getClientIP(req)
+
     try {
+      const rateKey = `api:${ip}`
+      const { allowed, remaining, resetAt } = apiLimiter.check(rateKey)
+      if (!allowed) {
+        return NextResponse.json(
+          { success: false, error: "Too many requests. Please try again later." },
+          { status: 429, headers: rateLimitResponse(remaining, resetAt) }
+        )
+      }
+
       const session = await getServerSession(authOptions)
       if (!session) {
         return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
       }
-      return await handler(req, context, session)
+
+      const response = await handler(req, context, session)
+
+      const duration = Date.now() - startTime
+      const logLevel = duration > 3000 ? "SLOW" : duration > 1000 ? "WARN" : "INFO"
+      console.log(`[API] ${logLevel} ${req.method} ${req.nextUrl.pathname} ${response.status} ${duration}ms user=${session.user.id}`)
+
+      return NextResponse.json(await response.json(), {
+        status: response.status,
+        headers: {
+          ...Object.fromEntries(response.headers.entries()),
+          ...rateLimitResponse(remaining, resetAt),
+          "X-Response-Time": `${duration}ms`,
+        },
+      })
     } catch (error) {
-      console.error("[API Error]", error)
+      const duration = Date.now() - startTime
+      console.error(`[API] ERROR ${req.method} ${req.nextUrl.pathname} ${duration}ms ip=${ip}`, error)
 
       if (error instanceof ZodError) {
         return handleZodError(error)

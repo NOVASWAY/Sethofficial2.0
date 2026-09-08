@@ -1406,3 +1406,12 @@ model SystemSetting {
   @@index([key])
   @@map("system_settings")
 }
+
+model VerificationToken {
+  identifier String   @db.VarChar(255)
+  token      String   @db.VarChar(255)
+  expires    DateTime @db.Timestamptz()
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
