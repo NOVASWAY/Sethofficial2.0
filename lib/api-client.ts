@@ -36,6 +36,7 @@ async function apiCall<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
+  const method = (options.method || 'GET').toUpperCase()
 
   const headers = {
     'Content-Type': 'application/json',
@@ -69,6 +70,15 @@ async function apiCall<T>(
   } catch (error) {
     if (error instanceof APIError) {
       throw error
+    }
+    // Offline: queue safe writes for later sync instead of losing them
+    if (typeof window !== 'undefined' && (!window.navigator.onLine || error instanceof TypeError)) {
+      const { isQueueable, enqueueOffline, OfflineQueuedError } = await import('./offline-outbox')
+      const label = isQueueable(endpoint, method)
+      if (label && typeof options.body === 'string') {
+        const entry = enqueueOffline(endpoint, method, options.body, label)
+        throw new OfflineQueuedError(label, entry.id)
+      }
     }
     throw new APIError(
       `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`,

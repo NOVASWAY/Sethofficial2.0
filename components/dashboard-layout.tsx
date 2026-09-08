@@ -13,6 +13,7 @@ import { NotificationCenter } from "@/components/notification-center"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
 import { MobileBottomNav } from "@/components/mobile-bottom-nav"
+import { PendingSyncBadge } from "@/components/pending-sync-badge"
 import { useTranslation } from "@/contexts/language-context"
 import { PatientProvider } from "@/contexts/patient-context"
 import { InventoryProvider } from "@/contexts/inventory-context"
@@ -434,6 +435,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
+                  <PendingSyncBadge />
                   <NotificationCenter className="hidden sm:block" />
                   <LanguageSwitcher variant="select" className="hidden sm:flex" />
                   <ThemeToggleSimple />
