@@ -339,3 +339,67 @@ export const notificationSchema = z.object({
   actionUrl: z.string().optional(),
   actionLabel: z.string().optional(),
 })
+
+export const paymentSchema = z.object({
+  amount: z.number().positive("Amount must be positive"),
+  paymentMethod: z.enum(["cash", "mpesa", "card", "bank_transfer", "insurance", "sha"]).optional(),
+  reference: z.string().optional(),
+})
+
+export const dispenseSchema = z.object({
+  items: z.array(z.object({
+    medicineId: z.string().uuid("Invalid medicine ID"),
+    quantity: z.number().positive("Quantity must be positive"),
+  })).optional(),
+})
+
+export const patientUpdateSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  address: z.string().optional(),
+  emergencyContact: z.string().optional(),
+  emergencyPhone: z.string().optional(),
+  bloodType: z.string().optional(),
+  allergies: z.array(z.string()).optional(),
+  medicalHistory: z.string().optional(),
+  insuranceType: z.string().optional(),
+  insuranceNumber: z.string().optional(),
+  age: z.number().optional(),
+})
+
+export const appointmentUpdateSchema = z.object({
+  date: z.string().optional(),
+  time: z.string().optional(),
+  duration: z.number().optional(),
+  status: z.enum(["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]).optional(),
+  notes: z.string().max(500).optional(),
+  doctorId: z.string().uuid().optional(),
+})
+
+export const stockMovementSchema = z.object({
+  medicationId: z.string().uuid("Invalid medication ID"),
+  movementType: z.enum(["received", "dispensed", "adjusted", "expired", "returned"]),
+  quantity: z.number().positive("Quantity must be positive"),
+  referenceType: z.string().optional(),
+  referenceId: z.string().optional(),
+  notes: z.string().optional(),
+})
+
+export const serviceSchema = z.object({
+  name: z.string().min(1, "Service name is required"),
+  category: z.string().min(1, "Category is required"),
+  basePrice: z.number().positive("Price must be positive"),
+  description: z.string().optional(),
+  isActive: z.boolean().optional(),
+})
+
+export const workflowSchema = z.object({
+  patientId: z.string().uuid("Invalid patient ID"),
+  appointmentId: z.string().uuid().optional(),
+  currentStep: z.string().min(1, "Current step is required"),
+  notes: z.string().optional(),
+})

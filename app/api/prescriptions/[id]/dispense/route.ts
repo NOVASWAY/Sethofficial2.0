@@ -2,51 +2,49 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { validateBody } from "@/lib/api-handler"
+import { dispenseSchema } from "@/lib/validation"
+import { apiCache } from "@/lib/cache"
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
 
-  const body = await req.json()
+    const body = await validateBody(req, dispenseSchema)
 
-  const prescription = await prisma.prescription.findUnique({
-    where: { id: params.id },
-    include: { items: true },
-  })
+    const prescription = await prisma.prescription.findUnique({
+      where: { id: params.id },
+      include: { items: true },
+    })
 
-  if (!prescription) {
-    return NextResponse.json({ error: "Prescription not found" }, { status: 404 })
-  }
+    if (!prescription) {
+      return NextResponse.json({ success: false, error: "Prescription not found" }, { status: 404 })
+    }
 
-  if (prescription.status === "dispensed") {
-    return NextResponse.json({ error: "Already dispensed" }, { status: 400 })
-  }
+    if (prescription.status === "dispensed") {
+      return NextResponse.json({ success: false, error: "Already dispensed" }, { status: 400 })
+    }
 
-  // Update prescription status
-  await prisma.prescription.update({
-    where: { id: params.id },
-    data: {
-      status: "dispensed",
-      dispensedById: session.user.id,
-      dispensedAt: new Date(),
-    },
-  })
+    await prisma.prescription.update({
+      where: { id: params.id },
+      data: {
+        status: "dispensed",
+        dispensedById: session.user.id,
+        dispensedAt: new Date(),
+      },
+    })
 
-  // Create stock movements for each item
-  if (body.items && Array.isArray(body.items)) {
-    for (const item of body.items) {
-      if (item.medicineId && item.quantity) {
-        // Get current stock
+    if (body.items && body.items.length > 0) {
+      for (const item of body.items) {
         const medicine = await prisma.medicine.findUnique({ where: { id: item.medicineId } })
         const prevStock = medicine?.currentStock || 0
 
-        // Reduce stock
         await prisma.medicine.update({
           where: { id: item.medicineId },
           data: { currentStock: { decrement: item.quantity } },
         })
 
-        // Log stock movement
         await prisma.stockMovement.create({
           data: {
             medicationId: item.medicineId,
@@ -62,7 +60,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         })
       }
     }
-  }
 
-  return NextResponse.json({ success: true, data: { message: "Prescription dispensed successfully" } })
+    apiCache.invalidate("^dashboard:metrics")
+    apiCache.invalidate("^lab:pending")
+
+    return NextResponse.json({ success: true, data: { message: "Prescription dispensed successfully" } })
+  } catch (error) {
+    console.error("[Dispense Error]", error)
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })
+  }
 }
