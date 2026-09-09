@@ -23,6 +23,41 @@ interface RoleSpecificDashboardProps {
   role: string
 }
 
+/** Turn audit action ids into human-readable labels. */
+function prettifyAction(action: string): string {
+  const labels: Record<string, string> = {
+    'auth.login': 'User signed in',
+    'auth.login_failed': 'Failed sign-in attempt',
+    'user.created': 'User created',
+    'payment.received': 'Payment received',
+    'payment.mpesa_received': 'M-Pesa payment received',
+    'payment.mpesa_failed': 'M-Pesa payment failed',
+    'payment.denied_mfa': 'Payment blocked (MFA required)',
+    'prescription.dispensed': 'Prescription dispensed',
+    'queue.checkin': 'Patient checked in',
+    'queue.called': 'Patient called',
+    'queue.in_consultation': 'Consultation started',
+    'queue.completed': 'Queue visit completed',
+    'consultation.completed': 'Consultation completed',
+    'invoice.auto_created': 'Invoice created',
+  }
+  if (labels[action]) return labels[action]
+  return action.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Activity'
+}
+
+/** Relative time for audit timestamps. */
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  if (Number.isNaN(diff) || diff < 0) return 'just now'
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
 export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
   const { user } = useAuth()
   const router = useRouter()
@@ -39,6 +74,12 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
   const [stockAlerts, setStockAlerts] = useState<any[]>([])
   const [loadingAlerts, setLoadingAlerts] = useState(false)
   const [dashboardData, setDashboardData] = useState<any>(null)
+  const [liveStats, setLiveStats] = useState<{
+    activeUsers: number | null
+    auditTotal: number | null
+    health: string | null
+    recent: { id: string; action: string; time: string }[]
+  }>({ activeUsers: null, auditTotal: null, health: null, recent: [] })
 
   // Load stock alerts for pharmacist
   useEffect(() => {
@@ -61,6 +102,43 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
       }
     }
     loadDashboardData()
+  }, [])
+
+  // Load live system stats (users, audit trail, health) — replaces mock widgets
+  useEffect(() => {
+    const loadLiveStats = async () => {
+      const next: typeof liveStats = { activeUsers: null, auditTotal: null, health: null, recent: [] }
+      try {
+        const res = await fetch('/api/users')
+        if (res.ok) {
+          const body = await res.json()
+          const users = Array.isArray(body?.data) ? body.data : []
+          next.activeUsers = users.filter((u: any) => u.isActive !== false).length
+        }
+      } catch { /* non-admins get 403 — card shows placeholder */ }
+      try {
+        const res = await fetch('/api/audit-logs?limit=5')
+        if (res.ok) {
+          const body = await res.json()
+          next.auditTotal = Number(body?.data?.total ?? 0)
+          const rows = body?.data?.data || []
+          next.recent = rows.map((r: any) => ({
+            id: String(r.id),
+            action: prettifyAction(String(r.action || '')),
+            time: relativeTime(r.timestamp),
+          }))
+        }
+      } catch { /* keep empty — UI shows honest empty state */ }
+      try {
+        const res = await fetch('/api/health')
+        if (res.ok) {
+          const body = await res.json()
+          next.health = body?.status === 'healthy' ? 'Good' : 'Degraded'
+        }
+      } catch { /* keep null */ }
+      setLiveStats(next)
+    }
+    loadLiveStats()
   }, [])
 
   const loadStockAlerts = async () => {
@@ -224,9 +302,9 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
         return [
           ...baseMetrics,
           { id: 'total_revenue', label: 'Today\'s Revenue', icon: DollarSign, value: `KSh ${todayRevenue.toLocaleString()}`, color: 'text-green-600' },
-          { id: 'active_users', label: 'Active Users', icon: User, value: 15, color: 'text-indigo-600' },
-          { id: 'system_health', label: 'System Health', icon: Activity, value: '98%', color: 'text-green-600' },
-          { id: 'audit_logs', label: 'Audit Logs', icon: Shield, value: 245, color: 'text-gray-600' }
+          { id: 'active_users', label: 'Active Users', icon: User, value: liveStats.activeUsers ?? '—', color: 'text-indigo-600' },
+          { id: 'system_health', label: 'System Health', icon: Activity, value: liveStats.health ?? '—', color: 'text-green-600' },
+          { id: 'audit_logs', label: 'Audit Logs', icon: Shield, value: liveStats.auditTotal ?? '—', color: 'text-gray-600' }
         ]
       case 'receptionist':
         return [
@@ -318,60 +396,35 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
     }
   }
 
-  // Get role-specific recent activity
+  // Get role-specific recent activity — live audit trail first, honest empty state otherwise
   const getRecentActivity = () => {
-    const baseActivity = [
-      { id: '1', action: 'Patient registered', time: '2 minutes ago', icon: Users, color: 'text-blue-600' },
-      { id: '2', action: 'Consultation completed', time: '15 minutes ago', icon: Stethoscope, color: 'text-green-600' },
-      { id: '3', action: 'Prescription dispensed', time: '30 minutes ago', icon: Pill, color: 'text-purple-600' }
-    ]
-
-    switch (role) {
-      case 'admin':
-        return [
-          ...baseActivity,
-          { id: '4', action: 'User created', time: '1 hour ago', icon: User, color: 'text-indigo-600' },
-          { id: '5', action: 'System backup completed', time: '2 hours ago', icon: Shield, color: 'text-gray-600' }
-        ]
-      case 'receptionist':
-        return [
-          { id: '1', action: 'New patient registered', time: '5 minutes ago', icon: Users, color: 'text-blue-600' },
-          { id: '2', action: 'Appointment scheduled', time: '10 minutes ago', icon: Calendar, color: 'text-green-600' },
-          { id: '3', action: 'Payment processed', time: '20 minutes ago', icon: DollarSign, color: 'text-purple-600' }
-        ]
-      case 'nurse':
-        return [
-          { id: '1', action: 'Vitals recorded', time: '3 minutes ago', icon: Activity, color: 'text-blue-600' },
-          { id: '2', action: 'Patient assessment completed', time: '12 minutes ago', icon: FileText, color: 'text-green-600' },
-          { id: '3', action: 'Medication administered', time: '25 minutes ago', icon: Pill, color: 'text-purple-600' }
-        ]
-      case 'clinician':
-        return [
-          { id: '1', action: 'Consultation completed', time: '8 minutes ago', icon: Stethoscope, color: 'text-blue-600' },
-          { id: '2', action: 'Prescription written', time: '18 minutes ago', icon: Pill, color: 'text-green-600' },
-          { id: '3', action: 'Diagnosis recorded', time: '35 minutes ago', icon: FileText, color: 'text-purple-600' }
-        ]
-      case 'pharmacist':
-        return [
-          { id: '1', action: 'Medicine dispensed', time: '4 minutes ago', icon: Pill, color: 'text-blue-600' },
-          { id: '2', action: 'Stock updated', time: '16 minutes ago', icon: Package, color: 'text-green-600' },
-          { id: '3', action: 'Expiry alert checked', time: '28 minutes ago', icon: AlertTriangle, color: 'text-red-600' }
-        ]
-      case 'lab_technician':
-        return [
-          { id: '1', action: 'Lab result entered', time: '5 minutes ago', icon: FlaskConical, color: 'text-blue-600' },
-          { id: '2', action: 'Result verified', time: '14 minutes ago', icon: CheckCircle2, color: 'text-green-600' },
-          { id: '3', action: 'Urgent order processed', time: '22 minutes ago', icon: AlertCircle, color: 'text-orange-600' }
-        ]
-      default:
-        return baseActivity
+    if (liveStats.recent.length > 0) {
+      const iconFor = (action: string) => {
+        const a = action.toLowerCase()
+        if (a.includes('patient') || a.includes('regist')) return Users
+        if (a.includes('consult')) return Stethoscope
+        if (a.includes('prescript') || a.includes('dispens')) return Pill
+        if (a.includes('pay') || a.includes('invoice')) return DollarSign
+        if (a.includes('lab')) return FlaskConical
+        if (a.includes('login') || a.includes('user')) return User
+        return Activity
+      }
+      return liveStats.recent.map((r) => ({
+        id: r.id,
+        action: r.action,
+        time: r.time,
+        icon: iconFor(r.action),
+        color: 'text-blue-600',
+      }))
     }
+    // No live trail yet — the UI shows an honest empty state (no fake timestamps).
+    return []
   }
 
   // Memoize role-specific data to prevent unnecessary recalculations
-  const roleMetrics = React.useMemo(() => getRoleMetrics(), [role, patientCount])
+  const roleMetrics = React.useMemo(() => getRoleMetrics(), [role, patientCount, dashboardData, liveStats])
   const quickActions = React.useMemo(() => getQuickActions(), [role, router])
-  const recentActivity = React.useMemo(() => getRecentActivity(), [role])
+  const recentActivity = React.useMemo(() => getRecentActivity(), [role, liveStats])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -516,6 +569,9 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {recentActivity.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No recent activity yet — actions you take will appear here.</p>
+                )}
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-center space-x-4">
                     <activity.icon className={`h-5 w-5 ${activity.color}`} />
