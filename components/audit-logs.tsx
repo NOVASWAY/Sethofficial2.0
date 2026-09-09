@@ -50,11 +50,11 @@ export function AuditLogs() {
       error: { bg: 'bg-orange-100 text-orange-800', icon: XCircle },
       critical: { bg: 'bg-red-100 text-red-800', icon: AlertOctagon },
     }
-    const { bg, icon: Icon } = styles[severity]
+    const { bg, icon: Icon } = styles[severity] || styles.info
     return (
       <Badge className={bg}>
         <Icon className="h-3 w-3 mr-1" />
-        {severity.toUpperCase()}
+        {String(severity || 'info').toUpperCase()}
       </Badge>
     )
   }

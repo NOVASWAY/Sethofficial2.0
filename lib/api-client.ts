@@ -1251,7 +1251,8 @@ export const userAPI = {
    * GET /users
    */
   getAll: async () => {
-    return apiCall<any[]>('/users')
+    const response = await apiCall<{ success: boolean; data: any[] }>('/users')
+    return response.data || []
   },
 
   /**
@@ -1267,10 +1268,11 @@ export const userAPI = {
    * POST /users
    */
   create: async (userData: any) => {
-    return apiCall<any>('/users', {
+    const response = await apiCall<{ success: boolean; data: any }>('/users', {
       method: 'POST',
       body: JSON.stringify(userData),
     })
+    return response.data
   },
 
   /**

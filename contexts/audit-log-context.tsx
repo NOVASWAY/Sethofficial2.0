@@ -28,6 +28,41 @@ interface AuditLogContextType {
 
 const AuditLogContext = createContext<AuditLogContextType | undefined>(undefined)
 
+/** Map server audit rows to the client AuditLog shape the UI renders. */
+function mapServerRows(rows: unknown): AuditLog[] {
+  if (!Array.isArray(rows)) return []
+  const sev = (result: unknown): AuditLog['severity'] => {
+    if (result === 'failure') return 'error'
+    if (result === 'denied') return 'warning'
+    return 'info'
+  }
+  const detailsText = (d: unknown): string => {
+    if (typeof d === 'string') return d
+    if (d && typeof d === 'object') {
+      const o = d as Record<string, unknown>
+      if (typeof o.message === 'string') return o.message
+      try { return JSON.stringify(d) } catch { return '' }
+    }
+    return ''
+  }
+  return rows.map((r: any, i: number) => ({
+    id: String(r?.id ?? `srv-${i}`),
+    timestamp: String(r?.timestamp ?? new Date().toISOString()),
+    userId: String(r?.userId ?? ''),
+    userName: String(r?.user?.name ?? r?.userName ?? 'System'),
+    userRole: String(r?.user?.role ?? r?.userRole ?? ''),
+    action: String(r?.action ?? ''),
+    module: String(r?.resource ?? r?.module ?? ''),
+    entityType: String(r?.resource ?? r?.entityType ?? ''),
+    entityId: String(r?.resourceId ?? r?.entityId ?? ''),
+    details: detailsText(r?.details),
+    ipAddress: r?.ipAddress ? String(r.ipAddress) : undefined,
+    severity: (['info', 'warning', 'error', 'critical'] as const).includes(r?.severity)
+      ? r.severity
+      : sev(r?.result),
+  }))
+}
+
 export function AuditLogProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -38,7 +73,8 @@ export function AuditLogProvider({ children }: { children: ReactNode }) {
         const res = await fetch('/api/audit-logs?limit=500')
         const data = await res.json()
         if (data.success && data.data) {
-          setLogs(data.data.data || data.data)
+          const rows = data.data.data || data.data
+          setLogs(mapServerRows(rows))
         }
       } catch {
         setLogs([])
