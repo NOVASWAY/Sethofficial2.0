@@ -21,6 +21,7 @@ import { AppointmentProvider } from "@/contexts/appointment-context"
 import { PurchaseOrderProvider } from "@/contexts/purchase-order-context"
 import { InvoiceProvider } from "@/contexts/invoice-context"
 import { AuditLogProvider } from "@/contexts/audit-log-context"
+import { WorkflowProvider } from "@/contexts/workflow-context"
 import {
   Heart,
   User,
@@ -387,6 +388,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
           <PurchaseOrderProvider>
             <InvoiceProvider>
               <AuditLogProvider>
+              <WorkflowProvider>
           <div className="min-h-screen bg-background">
           {/* Mobile sidebar overlay */}
           {sidebarOpen && (
@@ -451,6 +453,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             <MobileBottomNav />
           </div>
           </div>
+              </WorkflowProvider>
               </AuditLogProvider>
             </InvoiceProvider>
           </PurchaseOrderProvider>

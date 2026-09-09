@@ -222,7 +222,8 @@ export function EnhancedBillingModule({
         patientId,
         serviceIds,
         insuranceType,
-        patientType
+        patientType,
+        consultationId || undefined
       )
 
       setAutoBillResult(result)

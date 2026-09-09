@@ -1486,7 +1486,7 @@ export const billingAPI = {
    * Create automated bill
    * POST /billing/auto-create
    */
-  createAutoBill: async (patientId: string, services: string[], insuranceType: string, patientType: string) => {
+  createAutoBill: async (patientId: string, services: string[], insuranceType: string, patientType: string, consultationId?: string) => {
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/billing/auto-create', {
       method: 'POST',
       body: JSON.stringify({
@@ -1494,6 +1494,7 @@ export const billingAPI = {
         services: services,
         insurance_type: insuranceType,
         patient_type: patientType,
+        consultation_id: consultationId || undefined,
       }),
     })
     return response.data
