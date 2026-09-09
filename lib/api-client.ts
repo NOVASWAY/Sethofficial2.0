@@ -1360,6 +1360,25 @@ export const financialAPI = {
 // SERVICE CATALOG APIs
 // ========================================
 
+/**
+ * Prisma returns services in camelCase with Decimal prices; the catalog UI
+ * reads snake_case numbers. Normalize once here so every consumer is safe.
+ */
+function normalizeService(s: any) {
+  if (!s || typeof s !== "object") return s
+  return {
+    ...s,
+    name: s.name ?? s.serviceName ?? "",
+    description: s.description ?? "",
+    category: s.category ?? "",
+    cash_price: Number(s.cash_price ?? s.cashPrice ?? s.unitPrice ?? 0),
+    nhif_price: Number(s.nhif_price ?? s.nhifPrice ?? 0),
+    sha_price: Number(s.sha_price ?? s.shaPrice ?? 0),
+    is_active: s.is_active ?? s.isActive ?? true,
+    requires_prescription: s.requires_prescription ?? false,
+  }
+}
+
 export const serviceCatalogAPI = {
   /**
    * Get all services
@@ -1367,7 +1386,7 @@ export const serviceCatalogAPI = {
    */
   getAll: async () => {
     const response = await apiCall<{ success: boolean; data: { services: any[] }; message: string; error: any }>('/services')
-    return response.data?.services || []
+    return (response.data?.services || []).map(normalizeService)
   },
 
   /**
@@ -1376,7 +1395,7 @@ export const serviceCatalogAPI = {
    */
   getByCategory: async (category: string) => {
     const response = await apiCall<{ success: boolean; data: { services: any[] }; message: string; error: any }>(`/services/category/${category}`)
-    return response.data?.services || []
+    return (response.data?.services || []).map(normalizeService)
   },
 
   /**

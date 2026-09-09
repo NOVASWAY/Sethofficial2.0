@@ -451,7 +451,7 @@ function ServiceRow({
         </TableCell>
       )}
       <TableCell className="text-right font-semibold">
-        KSh {service.cash_price.toLocaleString()}
+        KSh {(Number(service.cash_price) || 0).toLocaleString()}
       </TableCell>
       {onServiceSelect && (
         <TableCell>
