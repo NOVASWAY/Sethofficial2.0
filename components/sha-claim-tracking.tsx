@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/auth-context'
-import { reportsAPI, shaClaimAPI } from '@/lib/api-client'
+import { reportsAPI, shaClaimAPI, invoiceAPI } from '@/lib/api-client'
 
 interface SHAClaim {
   id: string
@@ -154,29 +154,35 @@ export function SHAClaimTracking() {
       })
 
       if (result && result.claims && Array.isArray(result.claims)) {
-        // Transform API response to match SHAClaim interface
-        const transformedClaims = result.claims.map((claim: any) => ({
+        // Transform API response to match SHAClaim interface (camelCase first, snake_case fallback)
+        const pick = (c: any, camel: string, snake: string) => c[camel] ?? c[snake]
+        const transformedClaims = result.claims.map((claim: any) => {
+          const claimDate = pick(claim, 'claimDate', 'claim_date') || pick(claim, 'serviceDate', 'service_date') || new Date().toISOString()
+          const total = Number(pick(claim, 'totalAmount', 'total_amount') || 0)
+          const approved = pick(claim, 'approvedAmount', 'approved_amount')
+          const paid = pick(claim, 'paidAmount', 'paid_amount')
+          return {
           id: claim.id || claim.claim_number || `claim-${Date.now()}`,
-          claimNumber: claim.claim_number || claim.claimNumber || '',
-          month: new Date(claim.claim_date || claim.service_date).toLocaleString('default', { month: 'long' }),
-          year: new Date(claim.claim_date || claim.service_date).getFullYear(),
-          submissionDate: claim.submission_date || claim.claim_date || '',
+          claimNumber: pick(claim, 'claimNumber', 'claim_number') || '',
+          month: new Date(claimDate).toLocaleString('default', { month: 'long' }),
+          year: new Date(claimDate).getFullYear(),
+          submissionDate: pick(claim, 'submissionDate', 'submission_date') || claimDate || '',
           status: (claim.status === 'pending' ? 'pending' :
             claim.status === 'submitted' ? 'under-review' :
               claim.status === 'approved' ? 'approved' :
                 claim.status === 'rejected' ? 'rejected' :
                   claim.status === 'paid' ? 'paid' : 'pending') as SHAClaim['status'],
           totalPatients: 1, // Will be calculated from details
-          totalAmount: claim.total_amount || 0,
-          approvedAmount: claim.approved_amount,
-          rejectedAmount: claim.total_amount && claim.approved_amount ? claim.total_amount - claim.approved_amount : undefined,
-          paidAmount: claim.paid_amount || claim.approved_amount,
-          paymentDate: claim.payment_date,
+          totalAmount: total,
+          approvedAmount: approved !== undefined && approved !== null ? Number(approved) : undefined,
+          rejectedAmount: total && approved ? total - Number(approved) : undefined,
+          paidAmount: paid !== undefined && paid !== null ? Number(paid) : (approved !== undefined && approved !== null ? Number(approved) : undefined),
+          paymentDate: pick(claim, 'paymentDate', 'payment_date'),
           reviewNotes: claim.notes,
-          rejectionReason: claim.rejection_reason,
+          rejectionReason: pick(claim, 'rejectionReason', 'rejection_reason'),
           recordedBy: user?.name || user?.email || 'System',
-          shaWebsiteReference: claim.claim_number || '',
-        }))
+          shaWebsiteReference: pick(claim, 'claimNumber', 'claim_number') || '',
+        }})
         setClaims(transformedClaims)
 
         // Set claim details from the same data
@@ -184,18 +190,18 @@ export function SHAClaimTracking() {
           const details = result.claims.map((claim: any) => ({
             id: claim.id,
             claimId: claim.id,
-            patientName: claim.patient_name || '',
-            patientNumber: claim.patient_id || '',
-            patientSHANumber: claim.patient_sha_number || '',
-            visitDate: claim.service_date || claim.claim_date || '',
+            patientName: pick(claim, 'patientName', 'patient_name') || '',
+            patientNumber: pick(claim, 'patientId', 'patient_id') || '',
+            patientSHANumber: pick(claim, 'patientShaNumber', 'patient_sha_number') || '',
+            visitDate: pick(claim, 'serviceDate', 'service_date') || pick(claim, 'claimDate', 'claim_date') || '',
             consultationAmount: 0, // Not available in API response
             labTestAmount: 0, // Not available in API response
             medicationAmount: 0, // Not available in API response
-            totalAmount: claim.total_amount || 0,
+            totalAmount: Number(pick(claim, 'totalAmount', 'total_amount') || 0),
             status: (claim.status === 'pending' ? 'pending' :
               claim.status === 'approved' ? 'approved' :
                 claim.status === 'rejected' ? 'rejected' : 'pending') as ClaimDetail['status'],
-            rejectionReason: claim.rejection_reason,
+            rejectionReason: pick(claim, 'rejectionReason', 'rejection_reason'),
           }))
           setClaimDetails(details)
         }
@@ -234,6 +240,12 @@ export function SHAClaimTracking() {
   }, [loadClaims])
 
   const [submitData, setSubmitData] = useState({
+    invoiceId: '', // Linked invoice (required by backend)
+    patientId: '',
+    patientName: '',
+    patientShaNumber: '',
+    serviceDate: '',
+    claimDate: '',
     claimNumber: '', // SHA claim number from their website
     month: '',
     year: new Date().getFullYear(),
@@ -243,6 +255,48 @@ export function SHAClaimTracking() {
     shaWebsiteReference: '',
     notes: '',
   })
+  const [invoiceOptions, setInvoiceOptions] = useState<any[]>([])
+  const [loadingInvoices, setLoadingInvoices] = useState(false)
+
+  const loadInvoiceOptions = useCallback(async () => {
+    setLoadingInvoices(true)
+    try {
+      const result: any = await invoiceAPI.getAll({ per_page: 50 })
+      const list = result?.data || result || []
+      setInvoiceOptions(Array.isArray(list) ? list : [])
+    } catch {
+      setInvoiceOptions([])
+    } finally {
+      setLoadingInvoices(false)
+    }
+  }, [])
+
+  // Load invoices when the record dialog opens
+  useEffect(() => {
+    if (isSubmitOpen && invoiceOptions.length === 0 && !loadingInvoices) {
+      loadInvoiceOptions()
+    }
+  }, [isSubmitOpen, invoiceOptions.length, loadingInvoices, loadInvoiceOptions])
+
+  const handleSelectInvoice = (invoiceId: string) => {
+    const inv = invoiceOptions.find((i: any) => i.id === invoiceId)
+    if (!inv) {
+      setSubmitData((s) => ({ ...s, invoiceId }))
+      return
+    }
+    const patient = inv.patient || {}
+    const name = inv.patientName || `${patient.firstName || ''} ${patient.lastName || ''}`.trim()
+    setSubmitData((s) => ({
+      ...s,
+      invoiceId: inv.id,
+      patientId: inv.patientId || patient.id || '',
+      patientName: name,
+      patientShaNumber: patient.insuranceNumber || s.patientShaNumber,
+      serviceDate: (inv.date || '').slice(0, 10) || s.serviceDate,
+      claimDate: (inv.date || '').slice(0, 10) || s.claimDate,
+      totalAmount: Number(inv.totalAmount ?? inv.total ?? 0) || s.totalAmount,
+    }))
+  }
 
   const getStatusBadge = (status: SHAClaim['status']) => {
     const styles = {
@@ -267,26 +321,51 @@ export function SHAClaimTracking() {
   }
 
   const handleRecordClaim = async () => {
-    if (!submitData.claimNumber || !submitData.month || !submitData.submissionDate) {
+    if (!submitData.invoiceId) {
       toast({
         variant: 'error',
         title: 'Validation Error',
-        description: 'Please fill in claim number, month, and submission date',
+        description: 'Please select the invoice this claim belongs to.',
+      })
+      return
+    }
+    if (!submitData.patientId || !submitData.patientName) {
+      toast({
+        variant: 'error',
+        title: 'Validation Error',
+        description: 'Selected invoice has no patient. Please pick a different invoice.',
+      })
+      return
+    }
+    if (!submitData.submissionDate) {
+      toast({
+        variant: 'error',
+        title: 'Validation Error',
+        description: 'Please fill in the date you submitted on the SHA website.',
       })
       return
     }
 
     try {
+      // Backend requires the per-invoice shape; batch fields ride in notes
+      const batchNote = [
+        submitData.month ? `Period: ${submitData.month} ${submitData.year}` : null,
+        submitData.totalPatients ? `Batch patients: ${submitData.totalPatients}` : null,
+        submitData.shaWebsiteReference ? `SHA ref: ${submitData.shaWebsiteReference}` : null,
+        submitData.notes || null,
+      ].filter(Boolean).join(' | ')
       // Call backend API to create SHA claim
       const response = await shaClaimAPI.create({
-        claimNumber: submitData.claimNumber,
-        month: submitData.month,
-        year: submitData.year,
+        invoiceId: submitData.invoiceId,
+        patientId: submitData.patientId,
+        patientName: submitData.patientName,
+        patientShaNumber: submitData.patientShaNumber,
+        claimDate: submitData.claimDate || new Date().toISOString(),
+        serviceDate: submitData.serviceDate || new Date().toISOString(),
+        totalAmount: Number(submitData.totalAmount) || 0,
+        claimNumber: submitData.claimNumber || undefined,
         submissionDate: submitData.submissionDate,
-        totalPatients: submitData.totalPatients,
-        totalAmount: submitData.totalAmount,
-        shaWebsiteReference: submitData.shaWebsiteReference,
-        notes: submitData.notes
+        notes: batchNote || undefined,
       })
 
       if (response && response.success) {
@@ -300,6 +379,12 @@ export function SHAClaimTracking() {
 
         setIsSubmitOpen(false)
         setSubmitData({
+          invoiceId: '',
+          patientId: '',
+          patientName: '',
+          patientShaNumber: '',
+          serviceDate: '',
+          claimDate: '',
           claimNumber: '',
           month: '',
           year: new Date().getFullYear(),
@@ -664,6 +749,38 @@ export function SHAClaimTracking() {
               <p className="text-muted-foreground">
                 First submit your claim on the SHA official website, then record the details here for tracking purposes.
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="claimInvoice">Linked Invoice *</Label>
+              <select
+                id="claimInvoice"
+                value={submitData.invoiceId}
+                onChange={(e) => handleSelectInvoice(e.target.value)}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">{loadingInvoices ? 'Loading invoices…' : 'Select invoice…'}</option>
+                {invoiceOptions.map((inv: any) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.invoiceNumber || inv.id} — {inv.patientName || `${inv.patient?.firstName || ''} ${inv.patient?.lastName || ''}`.trim()} — KES {Number(inv.totalAmount ?? inv.total ?? 0).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+              {submitData.patientName && (
+                <p className="text-xs text-muted-foreground">
+                  Patient: {submitData.patientName} · Service date: {submitData.serviceDate || '—'} · Amount: KES {Number(submitData.totalAmount || 0).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="patientShaNumber">Patient SHA Number</Label>
+              <Input
+                id="patientShaNumber"
+                value={submitData.patientShaNumber}
+                onChange={(e) => setSubmitData({ ...submitData, patientShaNumber: e.target.value })}
+                placeholder="e.g. SHA-2025-001"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
