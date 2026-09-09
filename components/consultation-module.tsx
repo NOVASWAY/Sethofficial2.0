@@ -35,6 +35,34 @@ interface VitalSigns {
   oxygen_saturation?: number
 }
 
+// Plausible adult ranges — warnings only, never blocks saving (care first)
+function checkVitalsRanges(v: VitalSigns): string[] {
+  const warnings: string[] = []
+  const num = (x: unknown) => (typeof x === 'number' && !Number.isNaN(x) ? x : undefined)
+  const t = num(v.temperature)
+  if (t !== undefined && (t < 35 || t > 42)) warnings.push(`Temperature ${t}°C looks out of range (35–42)`)
+  const p = num(v.pulse)
+  if (p !== undefined && (p < 30 || p > 200)) warnings.push(`Pulse ${p} bpm looks out of range (30–200)`)
+  if (v.blood_pressure) {
+    const m = String(v.blood_pressure).match(/(\d+)\s*\/\s*(\d+)/)
+    if (!m) {
+      warnings.push(`Blood pressure "${v.blood_pressure}" is not in 120/80 format`)
+    } else {
+      const sys = parseInt(m[1]), dia = parseInt(m[2])
+      if (sys < 70 || sys > 250 || dia < 40 || dia > 150) warnings.push(`Blood pressure ${sys}/${dia} looks out of range`)
+    }
+  }
+  const rr = num(v.respiratory_rate)
+  if (rr !== undefined && (rr < 8 || rr > 40)) warnings.push(`Respiratory rate ${rr}/min looks out of range (8–40)`)
+  const spo2 = num(v.oxygen_saturation)
+  if (spo2 !== undefined && (spo2 < 70 || spo2 > 100)) warnings.push(`SpO2 ${spo2}% looks out of range (70–100)`)
+  const w = num(v.weight)
+  if (w !== undefined && (w < 2 || w > 300)) warnings.push(`Weight ${w} kg looks out of range`)
+  const h = num(v.height)
+  if (h !== undefined && (h < 30 || h > 250)) warnings.push(`Height ${h} cm looks out of range`)
+  return warnings
+}
+
 interface Prescription {
   medication_id: string
   medication_name: string
@@ -482,6 +510,17 @@ export function ConsultationModule() {
       }
 
       const consultationNumber = generateConsultationNumber()
+
+      // Warn (don't block) on implausible vitals — likely a data-entry slip
+      const vitalsWarnings = checkVitalsRanges(vitalSigns)
+      if (vitalsWarnings.length > 0) {
+        toast({
+          variant: 'default',
+          title: 'Please double-check vitals',
+          description: vitalsWarnings.join('; '),
+          duration: 10000,
+        })
+      }
 
       // Prepare consultation data for workflow
       const workflowData = {

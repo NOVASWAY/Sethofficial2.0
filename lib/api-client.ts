@@ -498,8 +498,7 @@ export const consultationAPI = {
    * Get consultations by patient ID
    * GET /consultations?patient_id=:patientId
    */
-  getByPatientId: async (patientId: string) => {
-    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/consultations?patient_id=${patientId}`)
+  getByPatientId: async (patientId: string) => {    const response = await apiCall<{ success: boolean; data: { data: any[]; page: number; per_page: number; total: number; total_pages: number }; message: string; error: any }>(`/consultations?patient_id=${patientId}`)
     return response.data
   },
 

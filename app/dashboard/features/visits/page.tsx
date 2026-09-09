@@ -151,6 +151,22 @@ export default function VisitsPage() {
     })
   }
 
+  const canCloseVisits = role === "clinician" || role === "doctor" || role === "admin"
+
+  const handleCompleteVisit = async (visitId: string) => {
+    try {
+      await consultationAPI.update(visitId, { status: "completed" })
+      setVisits((prev) => prev.map((v) => (v.id === visitId ? { ...v, status: "completed" } : v)))
+      toast({ title: "Visit completed", description: "The visit has been closed." })
+    } catch (error: any) {
+      toast({
+        title: "Could not complete visit",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleViewNotes = (visitId: string) => {
     // Open notes dialog or navigate to notes page
     toast({
@@ -334,6 +350,11 @@ export default function VisitsPage() {
                               <Stethoscope className="w-4 h-4 mr-2" />
                               Continue Visit
                             </Button>
+                            {canCloseVisits && (
+                              <Button size="sm" variant="outline" className="min-h-[36px]" onClick={() => handleCompleteVisit(visit.id)}>
+                                Complete
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardContent>
