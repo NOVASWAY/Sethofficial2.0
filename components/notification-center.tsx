@@ -109,9 +109,9 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
       case 'normal':
         return <Info className="h-4 w-4 text-blue-500" />
       case 'low':
-        return <Info className="h-4 w-4 text-gray-500" />
+        return <Info className="h-4 w-4 text-muted-foreground" />
       default:
-        return <Info className="h-4 w-4 text-gray-500" />
+        return <Info className="h-4 w-4 text-muted-foreground" />
     }
   }
 

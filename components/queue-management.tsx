@@ -409,7 +409,7 @@ export function QueueManagement() {
                     ) : (
                       <div className="mt-3">
                         {patient.notes ? (
-                          <div className="bg-white/80 rounded-md p-2 text-sm">
+                          <div className="bg-card/80 rounded-md p-2 text-sm">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1">
                                 <div className="flex items-center gap-1 mb-1">
@@ -470,7 +470,7 @@ export function QueueManagement() {
           </CardHeader>
           <CardContent>
             {calledQueue.map(patient => (
-              <div key={patient.id} className="p-4 border border-green-300 rounded-lg bg-white">
+              <div key={patient.id} className="p-4 border border-green-300 dark:border-green-800 rounded-lg bg-card">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="text-3xl font-bold text-green-600">

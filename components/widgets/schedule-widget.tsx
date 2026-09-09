@@ -28,30 +28,30 @@ export function ScheduleWidget({ appointments, className }: ScheduleWidgetProps)
   }
 
   return (
-    <div className={cn("bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4", className)}>
+    <div className={cn("bg-card rounded-xl border border-border p-4", className)}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900 dark:text-white">Today&apos;s Schedule</h3>
+        <h3 className="font-semibold text-card-foreground">Today&apos;s Schedule</h3>
         <Calendar className="w-5 h-5 text-gray-400" />
       </div>
 
       {appointments.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-8">No appointments today</p>
+        <p className="text-sm text-muted-foreground text-center py-8">No appointments today</p>
       ) : (
         <div className="space-y-3">
           {appointments.slice(0, 5).map((apt) => (
             <div
               key={apt.id}
-              className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+              className="flex items-center gap-3 p-3 bg-muted rounded-lg"
             >
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 min-w-[70px]">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-[70px]">
                 <Clock className="w-4 h-4" />
                 {apt.time}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                <p className="text-sm font-medium text-card-foreground truncate">
                   {apt.patientName}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{apt.type}</p>
+                <p className="text-xs text-muted-foreground">{apt.type}</p>
               </div>
               <span
                 className={`px-2 py-1 text-xs rounded-full capitalize ${getStatusColor(apt.status)}`}

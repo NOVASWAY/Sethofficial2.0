@@ -1201,7 +1201,7 @@ export function RegistrationModule() {
                           required
                         />
                         {showLocationSuggestions && locationSuggestions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                          <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
                             {locationSuggestions.map((location, index) => (
                               <button
                                 key={index}

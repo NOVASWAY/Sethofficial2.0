@@ -352,7 +352,7 @@ export function PharmacyManagement({ role }: PharmacyManagementProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-gray-600" />
+              <Clock className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">Expired</p>
                 <p className="text-2xl font-bold">{expiredItems}</p>

@@ -63,7 +63,7 @@ export function MobileBottomNav() {
   const filteredItems = items.filter((item) => item.roles.includes(role))
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 safe-area-inset-bottom">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-area-inset-bottom">
       <div className="flex items-center justify-around px-2 py-1">
         {filteredItems.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
@@ -74,8 +74,8 @@ export function MobileBottomNav() {
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 px-3 rounded-lg transition-colors min-w-0 flex-1 min-h-[52px] py-1.5",
                 isActive
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-gray-500 dark:text-gray-400"
+                  ? "text-primary"
+                  : "text-muted-foreground"
               )}
             >
               <span className="flex-shrink-0">{item.icon}</span>

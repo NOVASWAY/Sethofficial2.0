@@ -25,21 +25,21 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 hover:shadow-md transition-shadow",
+        "bg-card rounded-xl border border-border p-4 hover:shadow-md transition-shadow",
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{value}</p>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold text-card-foreground mt-1">{value}</p>
           {change && (
             <p
               className={cn(
                 "text-xs mt-1",
                 changeType === "positive" && "text-green-600",
                 changeType === "negative" && "text-red-600",
-                changeType === "neutral" && "text-gray-500"
+                changeType === "neutral" && "text-muted-foreground"
               )}
             >
               {change}

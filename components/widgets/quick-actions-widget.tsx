@@ -78,14 +78,14 @@ export function QuickActionsWidget({ className }: QuickActionsWidgetProps) {
   )
 
   return (
-    <div className={cn("bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4", className)}>
-      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+    <div className={cn("bg-card rounded-xl border border-border p-4", className)}>
+      <h3 className="font-semibold text-card-foreground mb-4">Quick Actions</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {filteredActions.map((action) => (
           <Link
             key={action.href}
             href={action.href}
-            className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-muted transition-colors"
           >
             <div className={cn("p-2.5 rounded-lg text-white", action.color)}>
               {action.icon}
