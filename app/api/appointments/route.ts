@@ -47,11 +47,16 @@ export const GET = withErrorHandling(async (req) => {
 export const POST = withErrorHandling(async (req) => {
   const body = await validateBody(req, appointmentSchema)
 
+  // Prisma Time fields need a full Date — combine with the appointment date
+  const timeValue = /^\d{2}:\d{2}(:\d{2})?$/.test(body.time)
+    ? new Date(`${body.date}T${body.time.length === 5 ? `${body.time}:00` : body.time}`)
+    : new Date(body.time)
+
   const conflicting = await prisma.appointment.findFirst({
     where: {
       doctorId: body.doctorId,
       date: new Date(body.date),
-      time: body.time,
+      time: timeValue,
       status: { notIn: ["cancelled"] },
     },
   })
@@ -65,7 +70,7 @@ export const POST = withErrorHandling(async (req) => {
       patientId: body.patientId,
       doctorId: body.doctorId,
       date: new Date(body.date),
-      time: body.time,
+      time: timeValue,
       duration: body.duration || 30,
       notes: body.notes,
     },

@@ -55,6 +55,10 @@ export const POST = withErrorHandling(async (req, _ctx, session) => {
     : 1
   const consultationNumber = `CON-${String(nextNumber).padStart(5, "0")}`
 
+  const visitTimeValue = body.visitTime && body.visitTime.includes("T")
+    ? new Date(body.visitTime)
+    : new Date(`${body.visitDate}T${body.visitTime || "09:00:00"}`)
+
   const consultation = await prisma.consultation.create({
     data: {
       consultationNumber,
@@ -63,7 +67,7 @@ export const POST = withErrorHandling(async (req, _ctx, session) => {
       clinicianId: session.user.id,
       appointmentId: body.appointmentId,
       visitDate: new Date(body.visitDate),
-      visitTime: body.visitTime || "",
+      visitTime: visitTimeValue,
       chiefComplaint: body.chiefComplaint,
       vitalSigns: body.vitalSigns as any,
       physicalExamination: body.physicalExamination,
