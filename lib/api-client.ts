@@ -544,9 +544,26 @@ export const consultationAPI = {
    * POST /consultations
    */
   create: async (consultationData: any) => {
+    const d = consultationData || {}
+    const uuidOrUndef = (v: any) => (typeof v === 'string' && v.length > 0 ? v : undefined)
+    const normalized = {
+      patientId: d.patientId ?? d.patient_id,
+      doctorId: uuidOrUndef(d.doctorId ?? d.doctor_id),
+      appointmentId: uuidOrUndef(d.appointmentId ?? d.appointment_id),
+      visitDate: d.visitDate ?? d.visit_date ?? d.date,
+      visitTime: d.visitTime ?? d.visit_time ?? d.time,
+      chiefComplaint: d.chiefComplaint ?? d.chief_complaint,
+      vitalSigns: d.vitalSigns ?? d.vital_signs,
+      physicalExamination: d.physicalExamination ?? d.physical_examination,
+      diagnosis: d.diagnosis,
+      icd11Codes: d.icd11Codes ?? (d.icd_11_codes ? String(d.icd_11_codes).split(',').map((s: string) => s.trim()).filter(Boolean) : undefined),
+      treatmentPlan: d.treatmentPlan ?? d.treatment_plan,
+      notes: d.notes,
+      followUpDate: d.followUpDate ?? d.follow_up_date ?? undefined,
+    }
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/consultations', {
       method: 'POST',
-      body: JSON.stringify(consultationData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
@@ -717,9 +734,28 @@ export const pharmacyAPI = {
    * POST /medicines
    */
   addMedicine: async (medicineData: any) => {
+    const d = medicineData || {}
+    const num = (v: any) => (v !== undefined && v !== '' ? Number(v) : undefined)
+    const normalized = {
+      name: d.name,
+      genericName: d.genericName ?? d.generic_name,
+      category: d.category,
+      dosageForm: d.dosageForm ?? d.dosage_form,
+      strength: d.strength,
+      manufacturer: d.manufacturer,
+      batchNumber: d.batchNumber ?? d.batch_number,
+      expiryDate: d.expiryDate ?? d.expiry_date,
+      currentStock: num(d.currentStock ?? d.current_stock ?? d.quantity),
+      minimumStock: num(d.minimumStock ?? d.minimum_stock),
+      reorderLevel: num(d.reorderLevel ?? d.reorder_level ?? d.reorderLevel),
+      unitPrice: num(d.unitPrice ?? d.unit_price),
+      location: d.location,
+      description: d.description,
+      sideEffects: d.sideEffects ?? d.side_effects,
+    }
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/medicines', {
       method: 'POST',
-      body: JSON.stringify(medicineData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
@@ -1001,9 +1037,20 @@ export const appointmentAPI = {
    * POST /appointments
    */
   create: async (appointmentData: any) => {
+    const d = appointmentData || {}
+    const uuidOrUndef = (v: any) => (typeof v === 'string' && v.length > 0 ? v : undefined)
+    const normalized = {
+      patientId: d.patientId ?? d.patient_id,
+      doctorId: uuidOrUndef(d.doctorId ?? d.doctor_id ?? d.clinicianId ?? d.clinician_id),
+      date: d.date ?? d.appointmentDate ?? d.appointment_date,
+      time: d.time ?? d.appointmentTime ?? d.appointment_time,
+      duration: d.duration !== undefined ? Number(d.duration) : undefined,
+      notes: d.notes ?? undefined,
+      status: d.status ?? undefined,
+    }
     return apiCall<any>('/appointments', {
       method: 'POST',
-      body: JSON.stringify(appointmentData),
+      body: JSON.stringify(normalized),
     })
   },
 
@@ -1880,9 +1927,22 @@ export const labAPI = {
    * POST /lab/orders
    */
   createOrder: async (orderData: CreateLabTestOrder) => {
+    const d: any = orderData || {}
+    const uuidOrUndef = (v: any) => (typeof v === 'string' && v.length > 0 ? v : undefined)
+    const normalized = {
+      patientId: d.patientId ?? d.patient_id,
+      consultationId: uuidOrUndef(d.consultationId ?? d.consultation_id),
+      testType: d.testType ?? d.test_type,
+      testCode: d.testCode ?? d.test_code,
+      testName: d.testName ?? d.test_name,
+      priority: d.priority,
+      clinicalIndication: d.clinicalIndication ?? d.clinical_indication,
+      sampleType: d.sampleType ?? d.sample_type,
+      notes: d.notes,
+    }
     const response = await apiCall<{ success: boolean; data: LabTestOrder; message?: string; error?: string }>('/lab/orders', {
       method: 'POST',
-      body: JSON.stringify(orderData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
