@@ -329,11 +329,31 @@ export const patientAPI = {
   /**
    * Create new patient
    * POST /patients
+   * Accepts camelCase and legacy snake_case payloads (the registration form
+   * sends snake_case); maps to the backend patientSchema shape.
    */
   create: async (patientData: any) => {
+    const d = patientData || {}
+    const normalized = {
+      firstName: d.firstName ?? d.first_name,
+      lastName: d.lastName ?? d.last_name,
+      dateOfBirth: d.dateOfBirth ?? d.date_of_birth,
+      gender: d.gender,
+      phone: d.phone ?? d.phone_number,
+      email: d.email ?? '',
+      address: d.address,
+      emergencyContact: d.emergencyContact ?? d.emergency_contact ?? d.emergency_contact_name,
+      emergencyPhone: d.emergencyPhone ?? d.emergency_phone ?? d.emergency_contact_phone,
+      bloodType: d.bloodType ?? d.blood_type,
+      allergies: d.allergies,
+      medicalHistory: d.medicalHistory ?? d.medical_history,
+      insuranceType: d.insuranceType ?? d.insurance_type,
+      insuranceNumber: d.insuranceNumber ?? d.insurance_number,
+      age: d.age !== undefined ? Number(d.age) : undefined,
+    }
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>('/patients', {
       method: 'POST',
-      body: JSON.stringify(patientData),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
@@ -343,9 +363,26 @@ export const patientAPI = {
    * PUT /patients/:id
    */
   update: async (id: string, updates: any) => {
+    const u = updates || {}
+    const normalized: Record<string, any> = { ...u }
+    const map: Record<string, string> = {
+      first_name: 'firstName', last_name: 'lastName', date_of_birth: 'dateOfBirth',
+      phone_number: 'phone', emergency_contact: 'emergencyContact',
+      emergency_contact_name: 'emergencyContact', emergency_phone: 'emergencyPhone',
+      emergency_contact_phone: 'emergencyPhone', blood_type: 'bloodType',
+      medical_history: 'medicalHistory', insurance_type: 'insuranceType',
+      insurance_number: 'insuranceNumber',
+    }
+    for (const [snake, camel] of Object.entries(map)) {
+      if (u[snake] !== undefined && u[camel] === undefined) {
+        normalized[camel] = u[snake]
+        delete normalized[snake]
+      }
+    }
+    if (normalized.age !== undefined) normalized.age = Number(normalized.age)
     const response = await apiCall<{ success: boolean; data: any; message: string; error: any }>(`/patients/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updates),
+      body: JSON.stringify(normalized),
     })
     return response.data
   },
