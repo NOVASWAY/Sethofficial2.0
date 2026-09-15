@@ -73,6 +73,26 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     if (session.user.role !== "admin") return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
 
+    // Never silently wipe medical history — refuse when linked records exist
+    const [consultations, appointments, prescriptions, invoices, labOrders, queue] = await Promise.all([
+      prisma.consultation.count({ where: { patientId: params.id } }),
+      prisma.appointment.count({ where: { patientId: params.id } }),
+      prisma.prescription.count({ where: { patientId: params.id } }),
+      prisma.invoice.count({ where: { patientId: params.id } }),
+      prisma.labTestOrder.count({ where: { patientId: params.id } }),
+      prisma.queueEntry.count({ where: { patientId: params.id } }),
+    ])
+    const linked = consultations + appointments + prescriptions + invoices + labOrders + queue
+    if (linked > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Cannot delete: patient has ${linked} linked record(s) (consultations: ${consultations}, appointments: ${appointments}, prescriptions: ${prescriptions}, invoices: ${invoices}, lab orders: ${labOrders}, queue: ${queue}). Medical history must be preserved.`,
+        },
+        { status: 400 }
+      )
+    }
+
     await prisma.patient.delete({ where: { id: params.id } })
     return NextResponse.json({ success: true, data: null })
   } catch (error) {
