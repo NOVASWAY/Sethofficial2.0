@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { appointmentAPI } from '@/lib/api-client'
+import { appointmentAPI, patientAPI, userAPI } from '@/lib/api-client'
 import { dashboardCache, getCacheKey, withCache } from '@/lib/dashboard-cache'
 import { useDebounce } from '@/hooks/use-debounce'
 import { ListSkeleton } from "@/components/ui/loading"
@@ -129,14 +129,55 @@ export function AppointmentBooking() {
     clinicianName: '',
     notes: '',
   })
+  const [patientOptions, setPatientOptions] = useState<any[]>([])
+  const [patientSearch, setPatientSearch] = useState('')
+  const [showPatientOptions, setShowPatientOptions] = useState(false)
+  const [clinicianOptions, setClinicianOptions] = useState<any[]>([])
+
+  // Load registered patients + clinicians for the booking dialog so the
+  // backend always receives real IDs (free-text names 400'd before).
+  useEffect(() => {
+    if (!isBookingOpen) return
+    patientAPI.getAll({ page: 1, per_page: 100 }).then((res: any) => {
+      const list = Array.isArray(res) ? res : (res?.data || [])
+      setPatientOptions(list)
+    }).catch(() => setPatientOptions([]))
+    userAPI.getAll().then((users: any) => {
+      const list = Array.isArray(users) ? users : []
+      setClinicianOptions(list.filter((u: any) => ['clinician', 'doctor', 'admin'].includes(u.role)))
+    }).catch(() => setClinicianOptions([]))
+  }, [isBookingOpen])
+
+  const filteredPatients = useMemo(() => {
+    const q = (patientSearch || bookingData.patientName).toLowerCase()
+    if (!q) return patientOptions.slice(0, 8)
+    return patientOptions.filter((p: any) =>
+      `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''} ${p.phone || p.phone_number || ''} ${p.patientNumber || p.patient_number || ''}`.toLowerCase().includes(q)
+    ).slice(0, 8)
+  }, [patientOptions, patientSearch, bookingData.patientName])
 
   const handleBookAppointment = async () => {
-    if (!bookingData.patientName || !bookingData.patientPhone || !bookingData.appointmentDate ||
-      !bookingData.appointmentTime || !bookingData.clinicianName) {
+    if (!bookingData.patientId) {
+      toast({
+        variant: 'error',
+        title: 'Select a registered patient',
+        description: 'Pick the patient from the dropdown. Register them first if they are new.',
+      })
+      return
+    }
+    if (!bookingData.clinicianId) {
+      toast({
+        variant: 'error',
+        title: 'Select a clinician',
+        description: 'Pick the clinician from the dropdown.',
+      })
+      return
+    }
+    if (!bookingData.appointmentDate || !bookingData.appointmentTime) {
       toast({
         variant: 'error',
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: 'Please fill in date and time',
       })
       return
     }
@@ -185,6 +226,7 @@ export function AppointmentBooking() {
       })
 
       setIsBookingOpen(false)
+      setPatientSearch('')
       setBookingData({
         patientId: '',
         patientName: '',
@@ -497,13 +539,52 @@ export function AppointmentBooking() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="patientName">Patient Name *</Label>
-                <Input
-                  id="patientName"
-                  value={bookingData.patientName}
-                  onChange={(e) => setBookingData({ ...bookingData, patientName: e.target.value })}
-                  placeholder="John Doe"
-                />
+                <Label htmlFor="patientName">Patient *</Label>
+                <div className="relative">
+                  <Input
+                    id="patientName"
+                    value={bookingData.patientName}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value)
+                      setBookingData({ ...bookingData, patientName: e.target.value, patientId: '', patientPhone: '' })
+                      setShowPatientOptions(true)
+                    }}
+                    onFocus={() => setShowPatientOptions(true)}
+                    placeholder="Type to search registered patients"
+                    autoComplete="off"
+                  />
+                  {showPatientOptions && (
+                    <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {filteredPatients.length === 0 && (
+                        <p className="p-3 text-sm text-muted-foreground">No matching patients — register them first.</p>
+                      )}
+                      {filteredPatients.map((p: any) => {
+                        const name = `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`.trim()
+                        const phone = p.phone || p.phone_number || ''
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                            onClick={() => {
+                              setBookingData({
+                                ...bookingData,
+                                patientId: p.id,
+                                patientName: name,
+                                patientPhone: phone,
+                              })
+                              setPatientSearch('')
+                              setShowPatientOptions(false)
+                            }}
+                          >
+                            <span className="font-medium">{name}</span>
+                            <span className="text-muted-foreground"> · {p.patientNumber || p.patient_number || ''} · {phone}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="patientPhone">Phone Number *</Label>
@@ -512,6 +593,7 @@ export function AppointmentBooking() {
                   value={bookingData.patientPhone}
                   onChange={(e) => setBookingData({ ...bookingData, patientPhone: e.target.value })}
                   placeholder="+254712345678"
+                  readOnly
                 />
               </div>
             </div>
@@ -558,12 +640,28 @@ export function AppointmentBooking() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="clinicianName">Clinician *</Label>
-                <Input
-                  id="clinicianName"
-                  value={bookingData.clinicianName}
-                  onChange={(e) => setBookingData({ ...bookingData, clinicianName: e.target.value })}
-                  placeholder="Dr. Sarah Johnson"
-                />
+                <Select
+                  value={bookingData.clinicianId}
+                  onValueChange={(value: string) => {
+                    const doc = clinicianOptions.find((d: any) => d.id === value)
+                    setBookingData({
+                      ...bookingData,
+                      clinicianId: value,
+                      clinicianName: doc ? (doc.name || doc.username || '') : '',
+                    })
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select clinician" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clinicianOptions.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name || d.username} ({d.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
