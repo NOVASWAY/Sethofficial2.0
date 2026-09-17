@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { z } from "zod"
 
+export const dynamic = 'force-dynamic'
+
 const logSchema = z.object({
   action: z.string().min(1).max(100),
   module: z.string().max(50).optional(),

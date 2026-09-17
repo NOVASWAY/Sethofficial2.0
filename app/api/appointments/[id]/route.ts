@@ -6,6 +6,8 @@ import { validateBody } from "@/lib/api-handler"
 import { appointmentUpdateSchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions)

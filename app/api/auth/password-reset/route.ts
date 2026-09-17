@@ -4,6 +4,8 @@ import { hash } from "bcryptjs"
 import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
 import { authLimiter, throttle } from "@/lib/rate-limit"
 
+export const dynamic = 'force-dynamic'
+
 function throttled(req: NextRequest) {
   const t = throttle(req.headers, authLimiter, "password-reset")
   if (!t.allowed) {

@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { apiCache, CACHE_TTL } from "@/lib/cache"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest, { params }: { params: { role: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

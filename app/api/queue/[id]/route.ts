@@ -4,6 +4,8 @@ import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { queueStatusSchema } from "@/lib/validation"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 export const PUT = withErrorHandling(async (req, ctx, session) => {
   const id = ctx.params.id
   const body = await validateBody(req, queueStatusSchema)

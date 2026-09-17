@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withErrorHandling } from "@/lib/api-handler"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req, _ctx, session) => {
   const { searchParams } = new URL(req.url)
   const unreadOnly = searchParams.get("unreadOnly") === "true" || searchParams.get("unread_only") === "true"

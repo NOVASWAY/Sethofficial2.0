@@ -6,6 +6,8 @@ import { validateBody } from "@/lib/api-handler"
 import { mpesaStkSchema, normalizeKePhone } from "@/lib/validation"
 import { requireMfaForSensitiveAction } from "@/lib/mfa-gate"
 
+export const dynamic = 'force-dynamic'
+
 async function getMpesaToken(): Promise<string> {
   const auth = Buffer.from(
     `${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`

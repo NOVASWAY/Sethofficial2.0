@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withErrorHandling } from "@/lib/api-handler"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req, ctx) => {
   const userId = ctx.params.userId
   const { searchParams } = new URL(req.url)

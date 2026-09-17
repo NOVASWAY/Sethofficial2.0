@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { validateBody } from "@/lib/api-handler"
 import { patientUpdateSchema } from "@/lib/validation"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions)

@@ -4,6 +4,8 @@ import crypto from "crypto"
 import * as OTPAuth from "otpauth"
 import { mfaLimiter, throttle } from "@/lib/rate-limit"
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     const t = throttle(req.headers, mfaLimiter, "mfa-complete")

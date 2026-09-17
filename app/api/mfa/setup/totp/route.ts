@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import * as OTPAuth from "otpauth"
 
+export const dynamic = 'force-dynamic'
+
 export async function POST() {
   try {
     const session = await getServerSession(authOptions)

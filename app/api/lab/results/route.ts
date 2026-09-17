@@ -4,6 +4,8 @@ import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { labResultSchema } from "@/lib/validation"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const orderId = searchParams.get("orderId")

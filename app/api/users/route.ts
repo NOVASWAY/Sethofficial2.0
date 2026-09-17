@@ -8,6 +8,8 @@ import { apiCache } from "@/lib/cache"
 import { writeAudit } from "@/lib/audit"
 import { requireMfaForSensitiveAction } from "@/lib/mfa-gate"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req, _ctx, session) => {
   if (session.user.role !== "admin") {
     return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })

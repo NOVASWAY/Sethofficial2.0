@@ -9,6 +9,8 @@ import { writeAudit } from "@/lib/audit"
 import { requireMfaForSensitiveAction } from "@/lib/mfa-gate"
 import { randomUUID } from "crypto"
 
+export const dynamic = 'force-dynamic'
+
 async function nextTransactionNumber(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const last = await prisma.financialTransaction.findFirst({

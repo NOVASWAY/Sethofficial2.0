@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { hash } from "bcryptjs"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

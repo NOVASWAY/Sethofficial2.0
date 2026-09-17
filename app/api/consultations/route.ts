@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { consultationSchema } from "@/lib/validation"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get("patientId")

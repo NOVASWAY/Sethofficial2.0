@@ -7,6 +7,8 @@ import { dispenseSchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions)

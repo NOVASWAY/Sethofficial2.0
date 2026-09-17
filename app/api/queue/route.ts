@@ -5,6 +5,8 @@ import { queueEntrySchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 function todayRange() {
   const start = new Date()
   start.setHours(0, 0, 0, 0)

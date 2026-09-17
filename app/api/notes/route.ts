@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { noteSchema } from "@/lib/validation"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req, _ctx, session) => {
   const { searchParams } = new URL(req.url)
   const resourceType = searchParams.get("resource_type")

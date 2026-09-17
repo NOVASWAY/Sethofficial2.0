@@ -5,6 +5,8 @@ import { z } from "zod"
 import { apiCache } from "@/lib/cache"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 const autoBillSchema = z.object({
   patientId: z.string().uuid("Invalid patient ID").optional(),
   patient_id: z.string().uuid().optional(),

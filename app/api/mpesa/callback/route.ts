@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const stkCallback = body.Body?.stkCallback

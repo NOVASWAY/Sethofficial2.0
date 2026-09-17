@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import jsPDF from "jspdf"
 
+export const dynamic = 'force-dynamic'
+
 function formatCurrency(amount: number): string {
   return `KES ${amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }

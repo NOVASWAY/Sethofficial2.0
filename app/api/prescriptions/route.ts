@@ -4,6 +4,8 @@ import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { prescriptionSchema } from "@/lib/validation"
 import { apiCache } from "@/lib/cache"
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (req) => {
   const { searchParams } = new URL(req.url)
   const patientId = searchParams.get("patientId")

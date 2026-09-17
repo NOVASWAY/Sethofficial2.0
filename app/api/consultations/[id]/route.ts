@@ -4,6 +4,8 @@ import { withErrorHandling, validateBody } from "@/lib/api-handler"
 import { z } from "zod"
 import { writeAudit } from "@/lib/audit"
 
+export const dynamic = 'force-dynamic'
+
 const consultationUpdateSchema = z.object({
   status: z.enum(["in_progress", "completed", "cancelled"]).optional(),
   diagnosis: z.string().optional(),

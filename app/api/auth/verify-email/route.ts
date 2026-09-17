@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { generateVerificationToken, hashToken, sendEmail, EMAIL_TEMPLATES } from "@/lib/email"
 import { authLimiter, throttle } from "@/lib/rate-limit"
 
+export const dynamic = 'force-dynamic'
+
 function throttled(req: NextRequest) {
   const t = throttle(req.headers, authLimiter, "verify-email")
   if (!t.allowed) {

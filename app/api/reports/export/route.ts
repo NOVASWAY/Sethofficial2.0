@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
+export const dynamic = 'force-dynamic'
+
 function toCSV(rows: Record<string, unknown>[], headers: string[]): string {
   const headerRow = headers.join(",")
   const dataRows = rows.map((row) =>

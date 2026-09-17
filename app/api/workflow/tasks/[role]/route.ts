@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withErrorHandling } from "@/lib/api-handler"
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Tasks visible to a role: assigned to users of that role + unassigned.
  * The frontend workflow board calls this on every role dashboard.
