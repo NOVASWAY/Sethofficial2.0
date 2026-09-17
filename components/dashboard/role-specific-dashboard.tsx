@@ -17,6 +17,7 @@ import { usePatient } from '@/contexts/patient-context'
 import { useInventory } from '@/contexts/inventory-context'
 import { useDataIsolation } from '@/hooks/use-data-isolation'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { pharmacyAPI } from '@/lib/api-client'
 
 interface RoleSpecificDashboardProps {
@@ -346,50 +347,51 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
     }
   }
 
-  // Get role-specific quick actions
+  // Get role-specific quick actions — plain hrefs (Link) so they work even
+  // when client-side routing glitches; every target must be a real feature route.
   const getQuickActions = () => {
     switch (role) {
       case 'admin':
         return [
-          { label: 'Add User', icon: User, action: () => router.push(`/dashboard/${role}/users`), color: 'bg-blue-500' },
-          { label: 'System Settings', icon: Settings, action: () => router.push(`/dashboard/${role}/settings`), color: 'bg-gray-500' },
-          { label: 'Generate Report', icon: BarChart3, action: () => router.push(`/dashboard/${role}/reports`), color: 'bg-green-500' },
-          { label: 'Audit Logs', icon: Shield, action: () => router.push(`/dashboard/${role}/audit-logs`), color: 'bg-purple-500' }
+          { label: 'Add User', icon: User, href: `/dashboard/${role}/users`, color: 'bg-blue-500' },
+          { label: 'System Settings', icon: Settings, href: `/dashboard/${role}/settings`, color: 'bg-gray-500' },
+          { label: 'Generate Report', icon: BarChart3, href: `/dashboard/${role}/reports`, color: 'bg-green-500' },
+          { label: 'Audit Logs', icon: Shield, href: `/dashboard/${role}/audit-logs`, color: 'bg-purple-500' }
         ]
       case 'receptionist':
         return [
-          { label: 'Register Patient', icon: UserPlus, action: () => router.push(`/dashboard/${role}/registration`), color: 'bg-blue-500' },
-          { label: 'Schedule Appointment', icon: Calendar, action: () => router.push(`/dashboard/${role}/appointments`), color: 'bg-green-500' },
-          { label: 'Process Billing', icon: DollarSign, action: () => router.push(`/dashboard/${role}/billing`), color: 'bg-purple-500' },
-          { label: 'Search Patient', icon: Search, action: () => router.push(`/dashboard/${role}/patients`), color: 'bg-orange-500' }
+          { label: 'Register Patient', icon: UserPlus, href: `/dashboard/${role}/registration`, color: 'bg-blue-500' },
+          { label: 'Schedule Appointment', icon: Calendar, href: `/dashboard/${role}/appointments`, color: 'bg-green-500' },
+          { label: 'Process Billing', icon: DollarSign, href: `/dashboard/${role}/billing`, color: 'bg-purple-500' },
+          { label: 'Search Patient', icon: Search, href: `/dashboard/${role}/patients`, color: 'bg-orange-500' }
         ]
       case 'nurse':
         return [
-          { label: 'Record Vitals', icon: Activity, action: () => router.push(`/dashboard/${role}/consultation`), color: 'bg-blue-500' },
-          { label: 'Patient Assessment', icon: FileText, action: () => router.push(`/dashboard/${role}/consultation`), color: 'bg-green-500' },
-          { label: 'Patient Queue', icon: Users, action: () => router.push(`/dashboard/${role}/queue`), color: 'bg-purple-500' },
-          { label: 'View Patients', icon: FileText, action: () => router.push(`/dashboard/${role}/patients`), color: 'bg-orange-500' }
+          { label: 'Record Vitals', icon: Activity, href: `/dashboard/${role}/consultation`, color: 'bg-blue-500' },
+          { label: 'Patient Assessment', icon: FileText, href: `/dashboard/${role}/consultation`, color: 'bg-green-500' },
+          { label: 'Patient Queue', icon: Users, href: `/dashboard/${role}/queue`, color: 'bg-purple-500' },
+          { label: 'View Patients', icon: FileText, href: `/dashboard/${role}/patients`, color: 'bg-orange-500' }
         ]
       case 'clinician':
         return [
-          { label: 'New Consultation', icon: Stethoscope, action: () => router.push(`/dashboard/${role}/consultation`), color: 'bg-blue-500' },
-          { label: 'Patient Queue', icon: Users, action: () => router.push(`/dashboard/${role}/queue`), color: 'bg-green-500' },
-          { label: 'Review Patient', icon: FileText, action: () => router.push(`/dashboard/${role}/patients`), color: 'bg-purple-500' },
-          { label: 'Schedule Follow-up', icon: Calendar, action: () => router.push(`/dashboard/${role}/appointments`), color: 'bg-orange-500' }
+          { label: 'New Consultation', icon: Stethoscope, href: `/dashboard/${role}/consultation`, color: 'bg-blue-500' },
+          { label: 'Patient Queue', icon: Users, href: `/dashboard/${role}/queue`, color: 'bg-green-500' },
+          { label: 'Review Patient', icon: FileText, href: `/dashboard/${role}/patients`, color: 'bg-purple-500' },
+          { label: 'Schedule Follow-up', icon: Calendar, href: `/dashboard/${role}/appointments`, color: 'bg-orange-500' }
         ]
       case 'pharmacist':
         return [
-          { label: 'Prescription Queue', icon: Pill, action: () => router.push(`/dashboard/${role}/prescription-queue`), color: 'bg-blue-500' },
-          { label: 'Stock Alerts', icon: AlertTriangle, action: () => router.push(`/dashboard/${role}/stock-alerts`), color: 'bg-red-500' },
-          { label: 'Check Stock', icon: Package, action: () => router.push(`/dashboard/${role}/inventory`), color: 'bg-green-500' },
-          { label: 'Update Inventory', icon: Edit, action: () => router.push(`/dashboard/${role}/pharmacy`), color: 'bg-purple-500' }
+          { label: 'Prescriptions', icon: Pill, href: `/dashboard/${role}/prescriptions`, color: 'bg-blue-500' },
+          { label: 'Expiry Alerts', icon: AlertTriangle, href: `/dashboard/${role}/expiry-alerts`, color: 'bg-red-500' },
+          { label: 'Check Stock', icon: Package, href: `/dashboard/${role}/inventory`, color: 'bg-green-500' },
+          { label: 'Update Inventory', icon: Edit, href: `/dashboard/${role}/pharmacy`, color: 'bg-purple-500' }
         ]
       case 'lab_technician':
         return [
-          { label: 'Lab Queue', icon: FlaskConical, action: () => router.push(`/dashboard/${role}/lab/queue`), color: 'bg-blue-500' },
-          { label: 'Enter Results', icon: FileText, action: () => router.push(`/dashboard/${role}/lab/results/enter`), color: 'bg-green-500' },
-          { label: 'View Results', icon: Eye, action: () => router.push(`/dashboard/${role}/lab/results`), color: 'bg-purple-500' },
-          { label: 'Lab Dashboard', icon: BarChart3, action: () => router.push(`/dashboard/${role}/lab`), color: 'bg-orange-500' }
+          { label: 'Lab Queue', icon: FlaskConical, href: `/dashboard/${role}/lab/queue`, color: 'bg-blue-500' },
+          { label: 'Enter Results', icon: FileText, href: `/dashboard/${role}/lab/results`, color: 'bg-green-500' },
+          { label: 'View Results', icon: Eye, href: `/dashboard/${role}/lab/results`, color: 'bg-purple-500' },
+          { label: 'Lab Dashboard', icon: BarChart3, href: `/dashboard/${role}/lab`, color: 'bg-orange-500' }
         ]
       default:
         return []
@@ -423,7 +425,7 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
 
   // Memoize role-specific data to prevent unnecessary recalculations
   const roleMetrics = React.useMemo(() => getRoleMetrics(), [role, patientCount, dashboardData, liveStats])
-  const quickActions = React.useMemo(() => getQuickActions(), [role, router])
+  const quickActions = React.useMemo(() => getQuickActions(), [role])
   const recentActivity = React.useMemo(() => getRecentActivity(), [role, liveStats])
 
   const handleRefresh = async () => {
@@ -552,10 +554,12 @@ export function RoleSpecificDashboard({ role }: RoleSpecificDashboardProps) {
                     key={index}
                     variant="outline"
                     className="h-20 flex flex-col items-center justify-center gap-2"
-                    onClick={action.action}
+                    asChild
                   >
-                    <action.icon className="h-6 w-6" />
-                    <span className="text-sm">{action.label}</span>
+                    <Link href={action.href}>
+                      <action.icon className="h-6 w-6" />
+                      <span className="text-sm">{action.label}</span>
+                    </Link>
                   </Button>
                 ))}
               </div>
