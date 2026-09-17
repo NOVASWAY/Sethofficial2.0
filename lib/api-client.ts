@@ -304,8 +304,12 @@ export const patientAPI = {
    */
   getAll: async (params?: { page?: number; per_page?: number }) => {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : ''
-    const response = await apiCall<{ success: boolean; data: any[]; message: string; error: any; pagination?: any }>(`/patients${query}`)
-    return response
+    const response = await apiCall<{ success: boolean; data: any; message: string; error: any; pagination?: any }>(`/patients${query}`)
+    // Normalize the nested envelope {data:{data:[],...}} to flat {data:[],pagination}
+    const inner = response.data
+    const list = Array.isArray(inner) ? inner : (inner?.data || [])
+    const pagination = (!Array.isArray(inner) && inner?.pagination) || response.pagination || { total: list.length, total_pages: 1 }
+    return { ...response, data: list, pagination }
   },
 
   /**

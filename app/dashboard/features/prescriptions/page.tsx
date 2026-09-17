@@ -210,8 +210,9 @@ export default function PrescriptionsPage() {
     const fetchPatients = async () => {
       try {
         const result = await patientAPI.getAll()
-        if (result && Array.isArray(result)) {
-          setPatients(result.map((p: PatientAPIResponse) => ({
+        const list = Array.isArray(result) ? result : (result?.data || [])
+        if (Array.isArray(list)) {
+          setPatients(list.map((p: PatientAPIResponse) => ({
             id: p.id,
             firstName: p.first_name || p.firstName || "",
             lastName: p.last_name || p.lastName || "",
