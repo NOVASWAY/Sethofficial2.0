@@ -24,15 +24,15 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 
     console.log('Service Worker registered:', registration)
 
-    // Handle updates
+    // Handle updates — tell the app so it can prompt for refresh
+    // instead of silently running stale code.
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing
       if (newWorker) {
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New service worker available
             console.log('New service worker available')
-            // Could show a notification to the user here
+            window.dispatchEvent(new CustomEvent('clinic:update-available'))
           }
         })
       }

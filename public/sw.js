@@ -3,7 +3,7 @@
  * Caches static assets and API responses across sessions
  */
 
-const CACHE_VERSION = 'v1.0.0'
+const CACHE_VERSION = 'v1.1.0'
 const STATIC_CACHE = `static-${CACHE_VERSION}`
 const API_CACHE = `api-${CACHE_VERSION}`
 

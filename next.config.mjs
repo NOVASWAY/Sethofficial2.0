@@ -4,6 +4,15 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
 
+  // Expose the git commit to the client so staff can confirm which build
+  // they are running (sidebar version chip + settings page).
+  env: {
+    NEXT_PUBLIC_BUILD_ID:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
+      process.env.NEXT_PUBLIC_BUILD_ID ||
+      'dev',
+  },
+
   // Compress output
   compress: true,
 

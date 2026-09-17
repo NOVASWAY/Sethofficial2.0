@@ -787,7 +787,7 @@ function SidebarContent({
       </nav>
 
       {/* Logout */}
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-1">
         <Button
           variant="ghost"
           className="w-full justify-start text-destructive hover:text-destructive"
@@ -796,6 +796,9 @@ function SidebarContent({
           <LogOut className="w-4 h-4 mr-3" />
           Sign Out
         </Button>
+        <p className="px-3 pt-1 text-[10px] text-muted-foreground" title="App build — compare this when reporting issues">
+          Build {process.env.NEXT_PUBLIC_BUILD_ID || 'dev'}
+        </p>
       </div>
     </div>
   )
